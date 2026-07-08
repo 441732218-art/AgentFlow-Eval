@@ -1,0 +1,66 @@
+﻿name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "prod"
+        type: choice
+        options:
+          - prod
+          - staging
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'prod' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy via SSH
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+            cd /app/agentflow-eval
+            docker compose -f backend/docker-compose.prod.yml pull
+            docker compose -f backend/docker-compose.prod.yml down
+            docker compose -f backend/docker-compose.prod.yml up -d
+            sleep 10
+            docker compose -f backend/docker-compose.prod.yml exec -T backend alembic upgrade head
+            curl -f http://localhost:8000/health || exit 1
+            docker image prune -f
+          EOF
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          curl -X POST -H "Content-Type: application/json" \
+            -d '{"text": "AgentFlow-Eval deployment ${{ job.status }}! Environment: ${{ github.event.inputs.environment || 'prod' }}"}' \
+            ${{ secrets.WEBHOOK_URL }} || true

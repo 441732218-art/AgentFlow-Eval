@@ -1,0 +1,427 @@
+﻿import json, logging, time, ast
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any
+
+from openai import AsyncOpenAI
+from app.core.agent_runner.base import AgentResult, BaseAgentRunner
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_TOOL_DEFS: list[dict[str, Any]] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "Search the web for information.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "The search query"},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calculator",
+            "description": "Perform arithmetic calculations.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {"type": "string", "description": "Math expression"},
+                },
+                "required": ["expression"],
+            },
+        },
+    },
+]
+
+
+@dataclass
+class ToolDefinition:
+    name: str
+    description: str
+    parameters: dict[str, Any] = field(default_factory=dict)
+    fn: Callable[..., str] | None = None
+
+    def to_openai_tool(self) -> dict[str, Any]:
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": self.parameters,
+                    **({"required": list(self.parameters.keys())} if self.parameters else {}),
+                },
+            },
+        }
+
+
+REACT_SYSTEM_PROMPT = """You are an AI assistant that follows the ReAct pattern.
+
+For each step:
+1. **Thought**: Reason about what to do next.
+2. **Action**: Choose an available tool, or write "final_answer".
+3. **Action Input**: Provide parameters for the chosen action.
+4. **Observation**: You will receive the result of your action.
+
+Available tools:
+"""
+
+REACT_SINGLE_TURN_PROMPT = """Output in this format:
+
+Thought: your reasoning
+Action: tool_name or final_answer
+Action Input: arguments
+Final Answer: your response
+
+Use Chinese or English as appropriate."""
+
+
+@dataclass
+class ReActStep:
+    iteration: int
+    thought: str = ""
+    action: str = ""
+    action_input: str = ""
+    observation: str = ""
+    tokens: int = 0
+    timestamp: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "iteration": self.iteration,
+            "thought": self.thought,
+            "action": self.action,
+            "action_input": self.action_input,
+            "observation": self.observation,
+            "tokens": self.tokens,
+        }
+
+
+def _simulate_web_search(query: str) -> str:
+    return f"[Simulated search for: {query}] Result found."
+
+
+def _simulate_calculator(expression: str) -> str:
+    import operator as op
+    allowed_ops = {ast.Add: op.add, ast.Sub: op.sub, ast.Mult: op.mul, ast.Div: op.truediv, ast.Pow: op.pow, ast.USub: op.neg}
+
+    def _eval(node):
+        if isinstance(node, ast.Expression):
+            return _eval(node.body)
+        if isinstance(node, ast.Constant):
+            if isinstance(node.value, (int, float)):
+                return node.value
+            raise ValueError(f"Unsupported: {node.value}")
+        if isinstance(node, ast.BinOp):
+            if type(node.op) not in allowed_ops:
+                raise ValueError(f"Unsupported op: {type(node.op).__name__}")
+            return allowed_ops[type(node.op)](_eval(node.left), _eval(node.right))
+        if isinstance(node, ast.UnaryOp):
+            if type(node.op) not in allowed_ops:
+                raise ValueError(f"Unsupported unary: {type(node.op).__name__}")
+            return allowed_ops[type(node.op)](_eval(node.operand))
+        raise ValueError(f"Unsupported: {type(node).__name__}")
+
+    try:
+        tree = ast.parse(expression.strip(), mode="eval")
+        return f"Result: {_eval(tree.body)}"
+    except Exception as exc:
+        return f"Error: {exc}"
+
+
+DEFAULT_TOOL_FUNCTIONS: dict[str, Callable[..., str]] = {
+    "web_search": _simulate_web_search,
+    "calculator": _simulate_calculator,
+}
+
+
+class OpenAIReActRunner(BaseAgentRunner):
+    """ReAct loop agent using OpenAI.
+
+    Implements: Thought -> Action -> Observation -> repeat -> Final Answer.
+    Supports both function-calling mode and text-parsing mode.
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        model: str = "gpt-4o-mini",
+        max_iterations: int = 5,
+    ) -> None:
+        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.model = model
+        self.max_iterations = max_iterations
+
+    async def run(
+        self,
+        query: str,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        tool_defs, tool_map = self._parse_tools(tools or DEFAULT_TOOL_DEFS)
+        openai_tools = [t.to_openai_tool() for t in tool_defs]
+
+        tool_descriptions = "\n".join(f"  - {t.name}: {t.description}" for t in tool_defs)
+        system_prompt = REACT_SYSTEM_PROMPT + tool_descriptions + "\n\n" + REACT_SINGLE_TURN_PROMPT
+
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": query},
+        ]
+
+        steps: list[ReActStep] = []
+        total_tokens = 0
+        final_answer: str | None = None
+        status = "success"
+        error_message = ""
+        start_time = time.monotonic()
+
+        for iteration in range(self.max_iterations):
+            step = ReActStep(iteration=iteration, timestamp=time.time())
+
+            try:
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    tools=openai_tools if tool_defs else None,
+                    tool_choice="auto" if tool_defs else None,
+                    temperature=0,
+                )
+
+                choice = response.choices[0]
+                msg = choice.message
+                usage = response.usage
+                step.tokens = (usage.total_tokens if usage else 0)
+                total_tokens += step.tokens
+
+                if msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        fn_name = tc.function.name
+                        try:
+                            fn_args = json.loads(tc.function.arguments)
+                        except json.JSONDecodeError:
+                            fn_args = {}
+
+                        step.action = fn_name
+                        step.action_input = json.dumps(fn_args, ensure_ascii=False)
+                        step.thought = msg.content or ""
+                        step.observation = self._execute_tool(fn_name, fn_args, tool_map)
+
+                        messages.append({
+                            "role": "assistant",
+                            "content": msg.content or "",
+                            "tool_calls": [{
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {"name": fn_name, "arguments": tc.function.arguments},
+                            }],
+                        })
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "content": step.observation,
+                        })
+                else:
+                    content = msg.content or ""
+                    parsed = self._parse_step(content)
+                    step.thought = parsed.get("thought", content)
+                    step.action = parsed.get("action", "")
+                    step.action_input = parsed.get("action_input", "")
+
+                    if step.action == "final_answer" or "final answer" in content.lower():
+                        final_answer = parsed.get("action_input") or parsed.get("thought", content)
+                        messages.append({"role": "assistant", "content": content})
+                        break
+
+                    if step.action and step.action != "final_answer":
+                        step.observation = self._execute_tool(
+                            step.action,
+                            self._parse_action_input(step.action_input),
+                            tool_map,
+                        )
+                        messages.append({"role": "assistant", "content": content})
+                        messages.append({"role": "user", "content": f"Observation: {step.observation}"})
+                    else:
+                        final_answer = content
+                        messages.append({"role": "assistant", "content": content})
+                        break
+
+            except Exception as exc:
+                logger.exception("ReAct iteration %d failed: %s", iteration, exc)
+                step.observation = f"[Error: {exc}]"
+                if iteration == 0:
+                    status = "failed"
+                    error_message = str(exc)
+
+            steps.append(step)
+
+        if final_answer is None and steps:
+            last_step = steps[-1]
+            final_answer = last_step.thought or last_step.observation or "[No answer]"
+            if status == "success":
+                status = "max_iterations_reached"
+
+        elapsed_ms = int((time.monotonic() - start_time) * 1000)
+
+        return {
+            "steps": [s.to_dict() for s in steps],
+            "total_tokens": total_tokens,
+            "iterations": len(steps),
+            "final_answer": final_answer,
+            "status": status,
+            "error_message": error_message,
+            "response_time_ms": elapsed_ms,
+        }
+
+    def _parse_tools(self, raw_tools=None):
+        if raw_tools is None:
+            return [], {}
+        defs: list[ToolDefinition] = []
+        for t in raw_tools:
+            if isinstance(t, ToolDefinition):
+                defs.append(t)
+            elif isinstance(t, dict):
+                fn_info = t.get("function", t)
+                if isinstance(fn_info, dict):
+                    defs.append(ToolDefinition(
+                        name=fn_info.get("name", t.get("name", "unknown")),
+                        description=fn_info.get("description", t.get("description", "")),
+                        parameters=fn_info.get("parameters", {}).get("properties", fn_info.get("parameters", {})),
+                        fn=t.get("fn") or fn_info.get("fn"),
+                    ))
+        return defs, {d.name: d for d in defs}
+
+    def _execute_tool(self, name: str, args: dict[str, Any], tool_map: dict[str, ToolDefinition]) -> str:
+        tool = tool_map.get(name)
+        if tool and tool.fn:
+            try:
+                return str(tool.fn(**args))
+            except Exception as exc:
+                return f"[Tool error: {exc}]"
+        builtin = DEFAULT_TOOL_FUNCTIONS.get(name)
+        if builtin:
+            try:
+                return builtin(**args)
+            except Exception:
+                pass
+        return f"[Executed: {name}] Args: {json.dumps(args, ensure_ascii=False)} [Simulated ok]"
+
+    @staticmethod
+    def _parse_step(text: str) -> dict[str, str]:
+        result: dict[str, str] = {}
+        lines = text.strip().split("\n")
+        prefixes = [
+            ("Thought:", "thought"), ("Thought：", "thought"),
+            ("Action:", "action"), ("Action：", "action"),
+            ("Action Input:", "action_input"), ("Action Input：", "action_input"),
+            ("Observation:", "observation"), ("Observation：", "observation"),
+            ("Final Answer:", "final_answer"), ("Final Answer：", "final_answer"),
+        ]
+        for line in lines:
+            s = line.strip()
+            for prefix, key in prefixes:
+                if s.lower().startswith(prefix.lower()):
+                    value = s[len(prefix):].strip()
+                    if value:
+                        result[key] = value
+        return result
+
+    @staticmethod
+    def _parse_action_input(raw: str) -> dict[str, Any]:
+        if not raw:
+            return {}
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            pass
+        if "=" in raw:
+            result = {}
+            for part in raw.split(","):
+                if "=" in part:
+                    k, v = part.split("=", 1)
+                    result[k.strip()] = v.strip().strip("\"'")
+            if result:
+                return result
+        return {"input": raw}
+
+
+class OpenAIRunner(BaseAgentRunner):
+    """Legacy single-turn executor. Retained for backward compatibility."""
+
+    def __init__(self, api_key: str | None = None, base_url: str | None = None) -> None:
+        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+
+    async def run(self, user_query: str, agent_config: dict[str, Any]) -> AgentResult:
+        model = agent_config.get("model", "gpt-4o")
+        temperature = agent_config.get("temperature", 0)
+        max_tokens = agent_config.get("max_tokens", 4096)
+        start_time = time.monotonic()
+        try:
+            response = await self.client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": REACT_SYSTEM_PROMPT + "\n" + REACT_SINGLE_TURN_PROMPT},
+                    {"role": "user", "content": user_query},
+                ],
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            elapsed_ms = int((time.monotonic() - start_time) * 1000)
+            content = response.choices[0].message.content or ""
+            total_tokens = (response.usage.total_tokens if response.usage else 0)
+            steps = self._parse_react_steps(content)
+            return AgentResult(steps=steps, total_tokens=total_tokens, response_time_ms=elapsed_ms, status="success")
+        except Exception as exc:
+            elapsed_ms = int((time.monotonic() - start_time) * 1000)
+            logger.exception("Agent execution failed: %s", exc)
+            return AgentResult(steps=[{"role": "error", "content": str(exc)}], total_tokens=0, response_time_ms=elapsed_ms, status="failed", error_message=str(exc))
+
+    @staticmethod
+    def _parse_react_steps(content: str) -> list[dict[str, Any]]:
+        steps: list[dict[str, Any]] = []
+        lines = content.split("\n")
+        current_step: dict[str, Any] = {}
+        step_role: str | None = None
+        prefixes = [
+            ("Thought:", "thought"), ("Thought：", "thought"),
+            ("Action:", "action"), ("Action：", "action"),
+            ("Action Input:", "action_input"), ("Action Input：", "action_input"),
+            ("Observation:", "observation"), ("Observation：", "observation"),
+            ("Final Answer:", "final_answer"), ("Final Answer：", "final_answer"),
+        ]
+        for line in lines:
+            s = line.strip()
+            matched = False
+            for prefix, ptype in prefixes:
+                if s.lower().startswith(prefix.lower()):
+                    if current_step and step_role:
+                        current_step["content"] = current_step.get("content", "").strip()
+                        steps.append(current_step)
+                    current_step = {"role": "tool" if ptype == "observation" else "assistant", "type": ptype}
+                    step_role = ptype
+                    value = s[len(prefix):].strip()
+                    if ptype in ("thought", "final_answer", "observation"):
+                        current_step["content"] = value
+                    elif ptype == "action":
+                        current_step["tool_name"] = value
+                    elif ptype == "action_input":
+                        current_step["tool_input"] = value
+                    matched = True
+                    break
+            if not matched and current_step and s:
+                prev = current_step.get("content", "")
+                current_step["content"] = (prev + "\n" + s).strip()
+        if current_step and step_role:
+            current_step["content"] = current_step.get("content", "").strip()
+            steps.append(current_step)
+        if not steps:
+            steps.append({"role": "assistant", "type": "final_answer", "content": content.strip()})
+        return steps

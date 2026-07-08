@@ -1,0 +1,45 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.db
+
+# Node
+node_modules/
+dist/
+
+# Env
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Celery
+celerybeat-schedule
+
+# Test & Coverage
+htmlcov/
+coverage.xml
+.pytest_cache/
+.coverage
+bandit-report.json
+test_e2e.db
+
+# Docker
+.docker/
+
+# Playwright
+playwright-report/
+test-results/

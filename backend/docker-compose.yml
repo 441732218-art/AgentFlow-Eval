@@ -1,0 +1,161 @@
+﻿# (c) 2026 AgentFlow-Eval
+# Production docker-compose with all services
+
+version: "3.9"
+
+x-common: &common
+  restart: unless-stopped
+  networks:
+    - agentflow-net
+
+services:
+  # ---- PostgreSQL ----
+  postgres:
+    <<: *common
+    image: postgres:16-alpine
+    container_name: agentflow-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-agentflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentflow_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-agentflow_eval}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agentflow}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---- Redis ----
+  redis:
+    <<: *common
+    image: redis:7-alpine
+    container_name: agentflow-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ---- Backend API ----
+  backend:
+    <<: *common
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentflow-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      ENV: prod
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-agentflow}:${POSTGRES_PASSWORD:-agentflow_secret}@postgres:5432/${POSTGRES_DB:-agentflow_eval}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      CORS_ORIGINS: '["http://localhost","http://localhost:80","http://localhost:3000"]'
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ---- Celery Worker ----
+  celery-worker:
+    <<: *common
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentflow-celery
+    command: [
+      "celery", "-A", "app.core.celery_app.celery_app", "worker",
+      "--loglevel=info",
+      "--concurrency=4",
+      "--max-tasks-per-child=100"
+    ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      ENV: prod
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-agentflow}:${POSTGRES_PASSWORD:-agentflow_secret}@postgres:5432/${POSTGRES_DB:-agentflow_eval}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      CELERY_TASK_ALWAYS_EAGER: "false"
+
+  # ---- Celery Beat (scheduler) ----
+  celery-beat:
+    <<: *common
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentflow-celery-beat
+    command: [
+      "celery", "-A", "app.core.celery_app.celery_app", "beat",
+      "--loglevel=info"
+    ]
+    depends_on:
+      - redis
+    env_file:
+      - .env
+    environment:
+      ENV: prod
+      REDIS_URL: redis://redis:6379/0
+
+
+  # ---- Flower (Celery monitor) ----
+  flower:
+    <<: *common
+    image: mher/flower:2.0
+    container_name: agentflow-flower
+    command: ["celery", "flower", "--broker=redis://redis:6379/0", "--port=5555", "--basic-auth=admin:flower_secret"]
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - celery-worker
+
+  # ---- Frontend (Nginx) ----
+  frontend:
+    <<: *common
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: agentflow-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  agentflow-net:
+    driver: bridge

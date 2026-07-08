@@ -1,0 +1,82 @@
+﻿version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  backend:
+    image: ${REGISTRY}/agentflow-eval-backend:${IMAGE_TAG}
+    environment:
+      ENV: prod
+      DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SECRET_KEY: ${SECRET_KEY}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      LOG_LEVEL: INFO
+      RATE_LIMIT_ENABLED: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  celery-worker:
+    image: ${REGISTRY}/agentflow-eval-backend:${IMAGE_TAG}
+    command: celery -A app.core.celery_app.celery_app worker --loglevel=info
+    environment:
+      ENV: prod
+      DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  celery-beat:
+    image: ${REGISTRY}/agentflow-eval-backend:${IMAGE_TAG}
+    command: celery -A app.core.celery_app.celery_app beat --loglevel=info
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  frontend:
+    image: ${REGISTRY}/agentflow-eval-frontend:${IMAGE_TAG}
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  flower:
+    image: mher/flower:2.0
+    command: celery flower --broker=redis://redis:6379/0 --port=5555
+    environment:
+      FLOWER_BASIC_AUTH: ${FLOWER_USER}:${FLOWER_PASSWORD}
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - celery-worker
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+  redis_data:
