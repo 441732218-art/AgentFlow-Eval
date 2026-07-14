@@ -1,4 +1,4 @@
-﻿/* (c) 2026 AgentFlow-Eval */
+/* (c) 2026 AgentFlow-Eval */
 /* Agent execution trace DAG visualization using ReactFlow */
 
 import React, { useCallback, useState } from "react";
@@ -23,7 +23,7 @@ import {
   EyeOutlined,
   CheckCircleOutlined,
 } from "@ant-design/icons";
-import type { TraceStep } from "../../../types";
+import type { TraceStep } from "@/types";
 
 const { Text, Paragraph } = Typography;
 
@@ -41,29 +41,29 @@ interface StepColors {
 
 const STEP_STYLES: Record<string, StepColors> = {
   thought: {
-    bg: "#e6f4ff",
-    border: "#1677ff",
-    tag: "blue",
+    bg: "rgba(56, 189, 248, 0.12)",
+    border: "#38bdf8",
+    tag: "processing",
     icon: <BulbOutlined />,
     label: "Thought",
   },
   action: {
-    bg: "#fffbe6",
-    border: "#faad14",
+    bg: "rgba(251, 191, 36, 0.12)",
+    border: "#fbbf24",
     tag: "gold",
     icon: <ToolOutlined />,
     label: "Action",
   },
   observation: {
-    bg: "#f6ffed",
-    border: "#52c41a",
-    tag: "green",
+    bg: "rgba(52, 211, 153, 0.12)",
+    border: "#34d399",
+    tag: "success",
     icon: <EyeOutlined />,
     label: "Observation",
   },
   final_answer: {
-    bg: "#f9f0ff",
-    border: "#722ed1",
+    bg: "rgba(129, 140, 248, 0.14)",
+    border: "#818cf8",
     tag: "purple",
     icon: <CheckCircleOutlined />,
     label: "Final Answer",
@@ -102,15 +102,16 @@ const AgentStepNode: React.FC<{ data: AgentStepNodeData }> = ({ data }) => {
       style={{
         padding: "10px 14px",
         borderRadius: 10,
-        border: "2px solid " + (data.isSelected ? style.border : style.border + "80"),
-        background: data.isSelected ? style.bg : "#fff",
+        border: "2px solid " + (data.isSelected ? style.border : style.border + "99"),
+        background: data.isSelected ? style.bg : "var(--af-bg-surface)",
         minWidth: NODE_WIDTH,
         maxWidth: NODE_WIDTH,
         boxShadow: data.isSelected
-          ? "0 0 0 3px " + style.border + "40, 0 4px 12px rgba(0,0,0,0.1)"
-          : "0 2px 6px rgba(0,0,0,0.06)",
+          ? "0 0 0 3px " + style.border + "40, var(--af-shadow-md)"
+          : "var(--af-shadow-sm)",
         cursor: "pointer",
-        fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily: "var(--af-font)",
+        color: "var(--af-text)",
       }}
     >
       <Handle type="target" position={Position.Top} style={{ background: style.border }} />
@@ -125,12 +126,20 @@ const AgentStepNode: React.FC<{ data: AgentStepNodeData }> = ({ data }) => {
             <span>{style.label}</span>
           </Space>
         </Tag>
-        <Text style={{ fontSize: 10, color: "#999" }}>#{data.index + 1}</Text>
+        <Text style={{ fontSize: 10, color: "var(--af-text-muted)" }}>#{data.index + 1}</Text>
       </Space>
 
       {data.toolName && (
         <div style={{ marginBottom: 4 }}>
-          <Text code style={{ fontSize: 11, background: "#f5f5f5", padding: "1px 5px", borderRadius: 3 }}>
+          <Text
+            code
+            style={{
+              fontSize: 11,
+              background: "var(--af-bg-muted)",
+              padding: "1px 5px",
+              borderRadius: 3,
+            }}
+          >
             {data.toolName}
           </Text>
         </div>
@@ -141,7 +150,7 @@ const AgentStepNode: React.FC<{ data: AgentStepNodeData }> = ({ data }) => {
           style={{
             margin: 0,
             fontSize: 12,
-            color: "#555",
+            color: "var(--af-text-secondary)",
             lineHeight: "1.4",
             display: "-webkit-box",
             WebkitLineClamp: 3,
@@ -191,7 +200,7 @@ function computeLayout(steps: TraceStep[], containerWidth: number) {
       const prevType = steps[idx - 1].type || steps[idx - 1].role || "thought";
       const prevP = STEP_PRIORITY[prevType] ?? 0;
       const currP = STEP_PRIORITY[stepType] ?? 0;
-      const edgeColor = prevP <= currP ? "#bbb" : "#ff4d4f";
+      const edgeColor = prevP <= currP ? "#64748b" : "#f87171";
 
       edges.push({
         id: "e-" + (idx - 1),
@@ -205,8 +214,8 @@ function computeLayout(steps: TraceStep[], containerWidth: number) {
           color: edgeColor,
         },
         label: "Step " + idx,
-        labelStyle: { fontSize: 10, fill: "#999" },
-        labelBgStyle: { fill: "#fff", fillOpacity: 0.8 },
+        labelStyle: { fontSize: 10, fill: "#94a3b8" },
+        labelBgStyle: { fill: "var(--af-bg-surface)", fillOpacity: 0.9 },
         labelBgPadding: [4, 2],
         labelBgBorderRadius: 3,
       } as Edge);
@@ -276,14 +285,13 @@ const TraceFlowChart: React.FC<TraceFlowChartProps> = ({
       <div
         style={{
           textAlign: "center",
-          color: "#999",
           padding: 60,
-          border: "2px dashed #d9d9d9",
-          borderRadius: 8,
-          background: "#fafafa",
+          border: "2px dashed var(--af-border)",
+          borderRadius: 12,
+          background: "var(--af-bg-muted)",
         }}
       >
-        <Text type="secondary">No execution steps to display.</Text>
+        <Text type="secondary">暂无执行步骤可视化</Text>
       </div>
     );
   }
@@ -294,9 +302,9 @@ const TraceFlowChart: React.FC<TraceFlowChartProps> = ({
         style={{
           height: flowHeight,
           width: "100%",
-          border: "1px solid #f0f0f0",
-          borderRadius: 8,
-          background: "#fcfcfc",
+          border: "1px solid var(--af-border)",
+          borderRadius: 12,
+          background: "var(--af-bg-elevated)",
           overflow: "hidden",
         }}
       >
@@ -317,17 +325,22 @@ const TraceFlowChart: React.FC<TraceFlowChartProps> = ({
           panOnDrag={false}
           zoomOnScroll={true}
           selectNodesOnDrag={false}
+          colorMode="system"
         >
-          <Background color="#eee" gap={20} />
+          <Background color="var(--af-border-strong)" gap={20} />
           <Controls
             showInteractive={false}
             style={{
               borderRadius: 8,
-              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+              boxShadow: "var(--af-shadow-sm)",
             }}
           />
           <MiniMap
-            style={{ borderRadius: 6, border: "1px solid #eee" }}
+            style={{
+              borderRadius: 6,
+              border: "1px solid var(--af-border)",
+              background: "var(--af-bg-surface)",
+            }}
             nodeColor={(n: any) => {
               const t = n.data?.stepType || "thought";
               return STEP_STYLES[t]?.border || "#1677ff";
@@ -394,6 +407,3 @@ const TraceFlowChart: React.FC<TraceFlowChartProps> = ({
 };
 
 export default TraceFlowChart;
-
-
-

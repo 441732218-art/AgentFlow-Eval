@@ -4,7 +4,7 @@
 import enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Enum, ForeignKey, Integer, JSON, Text
+from sqlalchemy import Enum, Float, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, PKMixin, TimestampMixin
@@ -52,6 +52,38 @@ class Trace(PKMixin, TimestampMixin, Base):
         nullable=False,
         default=TraceStatus.SUCCESS,
         comment="执行状态：success / failed",
+    )
+
+    # ---- v1.0 新增：Token 分拆与成本追踪 ----
+    prompt_tokens: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0,
+        comment="输入 Prompt Token 数",
+    )
+    completion_tokens: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0,
+        comment="输出 Completion Token 数",
+    )
+    cost: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0,
+        comment="本次执行费用（USD）",
+    )
+
+    # ---- v1.0 新增：版本追踪，确保可复现 ----
+    agent_version: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, default=None,
+        comment="Agent 实现版本号",
+    )
+    prompt_version: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, default=None,
+        comment="Prompt 模板版本号",
+    )
+    model_version: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, default=None,
+        comment="LLM 模型版本（如 gpt-4o-2024-05-13）",
+    )
+    tool_version: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, default=None,
+        comment="工具集版本号",
     )
 
     # ---- 关系 ----

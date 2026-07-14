@@ -28,9 +28,15 @@ export function formatDuration(ms: number): string {
 export function getStatusColor(status: string): string {
   const map: Record<string, string> = {
     pending: "default",
+    created: "default",
+    queued: "warning",
     running: "processing",
+    waiting_tool: "warning",
+    judging: "processing",
     completed: "success",
     failed: "error",
+    cancelled: "default",
+    timeout: "error",
     success: "success",
   };
   return map[status] || "default";

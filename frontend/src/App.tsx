@@ -5,13 +5,16 @@ import { RouterProvider } from "react-router-dom";
 import { queryClient } from "@/lib/query-client";
 import { router } from "@/router";
 import { ToastProvider } from "@/components/ui/Toast";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-      <ToastProvider />
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+        <ToastProvider />
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

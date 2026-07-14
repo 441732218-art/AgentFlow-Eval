@@ -2,7 +2,7 @@
 """TestSuite model."""
 
 from typing import TYPE_CHECKING
-from sqlalchemy import ForeignKey, JSON, String, Text
+from sqlalchemy import ForeignKey, JSON, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, PKMixin, TimestampMixin
 

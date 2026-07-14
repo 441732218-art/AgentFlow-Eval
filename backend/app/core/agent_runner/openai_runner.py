@@ -1,44 +1,20 @@
-﻿import json, logging, time, ast
+﻿import json
+import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 
 from openai import AsyncOpenAI
+
 from app.core.agent_runner.base import AgentResult, BaseAgentRunner
+from app.core.agent_runner.tool_sandbox import (
+    BUILTIN_TOOLS,
+    get_openai_tool_defs,
+    run_tool_sandboxed,
+)
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_TOOL_DEFS: list[dict[str, Any]] = [
-    {
-        "type": "function",
-        "function": {
-            "name": "web_search",
-            "description": "Search the web for information.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "The search query"},
-                },
-                "required": ["query"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "calculator",
-            "description": "Perform arithmetic calculations.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "expression": {"type": "string", "description": "Math expression"},
-                },
-                "required": ["expression"],
-            },
-        },
-    },
-]
 
 
 @dataclass
@@ -49,16 +25,21 @@ class ToolDefinition:
     fn: Callable[..., str] | None = None
 
     def to_openai_tool(self) -> dict[str, Any]:
+        params = self.parameters
+        if params.get("type") == "object" and "properties" in params:
+            schema = params
+        else:
+            schema = {
+                "type": "object",
+                "properties": params,
+                **({"required": list(params.keys())} if params else {}),
+            }
         return {
             "type": "function",
             "function": {
                 "name": self.name,
                 "description": self.description,
-                "parameters": {
-                    "type": "object",
-                    "properties": self.parameters,
-                    **({"required": list(self.parameters.keys())} if self.parameters else {}),
-                },
+                "parameters": schema,
             },
         }
 
@@ -105,42 +86,12 @@ class ReActStep:
         }
 
 
-def _simulate_web_search(query: str) -> str:
-    return f"[Simulated search for: {query}] Result found."
-
-
-def _simulate_calculator(expression: str) -> str:
-    import operator as op
-    allowed_ops = {ast.Add: op.add, ast.Sub: op.sub, ast.Mult: op.mul, ast.Div: op.truediv, ast.Pow: op.pow, ast.USub: op.neg}
-
-    def _eval(node):
-        if isinstance(node, ast.Expression):
-            return _eval(node.body)
-        if isinstance(node, ast.Constant):
-            if isinstance(node.value, (int, float)):
-                return node.value
-            raise ValueError(f"Unsupported: {node.value}")
-        if isinstance(node, ast.BinOp):
-            if type(node.op) not in allowed_ops:
-                raise ValueError(f"Unsupported op: {type(node.op).__name__}")
-            return allowed_ops[type(node.op)](_eval(node.left), _eval(node.right))
-        if isinstance(node, ast.UnaryOp):
-            if type(node.op) not in allowed_ops:
-                raise ValueError(f"Unsupported unary: {type(node.op).__name__}")
-            return allowed_ops[type(node.op)](_eval(node.operand))
-        raise ValueError(f"Unsupported: {type(node).__name__}")
-
-    try:
-        tree = ast.parse(expression.strip(), mode="eval")
-        return f"Result: {_eval(tree.body)}"
-    except Exception as exc:
-        return f"Error: {exc}"
-
-
 DEFAULT_TOOL_FUNCTIONS: dict[str, Callable[..., str]] = {
-    "web_search": _simulate_web_search,
-    "calculator": _simulate_calculator,
+    name: meta["fn"] for name, meta in BUILTIN_TOOLS.items()
 }
+
+# Keep DEFAULT_TOOL_DEFS in sync with sandbox registry
+DEFAULT_TOOL_DEFS = get_openai_tool_defs(["web_search", "calculator"])
 
 
 class OpenAIReActRunner(BaseAgentRunner):
@@ -300,19 +251,10 @@ class OpenAIReActRunner(BaseAgentRunner):
         return defs, {d.name: d for d in defs}
 
     def _execute_tool(self, name: str, args: dict[str, Any], tool_map: dict[str, ToolDefinition]) -> str:
+        """Execute tools via sandbox (timeout + truncation + allowlist)."""
         tool = tool_map.get(name)
-        if tool and tool.fn:
-            try:
-                return str(tool.fn(**args))
-            except Exception as exc:
-                return f"[Tool error: {exc}]"
-        builtin = DEFAULT_TOOL_FUNCTIONS.get(name)
-        if builtin:
-            try:
-                return builtin(**args)
-            except Exception:
-                pass
-        return f"[Executed: {name}] Args: {json.dumps(args, ensure_ascii=False)} [Simulated ok]"
+        custom_fn = tool.fn if tool and tool.fn else DEFAULT_TOOL_FUNCTIONS.get(name)
+        return run_tool_sandboxed(name, args or {}, custom_fn=custom_fn)
 
     @staticmethod
     def _parse_step(text: str) -> dict[str, str]:

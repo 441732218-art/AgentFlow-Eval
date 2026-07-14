@@ -1,45 +1,44 @@
 /* (c) 2026 AgentFlow-Eval */
+/* 兼容层：委托给 taskApi（React Query hooks 为推荐用法） */
 
-import api from "./api";
+import { taskApi } from "@/api/endpoints/tasks";
 import type { Task, TaskCreatePayload, TaskListResponse } from "../types";
 
 export const taskService = {
-  /** 获取评测任务列表 */
   async list(params?: {
     page?: number;
     page_size?: number;
     status?: string;
+    include_archived?: boolean;
   }): Promise<TaskListResponse> {
-    const { data } = await api.get<TaskListResponse>("/tasks", { params });
-    return data;
+    return taskApi.list(params) as Promise<TaskListResponse>;
   },
 
-  /** 创建评测任务 */
   async create(payload: TaskCreatePayload): Promise<Task> {
-    const { data } = await api.post<Task>("/tasks", payload);
-    return data;
+    return taskApi.create(payload);
   },
 
-  /** 获取单个任务详情 */
   async getById(id: string): Promise<Task> {
-    const { data } = await api.get<Task>(`/tasks/${id}`);
-    return data;
+    return taskApi.get(id);
   },
 
-  /** 删除任务 */
   async delete(id: string): Promise<void> {
-    await api.delete(`/tasks/${id}`);
+    await taskApi.delete(id);
   },
 
-  /** 触发任务执行 */
   async execute(id: string): Promise<{ task_id: string; status: string }> {
-    const { data } = await api.post(`/tasks/${id}/execute`);
-    return data;
+    return taskApi.execute(id);
   },
 
-  /** 获取任务报告 */
   async getReport(id: string) {
-    const { data } = await api.get(`/reports/${id}`);
-    return data;
+    return taskApi.getReport(id);
+  },
+
+  async archive(id: string) {
+    return taskApi.archive(id);
+  },
+
+  async uploadTestSuites(taskId: string, file: File) {
+    return taskApi.uploadTestSuites(taskId, file);
   },
 };

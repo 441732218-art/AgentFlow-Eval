@@ -62,8 +62,9 @@ async def get_redis() -> aioredis.Redis:
             settings.REDIS_URL,
             encoding="utf-8",
             decode_responses=True,
-            socket_timeout=5,
-            socket_connect_timeout=5,
+            # Fail fast when Redis is down (local eager mode / offline)
+            socket_timeout=0.8,
+            socket_connect_timeout=0.5,
         )
     return _redis
 

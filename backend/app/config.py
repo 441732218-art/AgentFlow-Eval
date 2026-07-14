@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Literal
 
@@ -56,6 +55,21 @@ class Settings(BaseSettings):
     # ---- Rate Limiting ----
     RATE_LIMIT_ENABLED: bool = True
     RATE_LIMIT_DEFAULT: str = "100/minute"
+
+    # ---- Auth (API Key) ----
+    # When AUTH_ENABLED=true, all /api/v1/* routes require X-API-Key or Bearer token.
+    # API_KEYS examples: "dev-secret" or "dev-secret:alice,prod-secret:bob"
+    AUTH_ENABLED: bool = False
+    API_KEYS: str = ""
+
+    # ---- Tenancy (actor isolation) ----
+    # When AUTH_ENABLED or TENANCY_ENABLED is true, tasks are scoped by created_by.
+    TENANCY_ENABLED: bool = False
+    # Comma-separated actors that can see all tasks, e.g. "admin,ops"
+    ADMIN_ACTORS: str = "admin"
+
+    # ---- Tool sandbox ----
+    TOOL_TIMEOUT_SEC: float = 3.0
 
     # ---- Request Limits ----
     MAX_REQUEST_SIZE: int = 10 * 1024 * 1024  # 10 MB

@@ -1,7 +1,18 @@
-﻿/* ? 2026 AgentFlow-Eval */
-/* AgentFlow-Eval 前?? TypeScript ???投??? */
+/* (c) 2026 AgentFlow-Eval */
+/* AgentFlow-Eval Frontend TypeScript Types */
 
-export type TaskStatus = "pending" | "running" | "completed" | "failed";
+export type TaskStatus =
+  | "created"
+  | "queued"
+  | "running"
+  | "waiting_tool"
+  | "judging"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "timeout"
+  | "partial";
+
 export type TraceStatus = "success" | "failed";
 
 export interface Task {
@@ -10,6 +21,9 @@ export interface Task {
   description: string;
   status: TaskStatus;
   agent_config: Record<string, unknown>;
+  celery_task_id: string | null;
+  is_archived?: boolean;
+  created_by?: string;
   created_at: string | null;
   updated_at: string | null;
   test_suite_count: number;
@@ -109,7 +123,6 @@ export interface TaskReport {
   }>;
 }
 
-
 // ---- API layer types ----
 
 export interface ApiResponse<T> {
@@ -139,6 +152,7 @@ export interface CreateTestSuiteInput {
 export interface ExecuteTaskResponse {
   task_id: string;
   status: string;
+  celery_task_id: string;
   message: string;
 }
 
@@ -153,6 +167,7 @@ export interface TaskListParams {
   page?: number;
   page_size?: number;
   status?: string;
+  include_archived?: boolean;
 }
 
 export interface TraceListParams {

@@ -2,7 +2,7 @@
 """Tests for Redis cache helpers."""
 
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, AsyncMock
 
 
 class TestCache:

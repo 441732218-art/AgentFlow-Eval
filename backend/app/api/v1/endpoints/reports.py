@@ -5,17 +5,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.dependencies import get_db
-from app.models.metric_score import MetricScore
-from app.models.task import Task, TaskStatus
+from app.core.tenancy import ensure_task_access
+from app.models.task import Task
 from app.models.test_suite import TestSuite
 from app.models.trace import Trace
-from app.utils.exceptions import NotFoundError
 
 router = APIRouter()
 
@@ -23,6 +22,7 @@ router = APIRouter()
 @router.get("/{task_id}")
 async def get_task_report(
     task_id: str,
+    request: Request,
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """生成指定任务的完整评测报告。
@@ -34,11 +34,9 @@ async def get_task_report(
     - 每个测试用例的详细评分
     - 耗时、Token 消耗统计
     """
-    # 获取任务
+    actor = getattr(request.state, "actor", None) or "anonymous"
     result = await session.execute(select(Task).where(Task.id == task_id))
-    task = result.scalar_one_or_none()
-    if not task:
-        raise NotFoundError("任务", task_id)
+    task = ensure_task_access(result.scalar_one_or_none(), actor, task_id)
 
     # 获取所有测试用例及其轨迹和评分
     suite_result = await session.execute(

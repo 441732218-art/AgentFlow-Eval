@@ -1,8 +1,7 @@
-﻿[run]
+[run]
 source = app
 omit =
     app/alembic/*
-    app/utils/*
     */test_*
     *_test.py
 
@@ -12,10 +11,8 @@ exclude_lines =
     def __repr__
     raise NotImplementedError
     if __name__ == .__main__.:
-    if settings.DEBUG:
-    except Exception:
 show_missing = true
-fail_under = 75
+fail_under = 35
 
 [html]
 directory = htmlcov

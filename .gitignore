@@ -43,3 +43,8 @@ test_e2e.db
 # Playwright
 playwright-report/
 test-results/
+
+# Tooling / local agent state
+.grokforge/
+*.tsbuildinfo
+fix_ruff.py

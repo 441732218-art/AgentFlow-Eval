@@ -1,4 +1,18 @@
-﻿version: "3.8"
+﻿version: "3.9"
+
+x-backend-env: &backend-env
+  ENV: prod
+  DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+  REDIS_URL: redis://redis:6379/0
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/1
+  OPENAI_API_KEY: ${OPENAI_API_KEY}
+  SECRET_KEY: ${SECRET_KEY}
+  CORS_ORIGINS: ${CORS_ORIGINS:-'["http://localhost:3000","http://localhost"]'}
+  LOG_LEVEL: INFO
+  LOG_FORMAT: json
+  RATE_LIMIT_ENABLED: "true"
+  CELERY_TASK_ALWAYS_EAGER: "false"
 
 services:
   postgres:
@@ -9,61 +23,91 @@ services:
       POSTGRES_DB: ${DB_NAME}
     volumes:
       - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
+    networks:
+      - agentflow-net
 
   redis:
     image: redis:7-alpine
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     restart: unless-stopped
+    networks:
+      - agentflow-net
 
   backend:
-    image: ${REGISTRY}/agentflow-eval-backend:${IMAGE_TAG}
+    image: ${REGISTRY}/${GITHUB_REPOSITORY}-backend:${IMAGE_TAG:-latest}
     environment:
-      ENV: prod
-      DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
-      REDIS_URL: redis://redis:6379/0
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      SECRET_KEY: ${SECRET_KEY}
-      CORS_ORIGINS: ${CORS_ORIGINS}
-      LOG_LEVEL: INFO
-      RATE_LIMIT_ENABLED: "true"
+      <<: *backend-env
     ports:
       - "8000:8000"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     restart: unless-stopped
+    networks:
+      - agentflow-net
 
   celery-worker:
-    image: ${REGISTRY}/agentflow-eval-backend:${IMAGE_TAG}
-    command: celery -A app.core.celery_app.celery_app worker --loglevel=info
+    image: ${REGISTRY}/${GITHUB_REPOSITORY}-backend:${IMAGE_TAG:-latest}
+    command: celery -A app.core.celery_app.celery_app worker --loglevel=info --concurrency=4
     environment:
-      ENV: prod
-      DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
-      REDIS_URL: redis://redis:6379/0
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      <<: *backend-env
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
+    networks:
+      - agentflow-net
 
   celery-beat:
-    image: ${REGISTRY}/agentflow-eval-backend:${IMAGE_TAG}
+    image: ${REGISTRY}/${GITHUB_REPOSITORY}-backend:${IMAGE_TAG:-latest}
     command: celery -A app.core.celery_app.celery_app beat --loglevel=info
     environment:
-      REDIS_URL: redis://redis:6379/0
+      <<: *backend-env
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     restart: unless-stopped
+    networks:
+      - agentflow-net
 
   frontend:
-    image: ${REGISTRY}/agentflow-eval-frontend:${IMAGE_TAG}
+    image: ${REGISTRY}/${GITHUB_REPOSITORY}-frontend:${IMAGE_TAG:-latest}
     ports:
       - "3000:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
+    networks:
+      - agentflow-net
 
   flower:
     image: mher/flower:2.0
@@ -76,7 +120,13 @@ services:
       - redis
       - celery-worker
     restart: unless-stopped
+    networks:
+      - agentflow-net
 
 volumes:
   pg_data:
   redis_data:
+
+networks:
+  agentflow-net:
+    driver: bridge

@@ -1,11 +1,11 @@
-﻿import {
+import {
   useQuery,
   useMutation,
   useQueryClient,
   keepPreviousData,
 } from "@tanstack/react-query";
 import { taskApi } from "@/api/endpoints/tasks";
-import type { TaskListParams, CreateTestSuiteInput } from "@/types";
+import type { TaskListParams, CreateTestSuiteInput, Task, TaskReport } from "@/types";
 
 export const TASKS_QUERY_KEY = ["tasks"] as const;
 
@@ -18,22 +18,24 @@ export function useTasks(params?: TaskListParams) {
   });
 }
 
-export function useTaskDetail(id: string | undefined) {
-  return useQuery({
+export function useTaskDetail(id: string | undefined, options?: { refetchInterval?: number | false; enabled?: boolean }) {
+  return useQuery<Task, Error>({
     queryKey: ["task", id],
     queryFn: () => taskApi.get(id!),
     enabled: !!id,
     retry: (_failureCount, error) => {
       return (error as any)?.response?.status !== 404;
     },
+    ...options,
   });
 }
 
-export function useTaskReport(id: string | undefined) {
-  return useQuery({
+export function useTaskReport(id: string | undefined, options?: { refetchInterval?: number | false; enabled?: boolean }) {
+  return useQuery<TaskReport, Error>({
     queryKey: ["task-report", id],
     queryFn: () => taskApi.getReport(id!),
     enabled: !!id,
+    ...options,
   });
 }
 
@@ -68,6 +70,17 @@ export function useExecuteTask() {
   });
 }
 
+export function useCancelTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: taskApi.cancel,
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ["task", id] });
+      queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY });
+    },
+  });
+}
+
 export function useCreateTestSuites(taskId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -75,6 +88,29 @@ export function useCreateTestSuites(taskId: string) {
       taskApi.createTestSuites(taskId, suites),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["task", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["task-report", taskId] });
+    },
+  });
+}
+
+export function useUploadTestSuites(taskId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => taskApi.uploadTestSuites(taskId, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["task", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["task-report", taskId] });
+    },
+  });
+}
+
+export function useArchiveTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: taskApi.archive,
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ["task", id] });
+      queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY });
     },
   });
 }

@@ -5,12 +5,14 @@ Architecture: 1) Rule-based pre-scoring always runs,
 3) Falls back to pure rule-based when no API key.
 """
 
-import functools, hashlib, json, logging, os
-from typing import Any
+import hashlib
+import json
+import logging
+import os
 from openai import AsyncOpenAI
 from tenacity import before_sleep_log, retry, retry_if_exception_type
 from tenacity import stop_after_attempt, wait_exponential
-from app.core.judge_engine.base import BaseJudge, JudgeResult
+from app.core.judge_engine.base import BaseJudge
 from app.core.judge_engine.metrics import calc_tool_accuracy, extract_answer_text
 
 logger = logging.getLogger(__name__)
@@ -121,7 +123,8 @@ class LLMJudge(BaseJudge):
         for s in steps:
             n = s.get('action') or s.get('tool_name') or ''
             if n and n not in seen and n != 'final_answer':
-                seen.add(n); names.append(n)
+                seen.add(n)
+                names.append(n)
         return names
 
     @staticmethod
@@ -147,10 +150,14 @@ class LLMJudge(BaseJudge):
             return 40.0, 'No words; full score.'
         r = len(ex & ac) / len(ex)
         score = round(r * 40.0, 1)
-        if r > 0.8: desc = 'High'
-        elif r > 0.5: desc = 'Moderate'
-        elif r > 0.2: desc = 'Low'
-        else: desc = 'Minimal'
+        if r > 0.8:
+            desc = 'High'
+        elif r > 0.5:
+            desc = 'Moderate'
+        elif r > 0.2:
+            desc = 'Low'
+        else:
+            desc = 'Minimal'
         return score, f'{desc} word overlap.'
 
     @staticmethod
@@ -162,7 +169,8 @@ class LLMJudge(BaseJudge):
         for s in steps:
             t = (s.get('thought') or s.get('content') or '').strip().lower()
             if t and t in seen and len(t) > 5:
-                ded += 4.0; reasons.append(f'Repetition: {t[:40]}')
+                ded += 4.0
+                reasons.append(f'Repetition: {t[:40]}')
             elif t:
                 seen.add(t)
         if len(steps) > 8:

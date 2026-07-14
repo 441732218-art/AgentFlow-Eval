@@ -1,14 +1,17 @@
 ﻿# (c) 2026 AgentFlow-Eval
-"""Request tracing middleware - injects X-Request-ID into every request."""
+"""Request tracing and optional API-key auth middleware."""
 
 import logging
 import uuid
 from datetime import datetime, timezone
 
-from starlette.datastructures import MutableHeaders
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
+
+from app.config import settings
+from app.core.security import AUTH_PUBLIC_PATHS, authenticate_api_key, extract_api_key
+from app.utils.exceptions import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -42,3 +45,39 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         )
 
         return response
+
+
+class APIKeyAuthMiddleware(BaseHTTPMiddleware):
+    """Enforce API key auth for /api/v1 when AUTH_ENABLED=true."""
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        path = request.url.path
+        if not settings.AUTH_ENABLED:
+            request.state.actor = "anonymous"
+            return await call_next(request)
+
+        if path in AUTH_PUBLIC_PATHS or not path.startswith("/api/"):
+            request.state.actor = "public"
+            return await call_next(request)
+
+        # CORS preflight
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
+        api_key = extract_api_key(request)
+        identity = authenticate_api_key(api_key)
+        if identity is None:
+            rid = getattr(request.state, "request_id", None)
+            return JSONResponse(
+                status_code=401,
+                content=error_response(
+                    401,
+                    "Unauthorized",
+                    "Provide a valid X-API-Key or Authorization: Bearer <key>",
+                    request_id=rid,
+                ),
+            )
+
+        request.state.actor = identity.actor
+        request.state.auth = identity
+        return await call_next(request)

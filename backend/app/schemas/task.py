@@ -21,7 +21,11 @@ class TaskCreate(BaseModel):
 class TaskStatusUpdate(BaseModel):
     """更新任务状态的请求体。"""
 
-    status: str = Field(..., pattern=r"^(pending|running|completed|failed)$", description="新状态")
+    status: str = Field(
+        ...,
+        pattern=r"^(created|queued|running|waiting_tool|judging|completed|failed|cancelled|timeout)$",
+        description="新状态",
+    )
 
 
 class TaskResponse(BaseModel):
@@ -32,6 +36,9 @@ class TaskResponse(BaseModel):
     description: str
     status: str
     agent_config: dict[str, Any]
+    celery_task_id: str | None = None
+    is_archived: bool = False
+    created_by: str = "anonymous"
     created_at: datetime | None = None
     updated_at: datetime | None = None
     test_suite_count: int = 0

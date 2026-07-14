@@ -66,7 +66,7 @@ async def seed_database(async_session_factory):
             name=SAMPLE_TASK["name"],
             description=SAMPLE_TASK["description"],
             agent_config=SAMPLE_TASK["agent_config"],
-            status=TaskStatus.PENDING,
+            status=TaskStatus.CREATED,
         )
         session.add(task)
         await session.flush()
