@@ -121,6 +121,38 @@ npm run test:e2e
 - API 文档：http://localhost:8000/docs
 - Celery 监控（Flower）：http://localhost:5555（Docker 环境）
 
+### 云端部署（Vercel 前端 + 后端 API）
+
+> **重要**：Vercel 只适合部署 **前端**（静态站点）。FastAPI / Celery / PostgreSQL / Redis **不能**全部跑在 Vercel 上，后端需另外部署（VPS Docker、Railway 等）。
+
+#### 1）Vercel 部署前端（你截图中的页面）
+
+1. 打开 [vercel.com/new](https://vercel.com/new)，在「导入 Git 仓库」选中 **AgentFlow-Eval**，点 **导入**
+2. 配置建议：
+   - **Root Directory**：`frontend`（若使用仓库根目录的 `vercel.json` 可保持默认）
+   - **Framework Preset**：Vite
+   - **Build Command**：`npm run build`
+   - **Output Directory**：`dist`
+3. 环境变量（Build 时注入）：
+
+| Name | 值 | 说明 |
+|------|-----|------|
+| `VITE_API_BASE_URL` | `https://你的后端域名/api/v1` | 指向已部署的 FastAPI |
+
+4. 点 Deploy。成功后得到 `https://xxx.vercel.app`
+
+后端尚未就绪时，页面可打开，但会提示 API 失败——属正常现象。
+
+#### 2）后端部署（任选其一）
+
+- **VPS / 云服务器**：见 `docs/deployment-guide.md` 与 `scripts/deploy-server.sh`
+- **Railway**：导入同一仓库，Root Directory 设为 `backend`，添加 PostgreSQL + Redis，配置 `OPENAI_API_KEY`、`SECRET_KEY`、`CORS_ORIGINS`（填入 Vercel 域名）
+
+后端 `CORS_ORIGINS` 示例：
+
+```bash
+CORS_ORIGINS=["https://你的项目.vercel.app","http://localhost:5173"]
+```
 
 ### Docker 启动（Redis + PostgreSQL）
 
