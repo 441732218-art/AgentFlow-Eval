@@ -1,6 +1,6 @@
 /* Create task — SaaS form with live payload preview */
 
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "react-router-dom";
 import {
@@ -59,7 +59,7 @@ export default function CreateTaskPage() {
   const createTask = useCreateTask();
 
   const {
-    register,
+    control,
     handleSubmit,
     watch,
     setValue,
@@ -171,29 +171,46 @@ export default function CreateTaskPage() {
               <Text strong>
                 任务名称 <Text type="danger">*</Text>
               </Text>
-              <Input
-                {...register("name")}
-                placeholder="例如：客服 Agent 业务评测"
-                status={errors.name ? "error" : undefined}
-                maxLength={100}
-                showCount
-                size="large"
-                style={{ marginTop: 6 }}
+              {/* Ant Design Input 必须用 Controller，不能用 register，否则输入不会写入表单状态 */}
+              <Controller
+                name="name"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    value={field.value ?? ""}
+                    placeholder="例如：客服 Agent 业务评测"
+                    status={errors.name ? "error" : undefined}
+                    maxLength={100}
+                    showCount
+                    size="large"
+                    style={{ marginTop: 6 }}
+                  />
+                )}
               />
               {errors.name && (
                 <Text type="danger" style={{ fontSize: 12 }}>
-                  {errors.name.message}
+                  {errors.name.message === "Task name is required"
+                    ? "任务名称是必需的"
+                    : errors.name.message}
                 </Text>
               )}
             </div>
 
             <div style={{ marginBottom: 8 }}>
               <Text strong>描述</Text>
-              <TextArea
-                {...register("description")}
-                rows={3}
-                placeholder="可选：评测目标、业务场景、关注指标等"
-                style={{ marginTop: 6 }}
+              <Controller
+                name="description"
+                control={control}
+                render={({ field }) => (
+                  <TextArea
+                    {...field}
+                    value={field.value ?? ""}
+                    rows={3}
+                    placeholder="可选：评测目标、业务场景、关注指标等"
+                    style={{ marginTop: 6 }}
+                  />
+                )}
               />
             </div>
           </Card>

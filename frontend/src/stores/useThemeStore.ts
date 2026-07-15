@@ -19,8 +19,15 @@ export const THEME_OPTIONS: ReadonlyArray<{
   swatch: string;
 }> = [
   {
+    value: "light",
+    label: "明亮浅色（默认）",
+    labelEn: "Bright Light (Default)",
+    isDark: false,
+    swatch: "#0284c7",
+  },
+  {
     value: "dark",
-    label: "深空暗色（推荐）",
+    label: "深空暗色",
     labelEn: "Deep Space Dark",
     isDark: true,
     swatch: "#38bdf8",
@@ -53,13 +60,6 @@ export const THEME_OPTIONS: ReadonlyArray<{
     isDark: true,
     swatch: "#fb923c",
   },
-  {
-    value: "light",
-    label: "明亮浅色",
-    labelEn: "Bright Light",
-    isDark: false,
-    swatch: "#0284c7",
-  },
 ] as const;
 
 export const THEME_MODE_SET = new Set<string>(THEME_OPTIONS.map((o) => o.value));
@@ -72,8 +72,12 @@ export function isDarkTheme(mode: ThemeMode): boolean {
   return THEME_OPTIONS.find((o) => o.value === mode)?.isDark ?? true;
 }
 
-const STORAGE_KEY = "agentflow_theme";
+// v2: default switched from dark → light; new key so first open after upgrade uses light
+const STORAGE_KEY = "agentflow_theme_v2";
 const LAST_DARK_KEY = "agentflow_theme_last_dark";
+
+/** App default when user has never chosen a theme */
+export const DEFAULT_THEME: ThemeMode = "light";
 
 function readInitial(): ThemeMode {
   try {
@@ -82,13 +86,8 @@ function readInitial(): ThemeMode {
   } catch {
     /* ignore */
   }
-  if (
-    typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-color-scheme: light)").matches
-  ) {
-    return "light";
-  }
-  return "dark";
+  // First visit: always bright light (do not follow OS dark preference)
+  return DEFAULT_THEME;
 }
 
 function readLastDark(): ThemeMode {
@@ -113,7 +112,7 @@ interface ThemeState {
 }
 
 export const useThemeStore = create<ThemeState>((set, get) => {
-  const initial = typeof document !== "undefined" ? readInitial() : "dark";
+  const initial = typeof document !== "undefined" ? readInitial() : DEFAULT_THEME;
   if (typeof document !== "undefined") applyDom(initial);
 
   return {

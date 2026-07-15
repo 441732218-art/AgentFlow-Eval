@@ -1,8 +1,6 @@
 ﻿# (c) 2026 AgentFlow-Eval
 # Production docker-compose with all services
 
-version: "3.9"
-
 x-common: &common
   restart: unless-stopped
   networks:
@@ -46,6 +44,7 @@ services:
   # ---- Backend API ----
   backend:
     <<: *common
+    image: agentflow-backend:local
     build:
       context: .
       dockerfile: Dockerfile
@@ -56,7 +55,11 @@ services:
       redis:
         condition: service_healthy
     env_file:
-      - .env
+      # .env.docker 优先（完整 Docker 栈）；无则回退 .env
+      - path: .env
+        required: false
+      - path: .env.docker
+        required: false
     environment:
       ENV: prod
       DEBUG: "false"
@@ -83,14 +86,15 @@ services:
   # ---- Celery Worker ----
   celery-worker:
     <<: *common
+    image: agentflow-backend:local
     build:
       context: .
       dockerfile: Dockerfile
     container_name: agentflow-celery
     command: [
-      "celery", "-A", "app.core.celery_app.celery_app", "worker",
+      "celery", "-A", "app.core.celery_app.celery:celery_app", "worker",
       "--loglevel=info",
-      "--concurrency=4",
+      "--concurrency=2",
       "--max-tasks-per-child=100"
     ]
     depends_on:
@@ -99,7 +103,10 @@ services:
       redis:
         condition: service_healthy
     env_file:
-      - .env
+      - path: .env
+        required: false
+      - path: .env.docker
+        required: false
     environment:
       ENV: prod
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-agentflow}:${POSTGRES_PASSWORD:-agentflow_secret}@postgres:5432/${POSTGRES_DB:-agentflow_eval}
@@ -107,25 +114,34 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       CELERY_TASK_ALWAYS_EAGER: "false"
+    # Worker does not serve HTTP; disable image HEALTHCHECK
+    healthcheck:
+      disable: true
 
   # ---- Celery Beat (scheduler) ----
   celery-beat:
     <<: *common
+    image: agentflow-backend:local
     build:
       context: .
       dockerfile: Dockerfile
     container_name: agentflow-celery-beat
     command: [
-      "celery", "-A", "app.core.celery_app.celery_app", "beat",
+      "celery", "-A", "app.core.celery_app.celery:celery_app", "beat",
       "--loglevel=info"
     ]
     depends_on:
       - redis
     env_file:
-      - .env
+      - path: .env
+        required: false
+      - path: .env.docker
+        required: false
     environment:
       ENV: prod
       REDIS_URL: redis://redis:6379/0
+    healthcheck:
+      disable: true
 
 
   # ---- Flower (Celery monitor) ----
@@ -143,6 +159,7 @@ services:
   # ---- Frontend (Nginx) ----
   frontend:
     <<: *common
+    image: agentflow-frontend:local
     build:
       context: ../frontend
       dockerfile: Dockerfile
@@ -152,10 +169,12 @@ services:
     depends_on:
       - backend
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:80/health"]
+      # Use 127.0.0.1 — alpine wget may fail on localhost (::1) if nginx is IPv4-only
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 10s
 
 volumes:
   postgres_data:

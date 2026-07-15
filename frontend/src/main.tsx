@@ -11,7 +11,8 @@ import "@/styles/theme.css";
 
 // Apply theme before first paint (avoid flash)
 try {
-  const saved = localStorage.getItem("agentflow_theme");
+  // Keep in sync with useThemeStore STORAGE_KEY (v2 → default light)
+  const saved = localStorage.getItem("agentflow_theme_v2");
   const known = new Set([
     "dark",
     "light",
@@ -22,10 +23,10 @@ try {
   ]);
   document.documentElement.setAttribute(
     "data-theme",
-    saved && known.has(saved) ? saved : "dark"
+    saved && known.has(saved) ? saved : "light"
   );
 } catch {
-  document.documentElement.setAttribute("data-theme", "dark");
+  document.documentElement.setAttribute("data-theme", "light");
 }
 
 function Root() {

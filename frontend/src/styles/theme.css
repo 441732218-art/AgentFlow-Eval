@@ -13,9 +13,8 @@
   --af-shadow-glow: 0 0 0 1px rgba(99, 102, 241, 0.25), 0 8px 32px rgba(56, 189, 248, 0.12);
 }
 
-/* ---- Dark / 深空暗色 (default product look) ---- */
-html[data-theme="dark"],
-html:not([data-theme]) {
+/* ---- Dark / 深空暗色 ---- */
+html[data-theme="dark"] {
   color-scheme: dark;
   --af-bg-base: #07090f;
   --af-bg-elevated: #0c101a;
@@ -189,8 +188,9 @@ html[data-theme="sunset"] {
   --af-mesh-3: rgba(244, 63, 94, 0.08);
 }
 
-/* ---- Light / 明亮浅色 ---- */
-html[data-theme="light"] {
+/* ---- Light / 明亮浅色（应用默认主题） ---- */
+html[data-theme="light"],
+html:not([data-theme]) {
   color-scheme: light;
   --af-bg-base: #f4f6fb;
   --af-bg-elevated: #ffffff;

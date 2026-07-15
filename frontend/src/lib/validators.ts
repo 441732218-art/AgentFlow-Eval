@@ -1,7 +1,11 @@
 ﻿import { z } from "zod";
 
 export const taskCreateSchema = z.object({
-  name: z.string().min(1, "Task name is required").max(255),
+  name: z
+    .string()
+    .trim()
+    .min(1, "任务名称是必需的")
+    .max(255, "任务名称最多 255 个字符"),
   description: z.string().optional().default(""),
   model: z.string().optional().default("gpt-4o"),
   temperature: z.number().min(0).max(2).optional().default(0),

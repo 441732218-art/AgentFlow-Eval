@@ -12,6 +12,11 @@ dist/
 
 # Env
 .env
+.env.docker
+backend/.env
+backend/.env.docker
+**/.env.local
+**/.env.*.local
 
 # IDE
 .idea/

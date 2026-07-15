@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+*.md
+e2e
+playwright-report
+test-results
+coverage
+.vite
+*.log
+.env
+.env.*
+.DS_Store
+tsconfig.tsbuildinfo
