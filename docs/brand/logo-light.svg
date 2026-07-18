@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AgentFlow Intelligence — Full wordmark for light backgrounds -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 96" fill="none" role="img" aria-label="AgentFlow Intelligence">
+  <defs>
+    <linearGradient id="afi-l-core" x1="16" y1="14" x2="72" y2="78" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0284C7"/>
+      <stop offset="0.5" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="afi-l-stream" x1="14" y1="62" x2="78" y2="34" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0284C7" stop-opacity="0.15"/>
+      <stop offset="0.4" stop-color="#0284C7"/>
+      <stop offset="0.75" stop-color="#7C3AED"/>
+      <stop offset="1" stop-color="#B45309"/>
+    </linearGradient>
+    <radialGradient id="afi-l-glow" cx="48" cy="48" r="36" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38BDF8" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="4" y="8" width="80" height="80" rx="20" fill="#F4F7FC"/>
+  <rect x="4.6" y="8.6" width="78.8" height="78.8" rx="19.4" stroke="url(#afi-l-core)" stroke-opacity="0.35" stroke-width="1.2"/>
+  <circle cx="44" cy="48" r="30" fill="url(#afi-l-glow)"/>
+  <circle cx="44" cy="48" r="24" stroke="#0284C7" stroke-opacity="0.18" stroke-width="1" stroke-dasharray="2.5 4"/>
+  <circle cx="44" cy="48" r="17" stroke="#7C3AED" stroke-opacity="0.28" stroke-width="1.1"/>
+
+  <path d="M16 64 C26 46, 34 66, 44 48 S60 28, 72 36" stroke="url(#afi-l-stream)" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+
+  <g stroke="#0284C7" stroke-opacity="0.45" stroke-width="1.1">
+    <path d="M44 28 L58 36 M58 36 L62 54 M62 54 L44 68 M44 68 L26 54 M26 54 L30 36 M30 36 L44 28"/>
+    <path d="M30 36 L44 48 M58 36 L44 48 M26 54 L44 48 M62 54 L44 48"/>
+  </g>
+  <circle cx="44" cy="28" r="2.8" fill="#0284C7"/>
+  <circle cx="58" cy="36" r="2.6" fill="#7C3AED"/>
+  <circle cx="62" cy="54" r="2.8" fill="#0284C7"/>
+  <circle cx="44" cy="68" r="2.6" fill="#B45309"/>
+  <circle cx="26" cy="54" r="2.8" fill="#7C3AED"/>
+  <circle cx="30" cy="36" r="2.6" fill="#0284C7"/>
+
+  <path d="M44 36 L52 41.5 L52 52.5 L44 58 L36 52.5 L36 41.5 Z" fill="url(#afi-l-core)" fill-opacity="0.12" stroke="url(#afi-l-core)" stroke-width="1.2"/>
+  <circle cx="44" cy="48" r="6.5" fill="url(#afi-l-core)"/>
+  <circle cx="44" cy="48" r="3.4" fill="#FFFFFF"/>
+  <circle cx="44" cy="48" r="1.5" fill="#B45309"/>
+
+  <text x="102" y="48" font-family="Inter, SF Pro Display, Segoe UI, sans-serif" font-size="28" font-weight="750" letter-spacing="-0.6" fill="#0F172A">AgentFlow</text>
+  <text x="102" y="72" font-family="Inter, SF Pro Display, Segoe UI, sans-serif" font-size="13" font-weight="600" letter-spacing="3.2" fill="#0284C7">INTELLIGENCE</text>
+  <rect x="102" y="78" width="36" height="2" rx="1" fill="#B45309" fill-opacity="0.9"/>
+</svg>

@@ -1,7 +1,14 @@
-﻿# AgentFlow-Eval 部署运维手册
+# AgentFlow-Eval 部署运维手册
+
+> **部署边界（请先读）**  
+> - **不强制在线部署**：本地 Eager 或 Docker 即可用于开发、演示与软著录屏。  
+> - **Vercel 只能部署前端静态资源**，不能运行本项目的 Docker 全栈（FastAPI / Celery / Redis / Postgres）。  
+> - 后端请使用：本机 Docker、云主机 `scripts/deploy-server.sh`、或 Railway 等容器平台。  
+> - 前端若放在 Vercel，构建环境变量设置 `VITE_API_BASE_URL=https://你的API域名/api/v1`，并配置后端 `CORS_ORIGINS`。
 
 ## 目录
 
+0. [本地与 Docker 快速部署](#0-本地与-docker-快速部署)
 1. [GitHub Secrets 配置](#1-github-secrets-配置)
 2. [生产服务器环境准备](#2-生产服务器环境准备)
 3. [首次手动部署](#3-首次手动部署)
@@ -9,6 +16,34 @@
 5. [回滚流程](#5-回滚流程)
 6. [监控与维护](#6-监控与维护)
 7. [常见问题](#7-常见问题)
+
+---
+
+## 0. 本地与 Docker 快速部署
+
+详见仓库根目录 [README.md](../README.md)「快速开始」、[DEMO.md](./DEMO.md)、[production-checklist.md](./production-checklist.md)。
+
+| 场景 | 命令入口 |
+|------|----------|
+| Windows 生成本地 env | `scripts/generate-deploy-env.ps1` |
+| Windows Docker 一键（**含 migrate head + seed**） | `scripts/docker-up.ps1` |
+| Compose | `cd backend && docker compose --env-file .env.docker up -d --build` |
+| 迁移 only | `docker compose --env-file .env.docker run --rm migrate` |
+| 部署后校验 | `scripts/post-deploy-verify.ps1` |
+| 演示剧本 | `scripts/demo-playbook.ps1` |
+| 生产配置检查 | `cd backend && make check-prod` |
+| 云主机一键 | `scripts/setup-server.sh` + `scripts/deploy-server.sh` |
+| Vercel 前端 + 自备 API | [vercel-postgres-self-api.md](./vercel-postgres-self-api.md) |
+
+### 健康探针（K8s / Compose）
+
+| 探针 | URL | 期望 |
+|------|-----|------|
+| Liveness | `/health/live` | 200 `alive` |
+| Readiness | `/health/ready` | 200 `ready` |
+| 兼容 | `/health` | healthy / degraded |
+
+Compose `backend` 服务 healthcheck 使用 **`/health/ready`**。迁移服务 `migrate` 执行 `alembic upgrade head`（含 010 计费、011 慢任务）。
 
 ---
 

@@ -1,0 +1,90 @@
+{
+  "name": "AgentFlow Intelligence Core Pulse",
+  "version": "1.0.0",
+  "brand": "AgentFlow Intelligence",
+  "description": "Lightweight logo motion spec for CSS/SMIL/Lottie adapters. Central AI core pulse + orbital node orbit + data stream shimmer.",
+  "palette": {
+    "navy": "#050816",
+    "cyan": "#00D4FF",
+    "purple": "#8B5CF6",
+    "gold": "#FFC857"
+  },
+  "assets": {
+    "mark": "/assets/logo/logo.svg",
+    "dark": "/assets/logo/logo-dark.svg",
+    "light": "/assets/logo/logo-light.svg",
+    "favicon": "/assets/logo/favicon.svg"
+  },
+  "fps": 60,
+  "duration_ms": 2400,
+  "loop": true,
+  "layers": [
+    {
+      "id": "core-glow",
+      "type": "opacity",
+      "target": "[data-afi-core-glow]",
+      "keyframes": [
+        { "t": 0, "opacity": 0.35 },
+        { "t": 0.5, "opacity": 0.75 },
+        { "t": 1, "opacity": 0.35 }
+      ],
+      "easing": "ease-in-out"
+    },
+    {
+      "id": "core-scale",
+      "type": "scale",
+      "target": "[data-afi-core]",
+      "keyframes": [
+        { "t": 0, "scale": 1 },
+        { "t": 0.5, "scale": 1.06 },
+        { "t": 1, "scale": 1 }
+      ],
+      "easing": "ease-in-out"
+    },
+    {
+      "id": "stream-dash",
+      "type": "stroke-dashoffset",
+      "target": "[data-afi-stream]",
+      "keyframes": [
+        { "t": 0, "offset": 0 },
+        { "t": 1, "offset": -48 }
+      ],
+      "easing": "linear"
+    },
+    {
+      "id": "orbit-rotate",
+      "type": "rotate",
+      "target": "[data-afi-orbit]",
+      "keyframes": [
+        { "t": 0, "deg": 0 },
+        { "t": 1, "deg": 360 }
+      ],
+      "easing": "linear",
+      "duration_ms": 12000
+    },
+    {
+      "id": "gold-tick-pulse",
+      "type": "opacity",
+      "target": "[data-afi-eval]",
+      "keyframes": [
+        { "t": 0, "opacity": 0.55 },
+        { "t": 0.4, "opacity": 1 },
+        { "t": 1, "opacity": 0.55 }
+      ],
+      "easing": "ease-in-out"
+    }
+  ],
+  "css": {
+    "className": "afi-logo--animated",
+    "keyframes": [
+      "@keyframes afi-core-pulse { 0%,100%{ transform: scale(1); filter: drop-shadow(0 0 6px rgba(0,212,255,.35)); } 50%{ transform: scale(1.06); filter: drop-shadow(0 0 14px rgba(139,92,246,.55)); } }",
+      "@keyframes afi-stream { to { stroke-dashoffset: -48; } }",
+      "@keyframes afi-orbit { to { transform: rotate(360deg); } }"
+    ]
+  },
+  "usage": {
+    "react": "import logoAnim from '/assets/logo/logo-animation.json' — apply css.className on BrandLogo animated prop",
+    "loading": "Use mark + afi-logo--animated during app bootstrap",
+    "dashboard": "Static mark preferred for dense UI; animate only on idle splash"
+  }
+}

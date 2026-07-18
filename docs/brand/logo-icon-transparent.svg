@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AgentFlow-Eval Icon — transparent (no tile) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="AgentFlow-Eval mark">
+  <defs>
+    <linearGradient id="af-g" x1="10%" y1="15%" x2="90%" y2="85%">
+      <stop offset="0%" stop-color="#0EA5E9"/>
+      <stop offset="50%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#A855F7"/>
+    </linearGradient>
+  </defs>
+  <path
+    d="M22 80 C38 44, 52 44, 64 64 S90 88, 108 48"
+    fill="none"
+    stroke="url(#af-g)"
+    stroke-width="9"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M98 44 L110 46 L103 58"
+    fill="none"
+    stroke="url(#af-g)"
+    stroke-width="8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle cx="24" cy="78" r="11" fill="url(#af-g)"/>
+  <circle cx="64" cy="64" r="14" fill="url(#af-g)"/>
+  <circle cx="106" cy="48" r="11" fill="url(#af-g)"/>
+  <circle cx="24" cy="78" r="5" fill="#FFFFFF"/>
+  <circle cx="106" cy="48" r="5" fill="#FFFFFF"/>
+  <path
+    d="M57 65 L62 70 L73 58"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
