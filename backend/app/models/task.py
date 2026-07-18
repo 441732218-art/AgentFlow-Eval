@@ -4,7 +4,7 @@
 import enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, JSON, Enum, String, Text
+from sqlalchemy import Boolean, Index, JSON, Enum, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, PKMixin, TimestampMixin
@@ -63,6 +63,20 @@ class Task(PKMixin, TimestampMixin, Base):
     """
 
     __tablename__ = "tasks"
+    __table_args__ = (
+        # List: WHERE created_by=? AND is_archived=0 ORDER BY created_at DESC
+        Index(
+            "ix_tasks_owner_archived_created",
+            "created_by",
+            "is_archived",
+            "created_at",
+        ),
+        # Dashboard: WHERE status=? ORDER BY created_at DESC
+        Index("ix_tasks_status_created", "status", "created_at"),
+        Index("ix_tasks_created_by", "created_by"),
+        Index("ix_tasks_celery_task_id", "celery_task_id"),
+        Index("ix_tasks_is_archived", "is_archived"),
+    )
 
     name: Mapped[str] = mapped_column(
         String(255), nullable=False, comment="任务名称",

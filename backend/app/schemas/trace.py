@@ -19,6 +19,14 @@ class MetricScoreResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TokenUsage(BaseModel):
+    """Token usage breakdown for observability UIs."""
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+
 class TraceResponse(BaseModel):
     """Execution trace response schema."""
 
@@ -31,8 +39,20 @@ class TraceResponse(BaseModel):
     status: str
     created_at: datetime | None = None
     metric_scores: list[MetricScoreResponse] = []
+    # Observability / version metadata (optional on older rows)
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    cost: float = 0.0
+    agent_version: str | None = None
+    prompt_version: str | None = None
+    model_version: str | None = None
+    tool_version: str | None = None
+    token_usage: TokenUsage | None = None
 
-    model_config = {"from_attributes": True}
+    model_config = {
+        "from_attributes": True,
+        "protected_namespaces": (),
+    }
 
 
 class TraceListResponse(BaseModel):

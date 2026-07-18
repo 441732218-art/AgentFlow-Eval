@@ -224,11 +224,17 @@ async def test_execute_queues(api_client):
     )
     tid = r.json()["id"]
 
-    mock_result = MagicMock()
-    mock_result.id = "celery-123"
-    with patch("app.core.celery_app.tasks.run_full_evaluation") as mock_run:
-        mock_run.delay.return_value = mock_result
+    from app.core.ports.task_queue import EnqueueResult
+
+    mock_queue = MagicMock()
+    mock_queue.enqueue.return_value = EnqueueResult(
+        task_id="celery-123", backend="celery", eager=False
+    )
+    # execute_task does: from app.core.profiles import get_task_queue
+    with patch("app.core.profiles.get_task_queue", return_value=mock_queue):
         ex = await api_client.post(f"/api/v1/tasks/{tid}/execute")
     assert ex.status_code == 200, ex.text
     assert ex.json()["status"] == "queued"
     assert ex.json()["celery_task_id"] == "celery-123"
+    mock_queue.enqueue.assert_called_once()
+    assert mock_queue.enqueue.call_args.args[0] == "run_full_evaluation"

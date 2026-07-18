@@ -18,6 +18,7 @@ from app.models.billing import (
     UsageRecord,
 )
 from app.models.slow_task import SlowTaskEvent
+from app.models.agent_log import AgentLog
 
 __all__ = [
     "Base",
@@ -39,4 +40,5 @@ __all__ = [
     "QuotaBalance",
     "Invoice",
     "SlowTaskEvent",
+    "AgentLog",
 ]

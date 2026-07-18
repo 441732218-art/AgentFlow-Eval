@@ -14,7 +14,12 @@ if TYPE_CHECKING:
 class TestSuite(PKMixin, TimestampMixin, Base):
     __tablename__ = "test_suites"
 
-    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, comment="FK to task")
+    task_id: Mapped[str] = mapped_column(
+        ForeignKey("tasks.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="FK to task",
+    )
     user_query: Mapped[str] = mapped_column(Text, nullable=False, comment="user instruction")
     expected_output: Mapped[str] = mapped_column(Text, nullable=False, default="", comment="expected output")
     expected_tools: Mapped[list] = mapped_column(JSON, nullable=False, default=list, comment="expected tool names")

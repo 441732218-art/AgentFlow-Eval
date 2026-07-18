@@ -4,7 +4,7 @@
 import enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Enum, Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Enum, Float, ForeignKey, Index, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, PKMixin, TimestampMixin
@@ -28,10 +28,16 @@ class Trace(PKMixin, TimestampMixin, Base):
     """
 
     __tablename__ = "traces"
+    __table_args__ = (
+        # List traces for a suite ordered by time
+        Index("ix_traces_suite_created", "test_suite_id", "created_at"),
+        Index("ix_traces_created_at", "created_at"),
+    )
 
     test_suite_id: Mapped[str] = mapped_column(
         ForeignKey("test_suites.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
         comment="所属测试用例 ID",
     )
     user_query: Mapped[str] = mapped_column(

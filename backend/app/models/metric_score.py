@@ -3,7 +3,7 @@
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Float, ForeignKey, JSON, String, Text
+from sqlalchemy import Boolean, Float, ForeignKey, Index, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, PKMixin, TimestampMixin
@@ -20,10 +20,15 @@ class MetricScore(PKMixin, TimestampMixin, Base):
     """
 
     __tablename__ = "metric_scores"
+    __table_args__ = (
+        Index("ix_metric_scores_trace_metric", "trace_id", "metric_name"),
+        Index("ix_metric_scores_human_reviewed", "is_human_reviewed"),
+    )
 
     trace_id: Mapped[str] = mapped_column(
         ForeignKey("traces.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
         comment="FK to trace",
     )
     metric_name: Mapped[str] = mapped_column(

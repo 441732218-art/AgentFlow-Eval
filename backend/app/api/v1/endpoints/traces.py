@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.dependencies import get_db
+from app.core.rbac import Permission, require_permission
 from app.core.tenancy import (
     apply_trace_owner_filter,
     load_task_for_suite,
@@ -56,6 +57,7 @@ def _actor(request: Request) -> str:
 
 
 @router.get("", response_model=TraceListResponse)
+@require_permission(Permission.EVALUATION_READ)
 async def list_traces(
     request: Request,
     test_suite_id: str | None = Query(None, description="按测试用例筛选"),
@@ -95,6 +97,7 @@ async def list_traces(
 
 
 @router.get("/{trace_id}", response_model=TraceResponse)
+@require_permission(Permission.EVALUATION_READ)
 async def get_trace(
     trace_id: str,
     request: Request,
@@ -106,26 +109,42 @@ async def get_trace(
 
 
 @router.post("/{trace_id}/judge", response_model=JudgeResultResponse)
+@require_permission(Permission.EVALUATION_SUBMIT)
 async def judge_trace(
     trace_id: str,
     request: Request,
     session: AsyncSession = Depends(get_db),
 ) -> Any:
-    """对指定轨迹执行 LLM-as-Judge 评分（需拥有所属任务）。"""
+    """对指定轨迹执行 LLM-as-Judge 评分（需拥有所属任务）。
+
+    Existing scores are served from a versioned 1h cache when present.
+    """
+    from app.core.cache.invalidation import invalidate_eval
+    from app.core.cache.services import eval_version_from_scores, get_cached_eval_result
+
     trace = await load_trace_with_access(session, trace_id, _actor(request))
 
     if trace.metric_scores:
-        scores = {ms.metric_name: ms.score for ms in trace.metric_scores}
-        total = sum(scores.values())
-        reason = trace.metric_scores[0].reason if trace.metric_scores else ""
-        return JudgeResultResponse(
-            scores=scores,
-            total=total,
-            reason=reason,
-            token_cost=trace.metric_scores[0].extra_metadata.get("token_cost", 0)
-            if trace.metric_scores[0].extra_metadata
-            else 0,
-        )
+        version = eval_version_from_scores(list(trace.metric_scores))
+
+        async def _from_db() -> dict:
+            scores = {ms.metric_name: ms.score for ms in trace.metric_scores}
+            total = sum(scores.values())
+            reason = trace.metric_scores[0].reason if trace.metric_scores else ""
+            token_cost = (
+                (trace.metric_scores[0].extra_metadata or {}).get("token_cost", 0)
+                if trace.metric_scores
+                else 0
+            )
+            return {
+                "scores": scores,
+                "total": total,
+                "reason": reason,
+                "token_cost": token_cost,
+            }
+
+        payload = await get_cached_eval_result(trace_id, version, _from_db)
+        return JudgeResultResponse(**payload)
 
     suite_result = await session.execute(
         select(TestSuite).where(TestSuite.id == trace.test_suite_id)
@@ -158,16 +177,40 @@ async def judge_trace(
         session.add(ms)
 
     await session.commit()
+    await invalidate_eval(trace_id)
 
-    return JudgeResultResponse(
-        scores=scores,
-        total=total,
-        reason=reason,
-        token_cost=token_cost,
+    payload = {
+        "scores": scores,
+        "total": total,
+        "reason": reason,
+        "token_cost": token_cost,
+    }
+    # Seed versioned cache for subsequent reads
+    from app.core.cache.client import get_cache
+    from app.core.cache.keys import CacheTTL, eval_result_key
+
+    ver = eval_version_from_scores(
+        [
+            MetricScore(
+                trace_id=trace_id,
+                metric_name=n,
+                score=float(s),
+                reason=reason,
+            )
+            for n, s in scores.items()
+        ]
     )
+    await get_cache().set(
+        eval_result_key(trace_id, ver),
+        payload,
+        ttl=int(CacheTTL.EVAL_RESULT),
+    )
+
+    return JudgeResultResponse(**payload)
 
 
 @router.post("/{trace_id}/review", response_model=HumanReviewResponse)
+@require_permission(Permission.EVALUATION_APPROVE)
 async def review_trace(
     trace_id: str,
     body: HumanReviewRequest,
@@ -204,6 +247,12 @@ async def review_trace(
         session.add(new_ms)
 
     await session.commit()
+    try:
+        from app.core.cache.invalidation import invalidate_eval
+
+        await invalidate_eval(trace_id)
+    except Exception:
+        pass
 
     return HumanReviewResponse(
         trace_id=trace_id,
@@ -216,13 +265,18 @@ async def review_trace(
 
 
 def _trace_to_response(trace: Trace) -> TraceResponse:
-    """将 Trace ORM 对象转换为响应模型。"""
+    """将 Trace ORM 对象转换为响应模型（含版本 / Token / 成本可观测字段）。"""
+    from app.schemas.trace import TokenUsage
+
+    prompt_tokens = int(getattr(trace, "prompt_tokens", 0) or 0)
+    completion_tokens = int(getattr(trace, "completion_tokens", 0) or 0)
+    total_tokens = int(trace.total_tokens or 0)
     return TraceResponse(
         id=trace.id,
         test_suite_id=trace.test_suite_id,
         user_query=trace.user_query,
-        steps=trace.steps,
-        total_tokens=trace.total_tokens,
+        steps=trace.steps or [],
+        total_tokens=total_tokens,
         response_time_ms=trace.response_time_ms,
         status=trace.status.value,
         created_at=trace.created_at,
@@ -236,4 +290,16 @@ def _trace_to_response(trace: Trace) -> TraceResponse:
             )
             for ms in (trace.metric_scores or [])
         ],
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cost=float(getattr(trace, "cost", 0.0) or 0.0),
+        agent_version=getattr(trace, "agent_version", None),
+        prompt_version=getattr(trace, "prompt_version", None),
+        model_version=getattr(trace, "model_version", None),
+        tool_version=getattr(trace, "tool_version", None),
+        token_usage=TokenUsage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens or (prompt_tokens + completion_tokens),
+        ),
     )

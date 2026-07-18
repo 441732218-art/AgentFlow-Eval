@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.dependencies import get_db
+from app.core.rbac import Permission, get_request_role, require_permission
 from app.core.tenancy import ensure_task_access
 from app.models.task import Task
 from app.models.test_suite import TestSuite
@@ -20,6 +21,7 @@ router = APIRouter()
 
 
 @router.get("/{task_id}")
+@require_permission(Permission.EVALUATION_READ)
 async def get_task_report(
     task_id: str,
     request: Request,
@@ -35,8 +37,9 @@ async def get_task_report(
     - 耗时、Token 消耗统计
     """
     actor = getattr(request.state, "actor", None) or "anonymous"
+    role = get_request_role(request).value
     result = await session.execute(select(Task).where(Task.id == task_id))
-    task = ensure_task_access(result.scalar_one_or_none(), actor, task_id)
+    task = ensure_task_access(result.scalar_one_or_none(), actor, task_id, role=role)
 
     # 获取所有测试用例及其轨迹和评分
     suite_result = await session.execute(

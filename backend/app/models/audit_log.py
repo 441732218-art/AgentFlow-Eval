@@ -1,7 +1,7 @@
 # (c) 2026 AgentFlow-Eval
 """Audit log model for security-relevant actions."""
 
-from sqlalchemy import JSON, String, Text
+from sqlalchemy import Index, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, PKMixin, TimestampMixin
@@ -11,6 +11,12 @@ class AuditLog(PKMixin, TimestampMixin, Base):
     """Immutable-style audit record (no update API)."""
 
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("ix_audit_logs_created_at", "created_at"),
+        Index("ix_audit_logs_action", "action"),
+        Index("ix_audit_logs_resource", "resource_type", "resource_id"),
+        Index("ix_audit_logs_actor_created", "actor", "created_at"),
+    )
 
     actor: Mapped[str] = mapped_column(
         String(100), nullable=False, default="anonymous", comment="操作者标识",

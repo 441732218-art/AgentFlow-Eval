@@ -24,13 +24,27 @@ async def write_audit(
     request_id: str | None = None,
     ip: str | None = None,
 ) -> AuditLog:
-    """Persist an audit log row and emit structured log line."""
+    """Persist an audit log row and emit structured log line.
+
+    When ``request_id`` is omitted, falls back to the current TraceID contextvar
+    so API → audit rows share the same correlation id.
+    """
+    if not request_id:
+        try:
+            from app.core.observability.tracing import get_trace_id
+
+            request_id = get_trace_id() or None
+        except Exception:
+            request_id = None
+    detail_map = dict(detail or {})
+    if request_id and "trace_id" not in detail_map:
+        detail_map["trace_id"] = request_id
     entry = AuditLog(
         actor=actor or "anonymous",
         action=action,
         resource_type=resource_type,
         resource_id=resource_id,
-        detail=detail or {},
+        detail=detail_map,
         request_id=request_id,
         ip_address=ip,
     )

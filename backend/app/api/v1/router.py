@@ -7,7 +7,10 @@ from app.api.v1.endpoints import (
     ab,
     audit,
     billing,
+    dashboard,
+    diagnosis,
     experiments,
+    logs,
     me,
     media,
     observability,
@@ -26,6 +29,9 @@ router.include_router(me.router, prefix="/me", tags=["当前用户"])
 router.include_router(billing.router, prefix="/billing", tags=["计费"])
 router.include_router(observability.router, prefix="/observability", tags=["可观测"])
 router.include_router(tasks.router, prefix="/tasks", tags=["评测任务"])
+router.include_router(dashboard.router, prefix="/dashboard", tags=["仪表板"])
+router.include_router(diagnosis.router, prefix="/diagnosis", tags=["故障诊断"])
+router.include_router(logs.router, prefix="/logs", tags=["可观测日志"])
 router.include_router(media.router, prefix="/media", tags=["多模态"])
 router.include_router(ab.router, prefix="/ab", tags=["A/B测试"])
 router.include_router(experiments.router, prefix="/experiments", tags=["对比实验"])

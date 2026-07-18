@@ -5,25 +5,28 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db
+from app.core.rbac import Permission, require_permission
 from app.models.audit_log import AuditLog
 
 router = APIRouter()
 
 
 @router.get("")
+@require_permission(Permission.AUDIT_READ)
 async def list_audit_logs(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     action: str | None = Query(None, description="Filter by action"),
     resource_type: str | None = Query(None),
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """List recent audit events (newest first)."""
+    """List recent audit events (newest first). Requires audit:read."""
     query = select(AuditLog)
     count_query = select(func.count(AuditLog.id))
 
