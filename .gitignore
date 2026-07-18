@@ -10,13 +10,31 @@ venv/
 node_modules/
 dist/
 
-# Env
+# Env (templates *.example are committed; generated secrets are not)
 .env
 .env.docker
+.env.vercel-postgres
 backend/.env
 backend/.env.docker
+backend/.env.vercel-postgres
+backend/.deploy-secrets.tmp
+frontend/.env.local
+frontend/.env.production.local
 **/.env.local
 **/.env.*.local
+!**/.env.example
+!**/.env.*.example
+!backend/.env.docker.example
+!backend/.env.vercel-postgres.example
+!frontend/.env.example
+!frontend/.env.production.example
+
+# Local screenshots / agent scratch (do not commit secrets or personal captures)
+artifacts/
+.grokforge/
+
+# Soft-copyright generated dumps (regenerate via scripts/export-soft-copyright.ps1)
+docs/soft-copyright/generated/
 
 # IDE
 .idea/
@@ -53,3 +71,12 @@ test-results/
 .grokforge/
 *.tsbuildinfo
 fix_ruff.py
+
+# Temp / scratch / Office lock files
+tmp/
+tmp*.txt
+~$*.py
+~$*.docx
+~$*.pdf
+scripts/~$*
+*.tmp
