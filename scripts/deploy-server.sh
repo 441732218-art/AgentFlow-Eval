@@ -92,39 +92,45 @@ else
   fi
 fi
 
-# ---- 构建并启动 ----
-echo "==> docker compose build & up"
+# ---- 构建并启动（compose 内 migrate 服务先 alembic upgrade head）----
+echo "==> docker compose build & up (incl. migrate)"
 cd "$APP_DIR"
 docker compose -f "$COMPOSE_FILE" build
 docker compose -f "$COMPOSE_FILE" up -d
 
-echo "==> 等待服务就绪..."
+echo "==> 等待服务就绪 (/health/ready)..."
 for i in $(seq 1 60); do
-  if curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1; then
-    echo "    backend healthy"
+  if curl -fsS http://127.0.0.1:8000/health/ready >/dev/null 2>&1; then
+    echo "    backend ready"
     break
   fi
   sleep 2
   if [ "$i" -eq 60 ]; then
-    echo "!! 后端健康检查超时，查看日志:"
-    docker compose -f "$COMPOSE_FILE" logs --tail=80 backend
+    echo "!! 后端就绪检查超时，查看日志:"
+    docker compose -f "$COMPOSE_FILE" logs --tail=80 backend migrate
     exit 1
   fi
 done
 
-# SQLite/create_all 在启动时已建表；若使用 Postgres + alembic，尝试迁移
-echo "==> 尝试数据库迁移 (alembic upgrade head)"
-docker compose -f "$COMPOSE_FILE" exec -T backend alembic upgrade head || {
-  echo "!! alembic 迁移跳过/失败（若使用 create_all 首次启动，可忽略）"
+# 双保险：已有库升级
+echo "==> 确认数据库迁移 (alembic upgrade head)"
+docker compose -f "$COMPOSE_FILE" run --rm migrate || \
+  docker compose -f "$COMPOSE_FILE" exec -T backend alembic upgrade head || {
+  echo "!! alembic 迁移跳过/失败（见 logs migrate）"
 }
+
+echo "==> 写入演示种子（best-effort）"
+docker compose -f "$COMPOSE_FILE" exec -T backend python -m app.core.seed || true
 
 echo ""
 echo "============================================"
 echo " 部署完成"
 echo " 前端:  http://$(hostname -I 2>/dev/null | awk '{print $1}'):80"
 echo " API:   http://$(hostname -I 2>/dev/null | awk '{print $1}'):8000"
+echo " Ready: curl -s http://127.0.0.1:8000/health/ready"
+echo " Me:    curl -s http://127.0.0.1:8000/api/v1/me"
 echo " Docs:  http://$(hostname -I 2>/dev/null | awk '{print $1}'):8000/docs"
 echo " Flower:http://$(hostname -I 2>/dev/null | awk '{print $1}'):5555  (admin / 见 backend/.env)"
-echo " 健康:  curl -s http://127.0.0.1:8000/health"
+echo " 校验:  见 docs/production-checklist.md"
 echo " 日志:  docker compose -f backend/docker-compose.yml logs -f"
 echo "============================================"

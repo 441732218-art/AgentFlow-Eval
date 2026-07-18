@@ -71,6 +71,10 @@ TENANCY_ENABLED=false
 ADMIN_ACTORS=admin
 FLOWER_USER=admin
 FLOWER_PASSWORD=flower_local_change_me
+DEPLOY_PROFILE=private
+BILLING_ENABLED=false
+STRIPE_MODE=mock
+PLUGINS_ENABLED=true
 "@ | Set-Content -Path $EnvFile -Encoding utf8
   if (-not $openai) {
     Write-Host "WARNING: OPENAI_API_KEY empty — edit backend\.env.docker before running evaluations."
@@ -86,6 +90,12 @@ if ($Down) {
   exit 0
 }
 
+# Ensure all deploy env files exist (docker / vercel-postgres / frontend .env.local)
+$gen = Join-Path $Root "scripts\generate-deploy-env.ps1"
+if (Test-Path $gen) {
+  & powershell -ExecutionPolicy Bypass -File $gen
+}
+
 Ensure-EnvDocker
 
 if ($Rebuild) {
@@ -94,30 +104,40 @@ if ($Rebuild) {
   docker build -t agentflow-frontend:local ../frontend
 }
 
-Write-Host "==> Starting full stack..."
-docker compose --env-file .env.docker up -d
+Write-Host "==> Starting full stack (migrate service runs alembic upgrade head)..."
+# backend depends_on migrate (service_completed_successfully)
+docker compose --env-file .env.docker up -d --build
 
-Write-Host "==> Waiting for backend health..."
+Write-Host "==> Waiting for backend readiness (/health/ready)..."
 $ok = $false
-for ($i = 1; $i -le 40; $i++) {
+for ($i = 1; $i -le 45; $i++) {
   try {
-    $h = Invoke-RestMethod "http://127.0.0.1:8000/health" -TimeoutSec 3
-    if ($h.status -eq "healthy") { $ok = $true; break }
+    $h = Invoke-RestMethod "http://127.0.0.1:8000/health/ready" -TimeoutSec 3
+    if ($h.status -eq "ready") { $ok = $true; break }
   } catch {}
   Start-Sleep -Seconds 2
+}
+
+# Optional seed (idempotent-ish)
+if ($ok) {
+  Write-Host "==> Seeding demo data (best-effort)..."
+  docker compose --env-file .env.docker exec -T backend python -m app.core.seed 2>$null
 }
 
 docker compose --env-file .env.docker ps
 Write-Host ""
 Write-Host "============================================"
 if ($ok) {
-  Write-Host " Docker stack is up"
+  Write-Host " Docker Private stack is READY"
 } else {
-  Write-Host " Backend not healthy yet — check: docker compose --env-file .env.docker logs backend"
+  Write-Host " Backend not ready — check: docker compose --env-file .env.docker logs backend migrate"
 }
 Write-Host " Frontend : http://localhost/"
 Write-Host " API docs : http://localhost:8000/docs"
-Write-Host " Health   : http://localhost:8000/health"
+Write-Host " Ready    : http://localhost:8000/health/ready"
+Write-Host " Me       : http://localhost:8000/api/v1/me"
 Write-Host " Flower   : http://localhost:5555  (admin / see .env.docker)"
+Write-Host " Verify   : powershell -File scripts\post-deploy-verify.ps1"
+Write-Host " Demo     : powershell -File scripts\demo-playbook.ps1"
 Write-Host " Stop     : powershell -File scripts\docker-up.ps1 -Down"
 Write-Host "============================================"

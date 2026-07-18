@@ -41,6 +41,30 @@ services:
       timeout: 3s
       retries: 5
 
+  # ---- DB migrations (alembic head: 010 billing, 011 slow_task_events, …) ----
+  migrate:
+    <<: *common
+    image: agentflow-backend:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentflow-migrate
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.docker
+        required: false
+    environment:
+      ENV: ${ENV:-prod}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-agentflow}:${POSTGRES_PASSWORD:-agentflow_secret}@postgres:5432/${POSTGRES_DB:-agentflow_eval}
+    command: ["alembic", "upgrade", "head"]
+    healthcheck:
+      disable: true
+
   # ---- Backend API ----
   backend:
     <<: *common
@@ -54,6 +78,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     env_file:
       # .env.docker 优先（完整 Docker 栈）；无则回退 .env
       - path: .env
@@ -63,6 +89,9 @@ services:
     environment:
       ENV: prod
       DEBUG: "false"
+      DEPLOY_PROFILE: ${DEPLOY_PROFILE:-private}
+      BILLING_ENABLED: ${BILLING_ENABLED:-false}
+      STRIPE_MODE: ${STRIPE_MODE:-mock}
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-agentflow}:${POSTGRES_PASSWORD:-agentflow_secret}@postgres:5432/${POSTGRES_DB:-agentflow_eval}
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
@@ -77,11 +106,11 @@ services:
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/ready"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 15s
+      start_period: 20s
 
   # ---- Celery Worker ----
   celery-worker:

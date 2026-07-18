@@ -19,8 +19,8 @@ COPY alembic/ alembic/
 
 RUN mkdir -p logs
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
+    CMD curl -f http://localhost:8000/health/ready || exit 1
 
 EXPOSE 8000
 

@@ -1,0 +1,38 @@
+# AgentFlow-Eval — 纯文本命令清单（用记事本打开后可正常 Ctrl+C 复制）
+# 文件位置: D:\AgentFlow-Eval\scripts\COMMANDS.txt
+
+# ---------- 一键（推荐，不用从聊天里复制多段）----------
+powershell -ExecutionPolicy Bypass -File D:\AgentFlow-Eval\scripts\copy-friendly-commands.ps1
+
+# ---------- 或分步 ----------
+
+# 1) 进入项目
+cd D:\AgentFlow-Eval
+
+# 2) 生成部署用环境文件
+powershell -ExecutionPolicy Bypass -File .\scripts\generate-deploy-env.ps1
+
+# 3) 有 Vercel 域名时（把 xxx 换成你的真实域名）
+powershell -ExecutionPolicy Bypass -File .\scripts\generate-deploy-env.ps1 -Force -VercelHost "https://xxx.vercel.app"
+
+# 4) 启动 Docker 全栈
+powershell -ExecutionPolicy Bypass -File .\scripts\docker-up.ps1
+
+# 5) 检查后端是否健康
+Invoke-RestMethod http://127.0.0.1:8000/health
+
+# 6) 浏览器打开
+#    前端: http://localhost/
+#    API:  http://localhost:8000/docs
+
+# ---------- 提交模板（不要提交密钥 .env）----------
+git add backend/.env.docker.example backend/.env.vercel-postgres.example frontend/.env.example frontend/.env.production.example scripts/generate-deploy-env.ps1 scripts/docker-up.ps1 scripts/copy-friendly-commands.ps1 scripts/COMMANDS.txt deploy.env.example .gitignore
+git status
+git commit -m "chore: add deploy env templates and generate scripts"
+git push
+
+# ---------- Grok 窗口内复制（聊天里选不中时用这个）----------
+# /copy          复制最近一条 AI 回复到剪贴板
+# /copy 2        复制倒数第 2 条回复
+# 先按 Esc 进入浏览，再用 j/k 选中代码块，按 y 复制
+# 或对代码块按 Enter 全屏后，再尝试选中复制

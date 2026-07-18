@@ -1,0 +1,57 @@
+# AgentFlow-Eval — 云服务器 Docker 部署（不依赖本机）
+# 目标架构:
+#   浏览器 → Vercel 前端
+#              ↓ VITE_API_BASE_URL
+#         云服务器 Docker (API + Postgres + Redis + Celery + 可选前端)
+#
+# 你的 Vercel 前端:
+#   https://agengt-flow-eval-6f26dzx4c-erxiongzhong-7288s-projects.vercel.app
+#
+# ============================================================
+# 准备: 买一台 Linux 云主机（推荐 Ubuntu 22.04，2核4G 起）
+# 安全组放行: 22(SSH), 80(HTTP), 8000(API 建议)
+# ============================================================
+
+# ---------- 在「服务器」SSH 里执行（不是 Windows PowerShell）----------
+
+# 1) 安装 Docker（仅首次）
+curl -fsSL https://raw.githubusercontent.com/441732218-art/AgentFlow-Eval/main/scripts/setup-server.sh | sudo bash
+# 然后退出 SSH 再登录一次
+
+# 2) 一键部署（替换 sk- 和 公网IP）
+export OPENAI_API_KEY='sk-你的真实密钥'
+export PUBLIC_HOST='你的服务器公网IP'
+
+git clone https://github.com/441732218-art/AgentFlow-Eval.git /opt/agentflow-eval
+cd /opt/agentflow-eval
+OPENAI_API_KEY="$OPENAI_API_KEY" PUBLIC_HOST="$PUBLIC_HOST" bash scripts/deploy-server.sh
+
+# 3) 把 Vercel 域名加入 CORS（编辑后端环境变量）
+nano /opt/agentflow-eval/backend/.env
+# 找到 CORS_ORIGINS= 改成下面一整行（IP 换成你的公网 IP）:
+# CORS_ORIGINS=["http://你的公网IP","http://localhost","https://agengt-flow-eval-6f26dzx4c-erxiongzhong-7288s-projects.vercel.app"]
+
+# 保存后重启后端:
+cd /opt/agentflow-eval
+docker compose -f backend/docker-compose.yml up -d --force-recreate backend
+
+# 4) 在服务器上自检
+curl -s http://127.0.0.1:8000/health
+# 你自己电脑浏览器打开:
+#   http://你的公网IP:8000/health
+#   http://你的公网IP/          （若 80 端口前端也起来了）
+
+# 5) Vercel 环境变量（网页控制台）
+# Key:   VITE_API_BASE_URL
+# Value: http://你的公网IP:8000/api/v1
+# 若以后配了 HTTPS 域名: https://api.你的域名/api/v1
+# 保存后 Deployments → Redeploy
+
+# 6) 以后更新代码
+cd /opt/agentflow-eval
+git pull
+bash scripts/deploy-server.sh
+
+# ============================================================
+# 完成后: 本机 Docker / ngrok 都可以关，不影响线上
+# ============================================================

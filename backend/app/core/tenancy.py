@@ -30,29 +30,73 @@ def is_admin(actor: str | None) -> bool:
     return actor in admin_actors()
 
 
-def can_access_task(task: Task, actor: str | None) -> bool:
-    """Return True if actor may read/mutate the task."""
+def can_access_task(
+    task: Task,
+    actor: str | None,
+    *,
+    role: str | None = None,
+) -> bool:
+    """Return True if actor may read/mutate the task.
+
+    Cross-tenant access is granted to ADMIN/MANAGER/REVIEWER roles when RBAC
+    is active; otherwise falls back to ADMIN_ACTORS + ownership checks.
+    """
     if not tenancy_enforced():
         return True
     if is_admin(actor):
         return True
+    # Role-based cross-tenant (RBAC)
+    try:
+        from app.core.rbac import CROSS_TENANT_ROLES, Role, rbac_enforced
+
+        if rbac_enforced() and role:
+            try:
+                r = Role.parse(str(role))
+                if r in CROSS_TENANT_ROLES:
+                    return True
+            except ValueError:
+                pass
+    except Exception:
+        pass
     owner = getattr(task, "created_by", None) or "anonymous"
     return owner == (actor or "anonymous")
 
 
-def ensure_task_access(task: Task | None, actor: str | None, task_id: str = "") -> Task:
+def ensure_task_access(
+    task: Task | None,
+    actor: str | None,
+    task_id: str = "",
+    *,
+    role: str | None = None,
+) -> Task:
     """Raise NotFoundError if missing or not accessible (no existence leak)."""
-    if task is None or not can_access_task(task, actor):
+    if task is None or not can_access_task(task, actor, role=role):
         raise NotFoundError("Task", task_id or (task.id if task else ""))
     return task
 
 
-def apply_owner_filter(query: Select, actor: str | None) -> Select:
+def apply_owner_filter(
+    query: Select,
+    actor: str | None,
+    *,
+    role: str | None = None,
+) -> Select:
     """Restrict Task list queries to the current actor when tenancy is on."""
     if not tenancy_enforced():
         return query
     if is_admin(actor):
         return query
+    try:
+        from app.core.rbac import CROSS_TENANT_ROLES, Role, rbac_enforced
+
+        if rbac_enforced() and role:
+            try:
+                if Role.parse(str(role)) in CROSS_TENANT_ROLES:
+                    return query
+            except ValueError:
+                pass
+    except Exception:
+        pass
     owner = actor or "anonymous"
     return query.where(Task.created_by == owner)
 

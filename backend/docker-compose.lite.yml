@@ -1,0 +1,48 @@
+# Lite stack: API + frontend only (no Redis, no Celery worker, no Postgres).
+# SQLite + eager task queue inside the API container.
+#
+#   docker compose -f docker-compose.lite.yml up -d --build
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      ENV: dev
+      DEPLOY_PROFILE: lite
+      CELERY_TASK_ALWAYS_EAGER: "true"
+      TASK_QUEUE_BACKEND: eager
+      DATABASE_URL: sqlite+aiosqlite:///./data/agentflow_lite.db
+      AUTH_ENABLED: "false"
+      BILLING_ENABLED: "false"
+      CACHE_ENABLED: "true"
+      PLUGINS_ENABLED: "true"
+      # Redis URLs unused in lite but keep placeholders for imports
+      REDIS_URL: redis://127.0.0.1:6379/0
+      CELERY_BROKER_URL: redis://127.0.0.1:6379/0
+      CELERY_RESULT_BACKEND: redis://127.0.0.1:6379/0
+    volumes:
+      - lite_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      # nginx proxies /api to backend — image-specific; see frontend/nginx.conf
+
+volumes:
+  lite_data:
