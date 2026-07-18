@@ -32,11 +32,13 @@ docker compose exec backend alembic upgrade head
 alembic upgrade head
 ```
 
-确认 head 包含：
+确认 head 包含（至 `012_agent_logs`）：
 
+- `008_media_assets`
 - `009_ab_tests`
 - `010_billing`
 - `011_slow_task_events`
+- `012_agent_logs`
 
 ## 3. 健康探针（编排）
 
@@ -57,6 +59,19 @@ powershell -ExecutionPolicy Bypass -File scripts\post-deploy-verify.ps1 -BaseUrl
 - [ ] Prometheus scrape `GET /metrics`
 - [ ] 导入 [grafana-agentflow.json](./grafana-agentflow.json)
 - [ ] 日志 `LOG_FORMAT=json`，可按 `request_id` / TraceID 检索
+- [ ] AOLS：`GET /api/v1/logs/statistics` 有数据（可 `python -m app.core.seed`）
+- [ ] 驾驶舱「AOLS Events / Errors」卡片与 Monitoring 同源
+
+## 4.1 演示就绪（私有化验收前）
+
+```bash
+cd backend
+python -m app.core.seed --force   # 写入任务 + Trace + agent_logs
+```
+
+- [ ] `/dashboard` 业务卡 + AOLS 卡非全空
+- [ ] `/diagnosis` 能选到失败用例（seed 含 loop 失败 Trace）
+- [ ] `/monitoring` 日志列表有事件
 
 ## 5. 安全
 

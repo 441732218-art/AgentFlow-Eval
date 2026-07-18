@@ -6,6 +6,10 @@
 
 ### Added
 
+- **落地加固（完整与可部署）**
+  - 增强 `python -m app.core.seed`：COMPLETED 任务 + 成功/失败 Trace + MetricScore + AOLS `agent_logs`（驾驶舱/诊断/监控可开箱有数）
+  - Dashboard AOLS 双源卡片：`/logs/statistics` → Events / Errors / Agent Fail；空库 EmptyState 引导 seed
+  - 生产清单对齐 migration `012` 与演示就绪勾选；落地执行报告见 `docs/落地执行报告-完整与可部署.md`
 - **AgentFlow Intelligence Center**：企业级 AI Agent 可观测 / 评测 / 诊断控制中心（Cyber Command 主题）
   - AI Dashboard 驾驶舱 `/dashboard`：Health Score、拓扑 ReactFlow、ECharts 趋势
   - Trace Explorer `/traces`：LangSmith 风格左右分栏

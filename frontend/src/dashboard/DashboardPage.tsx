@@ -25,7 +25,7 @@ import {
   BugOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { useDashboardOverview } from "@/hooks";
+import { useDashboardOverview, useLogStatistics } from "@/hooks";
 import { MetricCard } from "@/components/widgets/MetricCard";
 import { Panel } from "@/components/widgets/Panel";
 import { AgentTopologyFlow } from "@/components/flow/AgentTopologyFlow";
@@ -39,6 +39,7 @@ import {
   CHART_COLORS,
 } from "@/components/charts/EChart";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { QuotaStrip } from "@/components/billing/QuotaStrip";
 import type { TopologyNodeMeta } from "@/components/flow/AgentTopologyFlow";
 
@@ -53,6 +54,11 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const [days, setDays] = useState<WindowDays>(7);
   const { data, isLoading, error, refetch, isFetching } = useDashboardOverview(days);
+  const {
+    data: logStats,
+    isLoading: logStatsLoading,
+    refetch: refetchLogs,
+  } = useLogStatistics(days);
 
   const gaugeOption = useMemo(
     () => buildGaugeOption(data?.health ?? 0, "AI Health"),
@@ -152,6 +158,17 @@ export default function DashboardPage() {
   const failure = data?.failure_rate;
   const latencySec = data?.latency;
   const seriesSource = data?.series_meta?.source || "orm";
+  const totalTasks = Number(data?.stats?.tasks_total ?? 0);
+  const isEmptyDemo =
+    !isLoading &&
+    totalTasks === 0 &&
+    !logStatsLoading &&
+    (logStats?.total_events ?? 0) === 0;
+
+  const aolsFailPct =
+    logStats?.agent_failure_rate != null
+      ? `${(logStats.agent_failure_rate * 100).toFixed(1)}%`
+      : "—";
 
   return (
     <div className="ic-page">
@@ -170,7 +187,7 @@ export default function DashboardPage() {
               </span>
             </div>
             <p className="af-section-sub" style={{ margin: "4px 0 0" }}>
-              ECharts 时序 · ReactFlow 拓扑 · 可观测评测驾驶舱
+              ECharts 时序 · ReactFlow 拓扑 · ORM + AOLS 双源可观测驾驶舱
             </p>
           </div>
         </div>
@@ -185,10 +202,13 @@ export default function DashboardPage() {
                 { label: "30d", value: 30 },
               ]}
             />
-            <Tooltip title="刷新 overview">
+            <Tooltip title="刷新 overview + AOLS 统计">
               <Button
-                icon={<ReloadOutlined spin={isFetching} />}
-                onClick={() => void refetch()}
+                icon={<ReloadOutlined spin={isFetching || logStatsLoading} />}
+                onClick={() => {
+                  void refetch();
+                  void refetchLogs();
+                }}
               />
             </Tooltip>
             <Button icon={<ApiOutlined />} onClick={() => navigate("/monitoring")}>
@@ -211,13 +231,34 @@ export default function DashboardPage() {
 
       <QuotaStrip />
 
+      {isEmptyDemo ? (
+        <div style={{ marginBottom: 16 }}>
+          <EmptyState
+            title="驾驶舱暂无业务数据"
+            description="请在 backend 目录执行 python -m app.core.seed（或 --force）写入演示任务、Trace 与 AOLS 日志；配置 OPENAI_API_KEY 后可真实跑评测。"
+            actionLabel="去创建任务"
+            onAction={() => navigate("/tasks/create")}
+          />
+        </div>
+      ) : null}
+
+      {!isEmptyDemo && totalTasks === 0 ? (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 14 }}
+          message="尚无评测任务"
+          description="AOLS 日志可能已有数据。建议执行 python -m app.core.seed 填充完整演示集，或创建任务后执行评测。"
+        />
+      ) : null}
+
       <Row gutter={[14, 14]} style={{ marginBottom: 16 }}>
         <Col xs={12} sm={8} lg={4}>
           <MetricCard
             label="AI Health"
             value={data ? `${data.health.toFixed(1)}%` : "—"}
             tone="cyan"
-            hint="成功率 / 延迟 / 故障压力"
+            hint="成功率 / 延迟 / 故障压力 · ORM"
             icon={<DashboardOutlined />}
           />
         </Col>
@@ -236,7 +277,7 @@ export default function DashboardPage() {
             label="Success Rate"
             value={pct(success)}
             tone="success"
-            hint={`${days}d 终态成功率`}
+            hint={`${days}d 终态成功率 · ORM`}
           />
         </Col>
         <Col xs={12} sm={8} lg={4}>
@@ -244,7 +285,7 @@ export default function DashboardPage() {
             label="Failure Rate"
             value={pct(failure)}
             tone="danger"
-            hint="failed + timeout"
+            hint="failed + timeout · ORM"
             icon={<FireOutlined />}
             onClick={() => navigate("/tasks?status=failed")}
           />
@@ -268,6 +309,53 @@ export default function DashboardPage() {
             value={(data?.tokens ?? 0).toLocaleString()}
             tone="cyan"
             hint={data?.cost != null ? `$${data.cost}` : `${days}d Token 总量`}
+          />
+        </Col>
+      </Row>
+
+      {/* AOLS log-driven strip — single truth for Monitoring deep-link */}
+      <Row gutter={[14, 14]} style={{ marginBottom: 16 }}>
+        <Col xs={12} sm={8} lg={6}>
+          <MetricCard
+            label="AOLS Events"
+            value={logStats?.total_events ?? (logStatsLoading ? "…" : 0)}
+            tone="purple"
+            hint={`${days}d · agent_logs · 点此看日志流`}
+            icon={<ApiOutlined />}
+            onClick={() => navigate("/monitoring")}
+          />
+        </Col>
+        <Col xs={12} sm={8} lg={6}>
+          <MetricCard
+            label="AOLS Errors"
+            value={logStats?.error_count ?? (logStatsLoading ? "…" : 0)}
+            tone="danger"
+            hint="level=error|warning"
+            icon={<FireOutlined />}
+            onClick={() => navigate("/monitoring")}
+          />
+        </Col>
+        <Col xs={12} sm={8} lg={6}>
+          <MetricCard
+            label="Agent Fail (log)"
+            value={aolsFailPct}
+            tone="warning"
+            hint={
+              logStats
+                ? `failed ${logStats.agent_failed} / done ${logStats.agent_completed}`
+                : "agent.failed rate"
+            }
+            icon={<BugOutlined />}
+            onClick={() => navigate("/diagnosis")}
+          />
+        </Col>
+        <Col xs={12} sm={8} lg={6}>
+          <MetricCard
+            label="Data Sources"
+            value="ORM+AOLS"
+            tone="cyan"
+            hint={`series=${seriesSource} · 刷新同步双源`}
+            icon={<DashboardOutlined />}
           />
         </Col>
       </Row>

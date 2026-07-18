@@ -235,7 +235,11 @@ export default function DiagnosisPage() {
             <Spin spinning={listLoading}>
               <List
                 dataSource={list?.items || []}
-                locale={{ emptyText: <Empty description="暂无诊断样本" /> }}
+                locale={{
+                  emptyText: (
+                    <Empty description="暂无诊断样本。请执行 python -m app.core.seed --force 或先跑失败评测" />
+                  ),
+                }}
                 renderItem={(item) => (
                   <List.Item
                     style={{
