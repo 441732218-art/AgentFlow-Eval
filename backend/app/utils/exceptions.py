@@ -52,17 +52,25 @@ class RateLimitError(AgentFlowError):
         super().__init__(message=message, status_code=429, detail=detail)
 
 
+class ForbiddenError(AgentFlowError):
+    """Permission denied (HTTP 403)."""
+
+    def __init__(self, message: str = "Forbidden", detail: Any = None):
+        super().__init__(message=message, status_code=403, detail=detail)
+
+
 def error_response(
     status_code: int,
     message: str,
     detail: Any = None,
     request_id: str | None = None,
     stacktrace: str | None = None,
+    error_id: str | None = None,
 ) -> dict[str, Any]:
     """Generate unified JSON error response.
 
-    Returns dict with code, message, detail, timestamp, request_id, and
-    optional stacktrace (dev mode only).
+    Returns dict with code, message, detail, timestamp, request_id,
+    optional error_id (support correlation), and stacktrace (dev only).
     """
     resp: dict[str, Any] = {
         "error": {
@@ -75,6 +83,8 @@ def error_response(
         resp["error"]["detail"] = detail
     if request_id:
         resp["error"]["request_id"] = request_id
+    if error_id:
+        resp["error"]["error_id"] = error_id
     if stacktrace:
         resp["error"]["stacktrace"] = stacktrace
     return resp

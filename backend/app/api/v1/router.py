@@ -6,6 +6,8 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     audit,
     experiments,
+    me,
+    observability,
     reports,
     settings,
     tasks,
@@ -16,6 +18,8 @@ from app.api.v1.endpoints import (
 
 router = APIRouter(prefix="/api/v1")
 
+router.include_router(me.router, prefix="/me", tags=["当前用户"])
+router.include_router(observability.router, prefix="/observability", tags=["可观测"])
 router.include_router(tasks.router, prefix="/tasks", tags=["评测任务"])
 router.include_router(experiments.router, prefix="/experiments", tags=["对比实验"])
 router.include_router(traces.router, prefix="/traces", tags=["执行轨迹"])

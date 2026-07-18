@@ -21,14 +21,38 @@ _engine_kw: dict = {
     "echo": settings.DB_ECHO,
     "future": True,
 }
-if "postgresql" in settings.DATABASE_URL:
+_db_url = settings.DATABASE_URL or ""
+if "postgresql" in _db_url:
     _engine_kw.update({
         "pool_size": settings.DB_POOL_SIZE,
         "max_overflow": settings.DB_MAX_OVERFLOW,
         "pool_pre_ping": True,
         "pool_recycle": 3600,
     })
+elif "sqlite" in _db_url:
+    # SQLite: avoid cross-thread issues; enable WAL via connect event below
+    _engine_kw.update({
+        "connect_args": {"check_same_thread": False},
+    })
+
 engine = create_async_engine(settings.DATABASE_URL, **_engine_kw)
+
+
+# SQLite performance pragmas (WAL + reasonable sync for local/dev)
+if "sqlite" in _db_url:
+    from sqlalchemy import event
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _sqlite_on_connect(dbapi_conn, connection_record) -> None:  # type: ignore[no-untyped-def]
+        cursor = dbapi_conn.cursor()
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.execute("PRAGMA temp_store=MEMORY")
+            cursor.execute("PRAGMA busy_timeout=5000")
+        finally:
+            cursor.close()
 
 async_session_factory = async_sessionmaker(
     engine,
@@ -77,36 +101,27 @@ async def close_redis() -> None:
         _redis = None
 
 
-# ---- Cache helpers ----
+# ---- Cache helpers (compat wrappers → app.core.cache) ----
 CACHE_TTL_DEFAULT = 300  # 5 minutes
-CACHE_TTL_LIST = 60       # 1 minute for lists
+CACHE_TTL_LIST = 60  # 1 minute for lists
 
 
 async def cache_get(key: str) -> Any | None:
-    """Get value from Redis cache."""
-    try:
-        r = await get_redis()
-        val = await r.get(key)
-        return json.loads(val) if val else None
-    except Exception:
-        return None
+    """Get value from multi-layer cache (L1 + Redis)."""
+    from app.core.cache.client import get_cache
+
+    return await get_cache().get(key)
 
 
 async def cache_set(key: str, value: Any, ttl: int = CACHE_TTL_DEFAULT) -> None:
-    """Set value in Redis cache with TTL."""
-    try:
-        r = await get_redis()
-        await r.setex(key, ttl, json.dumps(value, default=str))
-    except Exception:
-        pass
+    """Set value in multi-layer cache with TTL."""
+    from app.core.cache.client import get_cache
+
+    await get_cache().set(key, value, ttl=ttl)
 
 
 async def cache_invalidate(pattern: str) -> None:
     """Invalidate all keys matching a pattern."""
-    try:
-        r = await get_redis()
-        keys = await r.keys(pattern)
-        if keys:
-            await r.delete(*keys)
-    except Exception:
-        pass
+    from app.core.cache.client import get_cache
+
+    await get_cache().delete_pattern(pattern)

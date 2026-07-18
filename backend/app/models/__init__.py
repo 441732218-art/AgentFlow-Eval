@@ -8,6 +8,7 @@ from app.models.trace import Trace
 from app.models.metric_score import MetricScore
 from app.models.audit_log import AuditLog
 from app.models.experiment import Experiment, ExperimentRun
+from app.models.slow_task import SlowTaskEvent
 
 __all__ = [
     "Base",
@@ -18,4 +19,5 @@ __all__ = [
     "AuditLog",
     "Experiment",
     "ExperimentRun",
+    "SlowTaskEvent",
 ]
