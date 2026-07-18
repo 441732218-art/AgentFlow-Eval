@@ -27,7 +27,7 @@
 | **C8** | 前端运营页与权限 | （并入 C7） | 中 | ✅ 并入 `7f2a345` |
 | **C9** | 品牌与静态资源 | （并入 C7） | 低 | ✅ 并入 `7f2a345` |
 | **C10** | 部署脚本与 compose | `feat(deploy): lite profile, verify scripts, and docker examples` | 中 | ✅ `2d9aa45` |
-| **C11** | 文档中心 | `docs: intelligence review, module map, and feature guides` | 低 | 🔶 本批提交中 |
+| **C11** | 文档中心 | `docs: intelligence review, module map, and feature guides` | 低 | ✅ `d374ca0` |
 | **C12** | 版本发布 | `chore(release): v0.2.0 intelligence center` | 低 | ⬜ |
 
 可将 C2–C5 合并为更大 PR，但**不建议**单次「全部 add .」一个巨型 commit。
@@ -208,7 +208,7 @@
 
 | ID | 工作项 | 状态 | 建议动作 |
 |----|--------|------|----------|
-| **A1** | 提交与版本 | 🔶 进行中（C0–C5 + 前端 C7–C9 已落库） | 按 C0–C12 落库；发 `v0.2.0` |
+| **A1** | 提交与版本 | 🔶 进行中（C0–C11 已落库，待 C12 发版） | 按 C0–C12 落库；发 `v0.2.0` |
 | **A2** | 文档同步 | ✅ 部分完成 | 模块清单 + 全面审查报告已更新；发布后刷新 CHANGELOG 日期 |
 | **A3** | 空态与 seed | ⬜ 待办 | 检查 `seed.py` 是否覆盖 Dashboard/Diagnosis 演示字段；统一 EmptyState 文案 |
 | **A4** | 日志驱动面板 MVP | ⬜ 待办 | Dashboard 或 Monitoring 至少 1–2 卡片直接读 `GET /logs/statistics` 或 event 计数 |
