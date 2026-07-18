@@ -186,32 +186,66 @@ BUILTIN_TOOLS: dict[str, dict[str, Any]] = {
 
 
 def get_openai_tool_defs(names: list[str] | None = None) -> list[dict[str, Any]]:
-    """Return OpenAI-format tool definitions for the given names (or all)."""
-    selected = names or list(BUILTIN_TOOLS.keys())
+    """Return OpenAI-format tool definitions (built-in + active plugin tools)."""
+    selected = list(names) if names is not None else list(BUILTIN_TOOLS.keys())
+    if names is None:
+        try:
+            from app.core.plugins.registry import get_capability_registry
+
+            for t in get_capability_registry().list_tools():
+                if t["name"] not in selected:
+                    selected.append(t["name"])
+        except Exception:
+            pass
+
+    plugin_tools: dict[str, Any] = {}
+    try:
+        from app.core.plugins.registry import get_capability_registry
+
+        for t in get_capability_registry().list_tools():
+            plugin_tools[t["name"]] = t
+    except Exception:
+        pass
+
     out: list[dict[str, Any]] = []
     for name in selected:
         meta = BUILTIN_TOOLS.get(name)
-        if not meta:
-            # Unknown expected tool: still expose a stub definition for the model
+        if meta:
             out.append({
                 "type": "function",
                 "function": {
                     "name": name,
-                    "description": f"Tool: {name}",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
+                    "description": meta["description"],
+                    "parameters": {
+                        "type": "object",
+                        "properties": meta["parameters"],
+                        "required": meta.get("required") or [],
+                    },
                 },
             })
             continue
+        pmeta = plugin_tools.get(name)
+        if pmeta:
+            out.append({
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": pmeta.get("description") or f"Plugin tool: {name}",
+                    "parameters": {
+                        "type": "object",
+                        "properties": pmeta.get("parameters") or {},
+                        "required": pmeta.get("required") or [],
+                    },
+                },
+            })
+            continue
+        # Unknown expected tool: still expose a stub definition for the model
         out.append({
             "type": "function",
             "function": {
                 "name": name,
-                "description": meta["description"],
-                "parameters": {
-                    "type": "object",
-                    "properties": meta["parameters"],
-                    "required": meta.get("required") or [],
-                },
+                "description": f"Tool: {name}",
+                "parameters": {"type": "object", "properties": {}, "required": []},
             },
         })
     return out
@@ -219,7 +253,28 @@ def get_openai_tool_defs(names: list[str] | None = None) -> list[dict[str, Any]]
 
 def get_tool_function(name: str) -> Callable[..., str] | None:
     meta = BUILTIN_TOOLS.get(name)
-    return meta["fn"] if meta else None
+    if meta:
+        return meta["fn"]
+    # Plugin-provided tools
+    try:
+        from app.core.plugins.registry import get_capability_registry
+
+        return get_capability_registry().get_tool_fn(name)
+    except Exception:
+        return None
+
+
+def list_all_tool_names() -> list[str]:
+    """Built-in + active plugin tool names."""
+    names = set(BUILTIN_TOOLS.keys())
+    try:
+        from app.core.plugins.registry import get_capability_registry
+
+        for t in get_capability_registry().list_tools():
+            names.add(t["name"])
+    except Exception:
+        pass
+    return sorted(names)
 
 
 def run_tool_sandboxed(
@@ -235,12 +290,52 @@ def run_tool_sandboxed(
     (never executes arbitrary code).
     """
     args = args or {}
+
+    # Optional pre_tool hooks (plugins); may mutate args via returned dict
+    try:
+        from app.core.plugins.base import HOOK_PRE_TOOL
+        from app.core.plugins.hooks import get_hook_registry
+
+        results = get_hook_registry().emit_sync(
+            HOOK_PRE_TOOL, {"name": name, "args": dict(args)}
+        )
+        for r in results:
+            if isinstance(r, dict) and isinstance(r.get("args"), dict):
+                args = r["args"]
+    except Exception:
+        pass
+
     fn = custom_fn or get_tool_function(name)
     if fn is None:
-        return (
+        available = list_all_tool_names()
+        msg = (
             f"[Sandbox] Tool '{name}' is not registered. "
-            f"Available: {', '.join(sorted(BUILTIN_TOOLS))}."
+            f"Available: {', '.join(available)}."
         )
+        try:
+            from app.core.observability.aols import LogEvent, emit_tool
+
+            emit_tool(
+                LogEvent.TOOL_FAILED,
+                tool_name=name,
+                success=False,
+                input_data=args,
+                error_message=msg,
+            )
+        except Exception:
+            pass
+        return msg
+
+    try:
+        from app.core.observability.aols import LogEvent, emit_tool
+
+        emit_tool(LogEvent.TOOL_STARTED, tool_name=name, input_data=args)
+    except Exception:
+        pass
+
+    import time as _time
+
+    _t0 = _time.monotonic()
 
     def _call() -> str:
         try:
@@ -256,14 +351,67 @@ def run_tool_sandboxed(
         future = _EXECUTOR.submit(_call)
         result = future.result(timeout=timeout_sec)
     except FuturesTimeout:
+        latency = int((_time.monotonic() - _t0) * 1000)
+        try:
+            from app.core.observability.aols import LogEvent, emit_tool
+
+            emit_tool(
+                LogEvent.TOOL_TIMEOUT,
+                tool_name=name,
+                latency_ms=latency,
+                success=False,
+                input_data=args,
+                error_message=f"timeout after {timeout_sec}s",
+            )
+        except Exception:
+            pass
         return f"[Sandbox] Tool '{name}' timed out after {timeout_sec}s"
     except Exception as exc:
+        latency = int((_time.monotonic() - _t0) * 1000)
         logger.warning("Tool %s failed: %s", name, exc)
+        try:
+            from app.core.observability.aols import LogEvent, emit_tool
+
+            emit_tool(
+                LogEvent.TOOL_FAILED,
+                tool_name=name,
+                latency_ms=latency,
+                success=False,
+                input_data=args,
+                error_message=str(exc),
+            )
+        except Exception:
+            pass
         return f"[Sandbox] Tool '{name}' error: {exc}"
 
     text = str(result)
     if len(text) > MAX_OUTPUT_CHARS:
-        return text[:MAX_OUTPUT_CHARS] + "…[truncated]"
+        text = text[:MAX_OUTPUT_CHARS] + "…[truncated]"
+
+    latency = int((_time.monotonic() - _t0) * 1000)
+    try:
+        from app.core.observability.aols import LogEvent, emit_tool
+
+        emit_tool(
+            LogEvent.TOOL_COMPLETED,
+            tool_name=name,
+            latency_ms=latency,
+            success=True,
+            input_data=args,
+            output_data=text,
+        )
+    except Exception:
+        pass
+
+    try:
+        from app.core.plugins.base import HOOK_POST_TOOL
+        from app.core.plugins.hooks import get_hook_registry
+
+        get_hook_registry().emit_sync(
+            HOOK_POST_TOOL, {"name": name, "args": args, "output": text}
+        )
+    except Exception:
+        pass
     return text
 
 

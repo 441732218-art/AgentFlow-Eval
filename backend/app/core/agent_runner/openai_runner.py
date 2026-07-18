@@ -108,9 +108,96 @@ class OpenAIReActRunner(BaseAgentRunner):
         model: str = "gpt-4o-mini",
         max_iterations: int = 5,
     ) -> None:
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        try:
+            from app.config import settings as _s
+
+            client_timeout = float(getattr(_s, "LLM_CALL_TIMEOUT_SEC", 30.0) or 30.0)
+        except Exception:
+            client_timeout = 30.0
+        self.client = AsyncOpenAI(
+            api_key=api_key, base_url=base_url, timeout=client_timeout
+        )
         self.model = model
         self.max_iterations = max_iterations
+
+    async def _chat_completion(
+        self,
+        messages: list[dict[str, Any]],
+        openai_tools: list[dict[str, Any]] | None,
+        *,
+        task_id: str | None = None,
+        execution_id: str | None = None,
+    ) -> Any:
+        """LLM chat call wrapped with retry / circuit / timeout + AOLS llm.* logs."""
+        from app.core.resilience import default_llm_policy, protected_call_async
+
+        policy = default_llm_policy(name=f"openai_react:{self.model}")
+        t0 = time.monotonic()
+        try:
+            from app.core.observability.aols import LogEvent, emit_llm
+
+            emit_llm(
+                LogEvent.LLM_STARTED,
+                provider="openai",
+                model=self.model,
+                temperature=0.0,
+                task_id=task_id,
+                execution_id=execution_id,
+            )
+        except Exception:
+            pass
+
+        async def _create() -> Any:
+            return await self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                tools=openai_tools if openai_tools else None,
+                tool_choice="auto" if openai_tools else None,
+                temperature=0,
+            )
+
+        try:
+            response = await protected_call_async(_create, policy=policy)
+            usage = getattr(response, "usage", None)
+            in_tok = int(getattr(usage, "prompt_tokens", 0) or 0) if usage else 0
+            out_tok = int(getattr(usage, "completion_tokens", 0) or 0) if usage else 0
+            tot = int(getattr(usage, "total_tokens", 0) or 0) if usage else (in_tok + out_tok)
+            try:
+                from app.core.observability.aols import LogEvent, emit_llm, elapsed_ms
+
+                emit_llm(
+                    LogEvent.LLM_COMPLETED,
+                    provider="openai",
+                    model=self.model,
+                    temperature=0.0,
+                    input_tokens=in_tok,
+                    output_tokens=out_tok,
+                    total_tokens=tot,
+                    latency_ms=elapsed_ms(t0),
+                    task_id=task_id,
+                    execution_id=execution_id,
+                )
+            except Exception:
+                pass
+            return response
+        except Exception as exc:
+            try:
+                from app.core.observability.aols import LogEvent, emit_llm, elapsed_ms
+
+                emit_llm(
+                    LogEvent.LLM_FAILED,
+                    provider="openai",
+                    model=self.model,
+                    temperature=0.0,
+                    latency_ms=elapsed_ms(t0),
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                    task_id=task_id,
+                    execution_id=execution_id,
+                )
+            except Exception:
+                pass
+            raise
 
     async def run(
         self,
@@ -134,17 +221,36 @@ class OpenAIReActRunner(BaseAgentRunner):
         status = "success"
         error_message = ""
         start_time = time.monotonic()
+        execution_id = ""
+        try:
+            from app.core.observability.aols import (
+                LogEvent,
+                emit_agent,
+                emit_agent_step,
+                map_step_type,
+                new_execution_id,
+            )
+
+            execution_id = new_execution_id()
+            emit_agent(
+                LogEvent.AGENT_STARTED,
+                execution_id=execution_id,
+                agent_id="openai_react",
+                agent_version="1.0",
+                model=self.model,
+            )
+        except Exception:
+            execution_id = ""
 
         for iteration in range(self.max_iterations):
             step = ReActStep(iteration=iteration, timestamp=time.time())
+            step_t0 = time.monotonic()
 
             try:
-                response = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    tools=openai_tools if tool_defs else None,
-                    tool_choice="auto" if tool_defs else None,
-                    temperature=0,
+                response = await self._chat_completion(
+                    messages,
+                    openai_tools if tool_defs else None,
+                    execution_id=execution_id or None,
                 )
 
                 choice = response.choices[0]
@@ -190,6 +296,24 @@ class OpenAIReActRunner(BaseAgentRunner):
                     if step.action == "final_answer" or "final answer" in content.lower():
                         final_answer = parsed.get("action_input") or parsed.get("thought", content)
                         messages.append({"role": "assistant", "content": content})
+                        try:
+                            from app.core.observability.aols.emit import (
+                                FINAL_ANSWER,
+                                elapsed_ms,
+                                emit_agent_step,
+                            )
+
+                            emit_agent_step(
+                                step_index=iteration,
+                                step_type=FINAL_ANSWER,
+                                execution_id=execution_id or None,
+                                tokens=step.tokens,
+                                latency_ms=elapsed_ms(step_t0),
+                                success=True,
+                            )
+                        except Exception:
+                            pass
+                        steps.append(step)
                         break
 
                     if step.action and step.action != "final_answer":
@@ -203,6 +327,7 @@ class OpenAIReActRunner(BaseAgentRunner):
                     else:
                         final_answer = content
                         messages.append({"role": "assistant", "content": content})
+                        steps.append(step)
                         break
 
             except Exception as exc:
@@ -212,6 +337,39 @@ class OpenAIReActRunner(BaseAgentRunner):
                     status = "failed"
                     error_message = str(exc)
 
+            # Step-level structured log
+            try:
+                from app.core.observability.aols.emit import (
+                    elapsed_ms,
+                    emit_agent_step,
+                    map_step_type,
+                )
+
+                st = map_step_type(
+                    thought=step.thought,
+                    action=step.action,
+                    observation=step.observation,
+                    is_final=bool(
+                        step.action
+                        and step.action.lower() in {"final_answer", "final answer"}
+                    ),
+                    has_tool=bool(
+                        step.action
+                        and step.action.lower() not in {"", "final_answer"}
+                    ),
+                )
+                emit_agent_step(
+                    step_index=iteration,
+                    step_type=st,
+                    execution_id=execution_id or None,
+                    tokens=step.tokens,
+                    tool_name=step.action or None,
+                    latency_ms=elapsed_ms(step_t0),
+                    success="[Error:" not in (step.observation or ""),
+                )
+            except Exception:
+                pass
+
             steps.append(step)
 
         if final_answer is None and steps:
@@ -220,16 +378,55 @@ class OpenAIReActRunner(BaseAgentRunner):
             if status == "success":
                 status = "max_iterations_reached"
 
-        elapsed_ms = int((time.monotonic() - start_time) * 1000)
+        elapsed_ms_total = int((time.monotonic() - start_time) * 1000)
+        step_dicts = [s.to_dict() for s in steps]
+
+        try:
+            from app.core.observability.aols import (
+                LogEvent,
+                detect_and_emit_loop,
+                emit_agent,
+            )
+
+            detect_and_emit_loop(step_dicts, execution_id=execution_id or None)
+            if status == "failed":
+                emit_agent(
+                    LogEvent.AGENT_FAILED,
+                    execution_id=execution_id or None,
+                    agent_id="openai_react",
+                    agent_version="1.0",
+                    model=self.model,
+                    duration_ms=elapsed_ms_total,
+                    total_tokens=total_tokens,
+                    status=status,
+                    error_message=error_message,
+                    iterations=len(steps),
+                )
+            else:
+                emit_agent(
+                    LogEvent.AGENT_COMPLETED,
+                    execution_id=execution_id or None,
+                    agent_id="openai_react",
+                    agent_version="1.0",
+                    model=self.model,
+                    duration_ms=elapsed_ms_total,
+                    total_tokens=total_tokens,
+                    status=status,
+                    iterations=len(steps),
+                )
+        except Exception:
+            pass
 
         return {
-            "steps": [s.to_dict() for s in steps],
+            "steps": step_dicts,
             "total_tokens": total_tokens,
             "iterations": len(steps),
             "final_answer": final_answer,
             "status": status,
             "error_message": error_message,
-            "response_time_ms": elapsed_ms,
+            "response_time_ms": elapsed_ms_total,
+            "execution_id": execution_id,
+            "model": self.model,
         }
 
     def _parse_tools(self, raw_tools=None):

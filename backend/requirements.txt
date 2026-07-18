@@ -28,6 +28,16 @@ structlog==24.4.0
 # Rate Limiting
 slowapi==0.1.9
 
+# Observability
+prometheus_client==0.21.1
+
+# Multimodal (storage + extractors)
+# S3/MinIO: optional boto3
+# CLIP/ViT: optional torch/transformers/open_clip (not pinned — heavy)
+Pillow==10.4.0
+pypdf==4.3.1
+openpyxl==3.1.5
+
 # Testing
 pytest==8.3.3
 pytest-asyncio==0.24.0
