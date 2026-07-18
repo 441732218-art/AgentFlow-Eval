@@ -30,6 +30,14 @@ from sqlalchemy import select
 
 from app.core.celery_app.celery import celery_app
 from app.core.dependencies import async_session_factory
+from app.core.evaluation.pipeline import (
+    aggregate_pipeline_results,
+    empty_pipeline_result,
+    failed_pipeline_result,
+    map_agent_status_to_trace,
+    normalize_judge_result,
+    partition_suite_results,
+)
 from app.models.metric_score import MetricScore
 from app.models.task import Task, TaskStatus
 from app.models.test_suite import TestSuite
@@ -61,21 +69,29 @@ def _emit_status(task: Task, status: TaskStatus | str, prev: str | None = None) 
 
 
 def build_agent_runner(agent_config: dict[str, Any] | None = None):
-    """Factory for OpenAIReActRunner (patchable in tests)."""
-    from app.config import settings as app_settings
-    from app.core.agent_runner.openai_runner import OpenAIReActRunner
+    """Factory for agent runners (OpenAI ReAct or HTTP); patchable in tests."""
+    from app.core.agent_runner.factory import build_agent_runner as _factory
 
-    cfg = agent_config or {}
-    return OpenAIReActRunner(
-        api_key=app_settings.OPENAI_API_KEY or None,
-        base_url=app_settings.OPENAI_BASE_URL or None,
-        model=cfg.get("model", "gpt-4o-mini"),
-        max_iterations=cfg.get("max_iterations", 5),
-    )
+    return _factory(agent_config)
 
 
-def build_llm_judge():
-    """Factory for LLMJudge (patchable in tests)."""
+def build_llm_judge(judge_config: dict | None = None):
+    """Factory for judges — plugin keys or default LLMJudge (patchable in tests).
+
+    ``judge_config`` may include ``{"type": "length"}`` / ``{"judge": "length"}``
+    to select a plugin-registered judge. Default remains LLMJudge.
+    """
+    cfg = dict(judge_config or {})
+    judge_type = str(cfg.get("type") or cfg.get("judge") or "llm").lower().strip()
+    if judge_type not in {"", "llm", "llm_judge", "default"}:
+        try:
+            from app.core.plugins.registry import get_capability_registry
+
+            factory = get_capability_registry().get_judge_factory(judge_type)
+            if factory is not None:
+                return factory()
+        except Exception:
+            pass
     from app.core.judge_engine.llm_judge import LLMJudge
 
     return LLMJudge()
@@ -121,9 +137,39 @@ def _run_async(async_factory):
     retry_backoff=True,
     retry_backoff_max=600,
 )
-def run_single_test_suite(self, test_suite_id: str, agent_config: dict) -> dict:
+def run_single_test_suite(
+    self,
+    test_suite_id: str,
+    agent_config: dict,
+    _trace_id: str | None = None,
+) -> dict:
     """Execute one test case using OpenAIReActRunner and persist the Trace."""
+    import time
+
+    try:
+        from app.core.observability.tracing import ensure_trace_id, set_trace_id
+
+        if _trace_id:
+            set_trace_id(str(_trace_id))
+        else:
+            ensure_trace_id()
+    except Exception:
+        pass
+
+    try:
+        from app.core.observability.aols import LogEvent, emit_evaluation
+
+        emit_evaluation(
+            LogEvent.EVALUATION_RUNNING,
+            task_id=test_suite_id,
+            phase="suite_started",
+            celery_task=self,
+            agent_model=(agent_config or {}).get("model"),
+        )
+    except Exception:
+        pass
     logger.info("[Suite %s] Starting execution", test_suite_id)
+    _t0 = time.perf_counter()
 
     async def _execute():
         async with async_session_factory() as session:
@@ -134,23 +180,89 @@ def run_single_test_suite(self, test_suite_id: str, agent_config: dict) -> dict:
             if not suite:
                 raise ValueError(f"TestSuite not found: {test_suite_id}")
 
-            from app.core.agent_runner.tool_sandbox import resolve_tools_for_suite
+            # Resolve owning actor for metering / tenancy correlation
+            actor_name = "anonymous"
+            try:
+                owner = await session.execute(
+                    select(Task).where(Task.id == suite.task_id)
+                )
+                parent_task = owner.scalar_one_or_none()
+                if parent_task is not None:
+                    actor_name = getattr(parent_task, "created_by", None) or "anonymous"
+            except Exception:
+                pass
 
+            from app.core.agent_runner.tool_sandbox import resolve_tools_for_suite
+            from app.core.plugins.base import HOOK_POST_AGENT_RUN, HOOK_PRE_AGENT_RUN
+            from app.core.plugins.hooks import get_hook_registry
+
+            hooks = get_hook_registry()
             runner = build_agent_runner(agent_config or {})
             tools = resolve_tools_for_suite(suite.expected_tools)
 
-            agent_result = await runner.run(
-                query=suite.user_query,
-                tools=tools,
+            await hooks.emit(
+                HOOK_PRE_AGENT_RUN,
+                {
+                    "test_suite_id": test_suite_id,
+                    "query": suite.user_query,
+                    "agent_config": agent_config or {},
+                    "actor": actor_name,
+                },
             )
 
-            status_map = {
-                "success": TraceStatus.SUCCESS,
-                "max_iterations_reached": TraceStatus.FAILED,
-                "failed": TraceStatus.FAILED,
-            }
-            trace_status = status_map.get(
-                agent_result.get("status", ""), TraceStatus.FAILED
+            try:
+                agent_result = await runner.run(
+                    query=suite.user_query,
+                    tools=tools,
+                )
+            except TypeError:
+                # BaseAgentRunner signature: run(user_query, agent_config)
+                agent_result = await runner.run(
+                    suite.user_query,
+                    agent_config or {},
+                )
+                if hasattr(agent_result, "__dataclass_fields__"):
+                    from dataclasses import asdict
+
+                    agent_result = asdict(agent_result)
+                elif not isinstance(agent_result, dict):
+                    agent_result = {
+                        "steps": getattr(agent_result, "steps", []),
+                        "total_tokens": getattr(agent_result, "total_tokens", 0),
+                        "response_time_ms": getattr(agent_result, "response_time_ms", 0),
+                        "status": getattr(agent_result, "status", "success"),
+                        "error_message": getattr(agent_result, "error_message", ""),
+                    }
+
+            await hooks.emit(
+                HOOK_POST_AGENT_RUN,
+                {
+                    "test_suite_id": test_suite_id,
+                    "query": suite.user_query,
+                    "actor": actor_name,
+                    "status": (
+                        agent_result.get("status")
+                        if isinstance(agent_result, dict)
+                        else getattr(agent_result, "status", "")
+                    ),
+                    "agent_result": agent_result
+                    if isinstance(agent_result, dict)
+                    else None,
+                },
+            )
+
+            if not isinstance(agent_result, dict):
+                agent_result = {
+                    "steps": getattr(agent_result, "steps", []),
+                    "total_tokens": getattr(agent_result, "total_tokens", 0),
+                    "response_time_ms": getattr(agent_result, "response_time_ms", 0),
+                    "status": getattr(agent_result, "status", "success"),
+                    "error_message": getattr(agent_result, "error_message", ""),
+                }
+
+            mapped = map_agent_status_to_trace(agent_result.get("status", ""))
+            trace_status = (
+                TraceStatus.SUCCESS if mapped == "success" else TraceStatus.FAILED
             )
 
             trace = Trace(
@@ -174,10 +286,12 @@ def run_single_test_suite(self, test_suite_id: str, agent_config: dict) -> dict:
                 "iterations": agent_result.get("iterations", 0),
                 "final_answer": agent_result.get("final_answer", ""),
                 "error_message": agent_result.get("error_message", ""),
+                "actor": actor_name,
             }
 
     try:
         result = _run_async(_execute)
+        duration_ms = int((time.perf_counter() - _t0) * 1000)
         logger.info(
             "[Suite %s] Completed: trace=%s status=%s tokens=%d",
             test_suite_id,
@@ -185,9 +299,69 @@ def run_single_test_suite(self, test_suite_id: str, agent_config: dict) -> dict:
             result.get("status"),
             result.get("total_tokens", 0),
         )
+        try:
+            from app.core.observability.aols import LogEvent, emit_evaluation
+
+            st = str(result.get("status") or "failed")
+            emit_evaluation(
+                LogEvent.EVALUATION_COMPLETED
+                if st == "success"
+                else LogEvent.EVALUATION_FAILED,
+                task_id=str(result.get("task_id") or test_suite_id),
+                status=st,
+                duration_ms=duration_ms,
+                total_tokens=int(result.get("total_tokens") or 0),
+                celery_task=self,
+                phase="suite",
+                suite_trace_id=result.get("trace_id"),
+                test_suite_id=test_suite_id,
+            )
+        except Exception:
+            pass
+        try:
+            from app.core.observability.metrics import observe_suite_run
+
+            observe_suite_run(
+                status=str(result.get("status") or "failed"),
+                duration_seconds=time.perf_counter() - _t0,
+                agent_config=agent_config or {},
+                total_tokens=int(result.get("total_tokens") or 0),
+                actor=str(result.get("actor") or "anonymous"),
+                ref_id=str(result.get("trace_id") or test_suite_id),
+            )
+        except Exception:
+            pass
         return result
     except Exception as exc:
+        duration_ms = int((time.perf_counter() - _t0) * 1000)
         logger.exception("[Suite %s] Execution failed: %s", test_suite_id, exc)
+        try:
+            from app.core.observability.aols import LogEvent, emit_evaluation
+
+            emit_evaluation(
+                LogEvent.EVALUATION_FAILED,
+                task_id=test_suite_id,
+                status="failed",
+                duration_ms=duration_ms,
+                celery_task=self,
+                phase="suite",
+                error_message=str(exc),
+                test_suite_id=test_suite_id,
+            )
+        except Exception:
+            pass
+        try:
+            from app.core.observability.metrics import observe_suite_run
+
+            observe_suite_run(
+                status="failed",
+                duration_seconds=time.perf_counter() - _t0,
+                agent_config=agent_config or {},
+                actor="anonymous",
+                ref_id=test_suite_id,
+            )
+        except Exception:
+            pass
         # Retry on transient network errors if retries remain
         return {
             "trace_id": None,
@@ -218,10 +392,41 @@ def run_single_test_suite(self, test_suite_id: str, agent_config: dict) -> dict:
     retry_backoff_max=600,
 )
 def run_judge_evaluation(
-    self, trace_id: str, expected_output: str, expected_tools: list
+    self,
+    trace_id: str,
+    expected_output: str,
+    expected_tools: list,
+    _trace_id: str | None = None,
 ) -> dict:
     """Score one Trace using LLMJudge and persist the MetricScores."""
+    import time
+
+    try:
+        from app.core.observability.tracing import ensure_trace_id, set_trace_id
+
+        if _trace_id:
+            set_trace_id(str(_trace_id))
+        else:
+            ensure_trace_id()
+    except Exception:
+        pass
+
+    try:
+        from app.core.observability.aols import LogEvent, emit_llm
+        from app.core.observability.aols.emit import JUDGE
+
+        emit_llm(
+            LogEvent.LLM_STARTED,
+            provider="judge",
+            model="llm_judge",
+            prompt_version="judge-default",
+            stage=JUDGE,
+            trace_id=trace_id,
+        )
+    except Exception:
+        pass
     logger.info("[Judge %s] Starting evaluation", trace_id)
+    _t0 = time.perf_counter()
 
     async def _judge():
         async with async_session_factory() as session:
@@ -230,24 +435,66 @@ def run_judge_evaluation(
             if not trace:
                 raise ValueError(f"Trace not found: {trace_id}")
 
+            # Trace → TestSuite → Task.created_by for metering actor
+            actor_name = "anonymous"
+            try:
+                suite_r = await session.execute(
+                    select(TestSuite).where(TestSuite.id == trace.test_suite_id)
+                )
+                suite = suite_r.scalar_one_or_none()
+                if suite is not None:
+                    task_r = await session.execute(
+                        select(Task).where(Task.id == suite.task_id)
+                    )
+                    parent = task_r.scalar_one_or_none()
+                    if parent is not None:
+                        actor_name = getattr(parent, "created_by", None) or "anonymous"
+            except Exception:
+                pass
+
+            from app.core.plugins.base import HOOK_POST_JUDGE, HOOK_PRE_JUDGE
+            from app.core.plugins.hooks import get_hook_registry
+
+            hooks = get_hook_registry()
+            # Optional judge type from agent_config stored on related task is not
+            # always available here; default LLMJudge / plugin via env later.
             judge = build_llm_judge()
+            await hooks.emit(
+                HOOK_PRE_JUDGE,
+                {
+                    "trace_id": trace_id,
+                    "expected_output": expected_output,
+                    "expected_tools": expected_tools or [],
+                    "actor": actor_name,
+                },
+            )
             judge_result = await judge.evaluate(
                 trace_steps=trace.steps,
                 expected_output=expected_output,
                 expected_tools=expected_tools or [],
             )
+            await hooks.emit(
+                HOOK_POST_JUDGE,
+                {
+                    "trace_id": trace_id,
+                    "actor": actor_name,
+                    "judge_result": judge_result
+                    if isinstance(judge_result, dict)
+                    else None,
+                },
+            )
 
-            # Support both dict and object-style results
-            if isinstance(judge_result, dict):
-                scores = judge_result.get("scores", {})
-                total = float(judge_result.get("total", 0.0))
-                reason = judge_result.get("reason", "")
-                token_cost = int(judge_result.get("token_cost", 0) or 0)
-            else:
-                scores = getattr(judge_result, "scores", {}) or {}
-                total = float(getattr(judge_result, "total", 0.0) or 0.0)
-                reason = getattr(judge_result, "reason", "") or ""
-                token_cost = int(getattr(judge_result, "token_cost", 0) or 0)
+            # Support both dict and object-style results via pure helper
+            normalized = normalize_judge_result(judge_result)
+            scores = normalized["scores"]
+            total = normalized["total"]
+            reason = normalized["reason"]
+            token_cost = normalized["token_cost"]
+            mode = (
+                judge_result.get("mode", "rule_only")
+                if isinstance(judge_result, dict)
+                else getattr(judge_result, "mode", "rule_only")
+            )
 
             for metric_name, score in scores.items():
                 ms = MetricScore(
@@ -267,19 +514,83 @@ def run_judge_evaluation(
                 "total": total,
                 "reason": reason,
                 "token_cost": token_cost,
+                "mode": mode or "rule_only",
+                "actor": actor_name,
             }
 
     try:
         result = _run_async(_judge)
+        duration_ms = int((time.perf_counter() - _t0) * 1000)
         logger.info(
             "[Judge %s] Completed: total=%.1f token_cost=%d",
             trace_id,
             result.get("total", 0),
             result.get("token_cost", 0),
         )
+        try:
+            from app.core.observability.aols import LogEvent, emit_llm
+            from app.core.observability.aols.emit import JUDGE
+
+            tok = int(result.get("token_cost") or 0)
+            emit_llm(
+                LogEvent.LLM_COMPLETED,
+                provider="judge",
+                model="llm_judge",
+                prompt_version="judge-default",
+                total_tokens=tok,
+                latency_ms=duration_ms,
+                stage=JUDGE,
+                trace_id=trace_id,
+                score_total=result.get("total"),
+                mode=result.get("mode"),
+            )
+        except Exception:
+            pass
+        try:
+            from app.core.observability.metrics import observe_judge
+
+            observe_judge(
+                mode=str(result.get("mode") or "rule_only"),
+                status="ok",
+                duration_seconds=time.perf_counter() - _t0,
+                token_cost=int(result.get("token_cost") or 0),
+                actor=str(result.get("actor") or "anonymous"),
+                ref_id=trace_id,
+            )
+        except Exception:
+            pass
         return result
     except Exception as exc:
+        duration_ms = int((time.perf_counter() - _t0) * 1000)
         logger.exception("[Judge %s] Evaluation failed: %s", trace_id, exc)
+        try:
+            from app.core.observability.aols import LogEvent, emit_llm
+            from app.core.observability.aols.emit import JUDGE
+
+            emit_llm(
+                LogEvent.LLM_FAILED,
+                provider="judge",
+                model="llm_judge",
+                latency_ms=duration_ms,
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+                stage=JUDGE,
+                trace_id=trace_id,
+            )
+        except Exception:
+            pass
+        try:
+            from app.core.observability.metrics import observe_judge
+
+            observe_judge(
+                mode="unknown",
+                status="error",
+                duration_seconds=time.perf_counter() - _t0,
+                actor="anonymous",
+                ref_id=trace_id,
+            )
+        except Exception:
+            pass
         return {
             "trace_id": trace_id,
             "scores": {},
@@ -296,7 +607,7 @@ def run_judge_evaluation(
 
 
 @celery_app.task(bind=True)
-def run_full_evaluation(self, task_id: str) -> dict:
+def run_full_evaluation(self, task_id: str, _trace_id: str | None = None) -> dict:
     """Orchestrate the full evaluation pipeline for a task.
 
     Pipeline:
@@ -306,14 +617,51 @@ def run_full_evaluation(self, task_id: str) -> dict:
       4. Aggregate results
       5. Persist final status
     """
-    logger.info("[Task %s] Full evaluation started", task_id)
+    import time
+
+    # Restore HTTP TraceID from API enqueue (or mint a worker-local id)
+    try:
+        from app.core.observability.tracing import ensure_trace_id, set_trace_id
+
+        if _trace_id:
+            set_trace_id(str(_trace_id))
+        else:
+            ensure_trace_id()
+    except Exception:
+        pass
+
+    logger.info("[Task %s] Full evaluation started trace_id=%s", task_id, _trace_id)
+    try:
+        from app.core.observability.aols import LogEvent, emit_evaluation
+
+        emit_evaluation(
+            LogEvent.EVALUATION_STARTED,
+            task_id=task_id,
+            celery_task=self,
+            phase="pipeline",
+            pipeline_trace_id=_trace_id,
+        )
+    except Exception:
+        pass
+    _t0 = time.perf_counter()
+    _agent_config: dict[str, Any] = {}
+    _tenant = "anonymous"
+    try:
+        from app.core.observability.tracing import get_trace_id
+
+        _pipeline_trace = get_trace_id() or _trace_id
+    except Exception:
+        _pipeline_trace = _trace_id
 
     async def _orchestrate():
+        nonlocal _agent_config, _tenant
         async with async_session_factory() as session:
             result = await session.execute(select(Task).where(Task.id == task_id))
             task = result.scalar_one_or_none()
             if not task:
                 raise ValueError(f"Task not found: {task_id}")
+            _agent_config = dict(task.agent_config or {})
+            _tenant = getattr(task, "created_by", None) or "anonymous"
 
             # Status machine: allow QUEUED or CREATED → RUNNING
             prev = task.status.value
@@ -340,15 +688,7 @@ def run_full_evaluation(self, task_id: str) -> dict:
                 task.status = TaskStatus.COMPLETED
                 await session.commit()
                 _emit_status(task, task.status, prev)
-                return {
-                    "task_id": task_id,
-                    "status": "completed",
-                    "total_suites": 0,
-                    "completed_suites": 0,
-                    "failed_suites": 0,
-                    "average_score": 0.0,
-                    "message": "No test suites found.",
-                }
+                return empty_pipeline_result(task_id)
 
             total = len(suites)
             try:
@@ -365,9 +705,13 @@ def run_full_evaluation(self, task_id: str) -> dict:
                 # Eager mode / tests may not support update_state fully
                 pass
 
-            # Execute suites (group with eager mode runs inline)
+            # Execute suites (group with eager mode runs inline); propagate TraceID
             suite_jobs = [
-                run_single_test_suite.s(suite.id, task.agent_config or {})
+                run_single_test_suite.s(
+                    suite.id,
+                    task.agent_config or {},
+                    _pipeline_trace,
+                )
                 for suite in suites
             ]
             suite_group = group(suite_jobs)
@@ -378,16 +722,7 @@ def run_full_evaluation(self, task_id: str) -> dict:
             if not isinstance(suite_results, (list, tuple)):
                 suite_results = [suite_results]
 
-            successful_suites = [
-                r
-                for r in suite_results
-                if r and r.get("trace_id") and r.get("status") != "failed"
-            ]
-            failed_suites = [
-                r
-                for r in suite_results
-                if not r or not r.get("trace_id") or r.get("status") == "failed"
-            ]
+            successful_suites, failed_suites = partition_suite_results(suite_results)
 
             try:
                 self.update_state(
@@ -419,6 +754,7 @@ def run_full_evaluation(self, task_id: str) -> dict:
                             tid,
                             suite.expected_output or "",
                             suite.expected_tools or [],
+                            _pipeline_trace,
                         )
                     )
 
@@ -430,42 +766,8 @@ def run_full_evaluation(self, task_id: str) -> dict:
             else:
                 judge_results = []
 
-            total_score = 0.0
-            score_count = 0
-            dimension_scores: dict[str, list[float]] = {}
-            total_tokens = 0
-            total_time_ms = 0
-
-            for jr in judge_results:
-                if not jr:
-                    continue
-                total_score += float(jr.get("total", 0.0) or 0.0)
-                score_count += 1
-                total_tokens += int(jr.get("token_cost", 0) or 0)
-                for dim, val in (jr.get("scores") or {}).items():
-                    dimension_scores.setdefault(dim, []).append(float(val))
-
-            for s_result in suite_results:
-                if not s_result:
-                    continue
-                total_tokens += int(s_result.get("total_tokens", 0) or 0)
-                total_time_ms += int(s_result.get("response_time_ms", 0) or 0)
-
-            avg_score = round(total_score / score_count, 1) if score_count else 0.0
-            avg_dim_scores = (
-                {
-                    dim: round(sum(vals) / len(vals), 1)
-                    for dim, vals in dimension_scores.items()
-                }
-                if dimension_scores
-                else {}
-            )
-
-            overall_status = "completed"
-            if failed_suites and not successful_suites:
-                overall_status = "failed"
-            elif failed_suites:
-                overall_status = "partial"
+            summary = aggregate_pipeline_results(suite_results, judge_results)
+            overall_status = summary["overall_status"]
 
             prev = task.status.value
             task.status = (
@@ -483,9 +785,9 @@ def run_full_evaluation(self, task_id: str) -> dict:
                         "task_id": task_id,
                         "phase": "done",
                         "total_suites": total,
-                        "completed_suites": len(successful_suites),
-                        "failed_suites": len(failed_suites),
-                        "average_score": avg_score,
+                        "completed_suites": summary["completed_suites"],
+                        "failed_suites": summary["failed_suites"],
+                        "average_score": summary["average_score"],
                     },
                 )
             except Exception:
@@ -495,18 +797,19 @@ def run_full_evaluation(self, task_id: str) -> dict:
                 "task_id": task_id,
                 "status": overall_status,
                 "total_suites": total,
-                "completed_suites": len(successful_suites),
-                "failed_suites": len(failed_suites),
-                "average_score": avg_score,
-                "dimension_scores": avg_dim_scores,
-                "total_tokens": total_tokens,
-                "total_time_ms": total_time_ms,
+                "completed_suites": summary["completed_suites"],
+                "failed_suites": summary["failed_suites"],
+                "average_score": summary["average_score"],
+                "dimension_scores": summary["dimension_scores"],
+                "total_tokens": summary["total_tokens"],
+                "total_time_ms": summary["total_time_ms"],
                 "suites": list(suite_results),
                 "judgments": list(judge_results),
             }
 
     try:
         result = _run_async(_orchestrate)
+        duration_ms = int((time.perf_counter() - _t0) * 1000)
         logger.info(
             "[Task %s] Completed: status=%s suites=%d/%d score=%.1f",
             task_id,
@@ -515,19 +818,74 @@ def run_full_evaluation(self, task_id: str) -> dict:
             result.get("total_suites", 0),
             result.get("average_score", 0.0),
         )
+        try:
+            from app.core.observability.aols import LogEvent, emit_evaluation
+
+            st = str(result.get("status") or "completed")
+            emit_evaluation(
+                LogEvent.EVALUATION_FAILED
+                if st == "failed"
+                else LogEvent.EVALUATION_COMPLETED,
+                task_id=task_id,
+                status=st,
+                duration_ms=duration_ms,
+                total_tokens=int(result.get("total_tokens") or 0),
+                average_score=float(result.get("average_score") or 0.0),
+                celery_task=self,
+                phase="pipeline",
+                completed_suites=result.get("completed_suites"),
+                failed_suites=result.get("failed_suites"),
+                total_suites=result.get("total_suites"),
+            )
+        except Exception:
+            pass
+        try:
+            from app.core.observability.metrics import observe_evaluation
+
+            observe_evaluation(
+                status=str(result.get("status") or "completed"),
+                duration_seconds=time.perf_counter() - _t0,
+                tenant=_tenant,
+                agent_config=_agent_config,
+                total_tokens=int(result.get("total_tokens") or 0),
+            )
+        except Exception:
+            pass
         return result
     except Exception as exc:
+        duration_ms = int((time.perf_counter() - _t0) * 1000)
         logger.exception("[Task %s] Orchestration failed: %s", task_id, exc)
+        try:
+            from app.core.observability.aols import LogEvent, emit_evaluation
+
+            emit_evaluation(
+                LogEvent.EVALUATION_FAILED,
+                task_id=task_id,
+                status="failed",
+                duration_ms=duration_ms,
+                celery_task=self,
+                phase="pipeline",
+                error_message=str(exc),
+            )
+        except Exception:
+            pass
         _run_async(lambda: _mark_task_failed(task_id, str(exc)))
-        return {
-            "task_id": task_id,
-            "status": "failed",
-            "error_message": str(exc),
-            "total_suites": 0,
-            "completed_suites": 0,
-            "failed_suites": 0,
-            "average_score": 0.0,
-        }
+        try:
+            from app.core.observability.metrics import (
+                observe_evaluation,
+                observe_stage_error,
+            )
+
+            observe_stage_error(stage="pipeline", status="failed")
+            observe_evaluation(
+                status="failed",
+                duration_seconds=time.perf_counter() - _t0,
+                tenant=_tenant,
+                agent_config=_agent_config,
+            )
+        except Exception:
+            pass
+        return failed_pipeline_result(task_id, str(exc))
 
 
 # Public alias used by docs / external callers

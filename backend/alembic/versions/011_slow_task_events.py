@@ -1,12 +1,8 @@
 """Slow task events table for durable diagnostics.
 
 Revision ID: 011_slow_task_events
-Revises: 007_performance_indexes
+Revises: 010_billing
 Create Date: 2026-07-17
-
-Note: down_revision temporarily chains after 007 so this revision can ship
-before billing migrations (008–010). C4 will re-point this to 010_billing
-when those revisions land.
 """
 
 from typing import Sequence, Union
@@ -15,7 +11,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = "011_slow_task_events"
-down_revision: Union[str, None] = "007_performance_indexes"
+down_revision: Union[str, None] = "010_billing"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
