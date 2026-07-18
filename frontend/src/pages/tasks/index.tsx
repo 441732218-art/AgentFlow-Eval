@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, memo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Button,
@@ -34,6 +34,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge, OwnerBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { QuotaStrip } from "@/components/billing/QuotaStrip";
 import { formatDateTime } from "@/utils/format";
 import { useI18nStore } from "@/i18n";
 
@@ -59,7 +60,7 @@ const QUICK_FILTERS = [
   { value: "created", label: "待执行" },
 ];
 
-function TaskCard({
+const TaskCard = memo(function TaskCard({
   task,
   onView,
   onReport,
@@ -161,7 +162,7 @@ function TaskCard({
       </Space>
     </Card>
   );
-}
+});
 
 const TASK_FILTER_KEY = "agentflow_task_filters";
 
@@ -289,7 +290,14 @@ export default function TaskListPage() {
         message.success("任务已提交执行");
         refetch();
       },
-      onError: () => message.error("执行失败"),
+      onError: (err: Error & { status?: number }) => {
+        const msg = err?.message || "执行失败";
+        if (err?.status === 402) {
+          message.error({ content: msg, duration: 5 });
+        } else {
+          message.error(msg);
+        }
+      },
     });
   };
 
@@ -310,7 +318,7 @@ export default function TaskListPage() {
 
   if (error) {
     return (
-      <div className="af-page">
+      <div className="ic-page af-page">
         <Alert
           type="error"
           showIcon
@@ -327,7 +335,7 @@ export default function TaskListPage() {
   }
 
   return (
-    <div className="af-page">
+    <div className="ic-page af-page">
       <PageHeader
         title={t("tasks.title")}
         subtitle={t("tasks.subtitle")}
@@ -348,6 +356,8 @@ export default function TaskListPage() {
           </Space>
         }
       />
+
+      <QuotaStrip compact />
 
       {/* Filters bar */}
       <Card

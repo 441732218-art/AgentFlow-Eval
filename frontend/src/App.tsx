@@ -6,13 +6,18 @@ import { queryClient } from "@/lib/query-client";
 import { router } from "@/router";
 import { ToastProvider } from "@/components/ui/Toast";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
+import { AuthProvider } from "@/auth";
+import { BootSplash } from "@/components/brand/BootSplash";
 
 function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-        <ToastProvider />
+        <AuthProvider>
+          <BootSplash />
+          <RouterProvider router={router} />
+          <ToastProvider />
+        </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

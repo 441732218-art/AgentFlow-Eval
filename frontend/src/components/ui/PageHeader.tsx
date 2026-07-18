@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Space, Typography } from "antd";
+import { Typography } from "antd";
+import clsx from "clsx";
 
 const { Title, Paragraph } = Typography;
 
@@ -8,50 +9,55 @@ interface PageHeaderProps {
   subtitle?: string;
   icon?: ReactNode;
   extra?: ReactNode;
+  /** Show LIVE pulse badge (Command Center) */
+  live?: boolean;
+  liveLabel?: string;
+  className?: string;
 }
 
-export function PageHeader({ title, subtitle, icon, extra }: PageHeaderProps) {
+export function PageHeader({
+  title,
+  subtitle,
+  icon,
+  extra,
+  live,
+  liveLabel = "Live",
+  className,
+}: PageHeaderProps) {
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        gap: 16,
-        marginBottom: 20,
-        flexWrap: "wrap",
-      }}
-    >
-      <Space align="start" size={14}>
-        {icon && (
-          <div
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 12,
-              background: "var(--af-gradient)",
-              display: "grid",
-              placeItems: "center",
-              color: "#fff",
-              boxShadow: "var(--af-shadow-glow)",
-              flexShrink: 0,
-            }}
-          >
-            {icon}
+    <div className={clsx("ic-page-header", className)}>
+      <div className="ic-page-header__main">
+        {icon ? <div className="ic-page-header__icon">{icon}</div> : null}
+        <div className="ic-page-header__text">
+          <div className="ic-page-header__title-row">
+            <Title level={3} className="ic-page-header__title">
+              {title}
+            </Title>
+            {live ? (
+              <span className="ic-live-badge">
+                <span className="af-live-dot" /> {liveLabel}
+              </span>
+            ) : null}
           </div>
-        )}
-        <div>
-          <Title level={3} style={{ margin: 0, letterSpacing: "-0.02em" }}>
-            {title}
-          </Title>
-          {subtitle && (
-            <Paragraph type="secondary" style={{ margin: "4px 0 0", maxWidth: 560 }}>
+          {subtitle ? (
+            <Paragraph type="secondary" className="ic-page-header__sub">
               {subtitle}
             </Paragraph>
-          )}
+          ) : null}
         </div>
-      </Space>
-      {extra && <div>{extra}</div>}
+      </div>
+      {extra ? <div className="ic-page-header__extra">{extra}</div> : null}
     </div>
   );
+}
+
+/** Compact toolbar row under page header (filters / actions) */
+export function PageToolbar({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <div className={clsx("ic-toolbar", className)}>{children}</div>;
 }

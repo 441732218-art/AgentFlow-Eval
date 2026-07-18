@@ -1,9 +1,10 @@
-/* (c) 2026 AgentFlow-Eval */
-/* 兼容层：委托给 traceApi */
-
+/* (c) 2026 AgentFlow-Eval
+ * @deprecated Use `@/api/endpoints/traces` (`traceApi`) instead.
+ */
 import { traceApi } from "@/api/endpoints/traces";
 import type { Trace, TraceListResponse, JudgeResult } from "../types";
 
+/** @deprecated Prefer `traceApi` from `@/api` */
 export const traceService = {
   async list(params?: {
     test_suite_id?: string;

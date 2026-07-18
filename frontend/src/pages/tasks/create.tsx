@@ -127,7 +127,7 @@ export default function CreateTaskPage() {
   });
 
   return (
-    <form onSubmit={onSubmit} className="af-page">
+    <form onSubmit={onSubmit} className="ic-page af-page">
       <PageHeader
         title={t("create.title")}
         subtitle={t("create.subtitle")}

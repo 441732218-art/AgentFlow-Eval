@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import type { Task, TaskCreatePayload, TaskListResponse, TaskReport } from "../types";
-import { taskService } from "../services/taskService";
+import { taskApi } from "@/api/endpoints/tasks";
 
 interface TaskState {
   tasks: Task[];
@@ -32,7 +32,11 @@ export const useTaskStore = create<TaskState>((set) => ({
   fetchTasks: async (page = 1, status?: string) => {
     set({ loading: true });
     try {
-      const res: TaskListResponse = await taskService.list({ page, page_size: 20, status });
+      const res = (await taskApi.list({
+        page,
+        page_size: 20,
+        status,
+      })) as TaskListResponse;
       set({ tasks: res.items, total: res.total, currentPage: page });
     } finally {
       set({ loading: false });
@@ -40,7 +44,7 @@ export const useTaskStore = create<TaskState>((set) => ({
   },
 
   createTask: async (payload: TaskCreatePayload) => {
-    const task = await taskService.create(payload);
+    const task = (await taskApi.create(payload as never)) as Task;
     set((state) => ({ tasks: [task, ...state.tasks], total: state.total + 1 }));
     return task;
   },
@@ -48,7 +52,7 @@ export const useTaskStore = create<TaskState>((set) => ({
   fetchTask: async (id: string) => {
     set({ loading: true });
     try {
-      const task = await taskService.getById(id);
+      const task = (await taskApi.get(id)) as Task;
       set({ currentTask: task });
     } finally {
       set({ loading: false });
@@ -56,7 +60,7 @@ export const useTaskStore = create<TaskState>((set) => ({
   },
 
   deleteTask: async (id: string) => {
-    await taskService.delete(id);
+    await taskApi.delete(id);
     set((state) => ({
       tasks: state.tasks.filter((t) => t.id !== id),
       total: state.total - 1,
@@ -64,7 +68,7 @@ export const useTaskStore = create<TaskState>((set) => ({
   },
 
   executeTask: async (id: string) => {
-    await taskService.execute(id);
+    await taskApi.execute(id);
     set((state) => ({
       tasks: state.tasks.map((t) =>
         t.id === id ? { ...t, status: "running" as const } : t,
@@ -73,7 +77,7 @@ export const useTaskStore = create<TaskState>((set) => ({
   },
 
   fetchReport: async (id: string) => {
-    const report = await taskService.getReport(id);
+    const report = (await taskApi.getReport(id)) as TaskReport;
     set({ currentReport: report });
   },
 

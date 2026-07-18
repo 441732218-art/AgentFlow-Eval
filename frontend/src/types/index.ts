@@ -64,6 +64,12 @@ export interface TraceStep {
   tokens?: number;
 }
 
+export interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
 export interface Trace {
   id: string;
   test_suite_id: string;
@@ -74,6 +80,15 @@ export interface Trace {
   status: TraceStatus;
   created_at: string | null;
   metric_scores: MetricScore[];
+  /** Observability metadata (optional on legacy rows) */
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  cost?: number;
+  agent_version?: string | null;
+  prompt_version?: string | null;
+  model_version?: string | null;
+  tool_version?: string | null;
+  token_usage?: TokenUsage | null;
 }
 
 export interface TraceListResponse {

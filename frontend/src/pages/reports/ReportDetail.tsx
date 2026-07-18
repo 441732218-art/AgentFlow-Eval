@@ -283,7 +283,7 @@ export default function ReportDetailPage() {
     : 0;
 
   return (
-    <div className="af-page af-print-report">
+    <div className="ic-page af-page af-print-report">
       <div className="af-no-print">
         <PageHeader
           title="评测报告"

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Button, Empty, Typography } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
+import clsx from "clsx";
 
 const { Text } = Typography;
 
@@ -12,6 +13,7 @@ interface EmptyStateProps {
   /** Custom action node; takes precedence over actionLabel/onAction */
   action?: ReactNode;
   icon?: ReactNode;
+  className?: string;
 }
 
 export function EmptyState({
@@ -21,24 +23,20 @@ export function EmptyState({
   onAction,
   action,
   icon,
+  className,
 }: EmptyStateProps) {
   return (
-    <div
-      className="af-glass"
-      style={{
-        padding: "56px 24px",
-        textAlign: "center",
-        borderStyle: "dashed",
-      }}
-    >
+    <div className={clsx("ic-empty", "ic-panel", className)}>
       <Empty
         image={icon || Empty.PRESENTED_IMAGE_SIMPLE}
         description={
           <div>
-            <Text strong style={{ fontSize: 16, display: "block", marginBottom: 4 }}>
+            <Text strong className="ic-empty__title">
               {title}
             </Text>
-            <Text type="secondary">{description}</Text>
+            <Text type="secondary" className="ic-empty__desc">
+              {description}
+            </Text>
           </div>
         }
       >
@@ -50,7 +48,8 @@ export function EmptyState({
               type="primary"
               icon={<PlusOutlined />}
               onClick={onAction}
-              style={{ background: "var(--af-gradient)", border: "none", marginTop: 8 }}
+              className="ic-btn-gradient"
+              style={{ marginTop: 8 }}
             >
               {actionLabel}
             </Button>

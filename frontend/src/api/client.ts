@@ -38,16 +38,25 @@ function extractErrorMessage(error: any): string {
   const structured =
     data?.error?.message ||
     (typeof data?.error?.detail === "string" ? data.error.detail : null);
-  if (structured && typeof structured === "string") return structured;
+  if (structured && typeof structured === "string") {
+    if (status === 402) {
+      return `额度不足：${structured}（可前往「用量计费」升级套餐或开启账期）`;
+    }
+    return structured;
+  }
 
   // FastAPI / Starlette style
-  if (typeof data?.detail === "string") return data.detail;
+  if (typeof data?.detail === "string") {
+    if (status === 402) return `额度不足：${data.detail}`;
+    return data.detail;
+  }
   if (Array.isArray(data?.detail)) {
     return data.detail
       .map((d: any) => d?.msg || d?.message || JSON.stringify(d))
       .join("; ");
   }
   if (typeof data?.message === "string") return data.message;
+  if (status === 402) return "额度不足（HTTP 402），请检查用量与套餐";
 
   // Vite proxy returns 500 HTML/text when backend is down
   if (status === 500 || status === 502 || status === 503 || status === 504) {

@@ -177,18 +177,14 @@ export default function Settings() {
   );
 
   return (
-    <div className="af-page">
+    <div className="ic-page af-page">
       {/* Hero */}
       <div
+        className="ic-panel"
         style={{
           marginBottom: 24,
           padding: "22px 24px",
-          borderRadius: 16,
-          border: "1px solid var(--af-border)",
           background: "var(--af-gradient-soft)",
-          boxShadow: "var(--af-shadow-sm)",
-          position: "relative",
-          overflow: "hidden",
         }}
       >
         <div

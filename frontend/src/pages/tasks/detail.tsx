@@ -106,7 +106,10 @@ export default function TaskDetailPage() {
         message.success("Task submitted for execution");
         taskQuery.refetch();
       },
-      onError: () => message.error("Failed to execute task"),
+      onError: (err: Error & { status?: number }) => {
+        const msg = err?.message || "Failed to execute task";
+        message.error({ content: msg, duration: err?.status === 402 ? 5 : 3 });
+      },
     });
   };
 
@@ -273,7 +276,7 @@ export default function TaskDetailPage() {
   }));
 
   return (
-    <div className="af-page">
+    <div className="ic-page af-page">
       {/* ---- Header ---- */}
       <Card
         className="af-glass"

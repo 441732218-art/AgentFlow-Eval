@@ -19,18 +19,18 @@ export const THEME_OPTIONS: ReadonlyArray<{
   swatch: string;
 }> = [
   {
-    value: "light",
-    label: "明亮浅色（默认）",
-    labelEn: "Bright Light (Default)",
-    isDark: false,
-    swatch: "#0284c7",
+    value: "dark",
+    label: "Cyber Command（默认）",
+    labelEn: "Cyber Command (Default)",
+    isDark: true,
+    swatch: "#00D4FF",
   },
   {
-    value: "dark",
-    label: "深空暗色",
-    labelEn: "Deep Space Dark",
-    isDark: true,
-    swatch: "#38bdf8",
+    value: "light",
+    label: "明亮浅色",
+    labelEn: "Bright Light",
+    isDark: false,
+    swatch: "#0284c7",
   },
   {
     value: "midnight",
@@ -72,21 +72,23 @@ export function isDarkTheme(mode: ThemeMode): boolean {
   return THEME_OPTIONS.find((o) => o.value === mode)?.isDark ?? true;
 }
 
-// v2: default switched from dark → light; new key so first open after upgrade uses light
-const STORAGE_KEY = "agentflow_theme_v2";
+// v3: Intelligence Center defaults to Cyber Command dark
+const STORAGE_KEY = "agentflow_theme_v3";
 const LAST_DARK_KEY = "agentflow_theme_last_dark";
 
 /** App default when user has never chosen a theme */
-export const DEFAULT_THEME: ThemeMode = "light";
+export const DEFAULT_THEME: ThemeMode = "dark";
 
 function readInitial(): ThemeMode {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
     if (isThemeMode(v)) return v;
+    // migrate v2 preference if present
+    const legacy = localStorage.getItem("agentflow_theme_v2");
+    if (isThemeMode(legacy)) return legacy;
   } catch {
     /* ignore */
   }
-  // First visit: always bright light (do not follow OS dark preference)
   return DEFAULT_THEME;
 }
 

@@ -1,9 +1,11 @@
-/* (c) 2026 AgentFlow-Eval */
-/* 兼容层：委托给 taskApi（React Query hooks 为推荐用法） */
-
+/* (c) 2026 AgentFlow-Eval
+ * @deprecated Use `@/api/endpoints/tasks` (`taskApi`) instead.
+ * Kept as a thin compatibility shim for any external imports.
+ */
 import { taskApi } from "@/api/endpoints/tasks";
 import type { Task, TaskCreatePayload, TaskListResponse } from "../types";
 
+/** @deprecated Prefer `taskApi` from `@/api` */
 export const taskService = {
   async list(params?: {
     page?: number;
@@ -15,7 +17,7 @@ export const taskService = {
   },
 
   async create(payload: TaskCreatePayload): Promise<Task> {
-    return taskApi.create(payload);
+    return taskApi.create(payload as never) as Promise<Task>;
   },
 
   async getById(id: string): Promise<Task> {
@@ -27,7 +29,7 @@ export const taskService = {
   },
 
   async execute(id: string): Promise<{ task_id: string; status: string }> {
-    return taskApi.execute(id);
+    return taskApi.execute(id) as Promise<{ task_id: string; status: string }>;
   },
 
   async getReport(id: string) {
@@ -36,9 +38,5 @@ export const taskService = {
 
   async archive(id: string) {
     return taskApi.archive(id);
-  },
-
-  async uploadTestSuites(taskId: string, file: File) {
-    return taskApi.uploadTestSuites(taskId, file);
   },
 };

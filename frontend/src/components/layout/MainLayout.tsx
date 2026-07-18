@@ -7,6 +7,7 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { DocumentTitle } from "@/hooks/useDocumentTitle";
 import { AppBreadcrumb } from "@/components/ui/AppBreadcrumb";
 import { ActivityWatcher } from "@/components/layout/ActivityWatcher";
+import { AIAssistant } from "@/components/realtime/AIAssistant";
 
 const { Content } = Layout;
 const { useBreakpoint } = Grid;
@@ -30,16 +31,17 @@ export const MainLayout: React.FC = () => {
   };
 
   return (
-    <Layout className="af-layout" style={{ minHeight: "100vh", background: "transparent" }}>
+    <Layout
+      className="af-layout ic-shell"
+      style={{ minHeight: "100vh", background: "transparent" }}
+    >
       <DocumentTitle />
       <ActivityWatcher />
 
-      {/* Desktop sider */}
       {!isMobile && (
         <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
       )}
 
-      {/* Mobile drawer */}
       <Drawer
         placement="left"
         open={isMobile && drawerOpen}
@@ -62,13 +64,14 @@ export const MainLayout: React.FC = () => {
       <Layout style={{ background: "transparent", minWidth: 0 }}>
         <Header collapsed={isMobile ? !drawerOpen : collapsed} onToggle={toggleNav} />
         <Content className="af-content-shell">
-          <div className="af-page" style={{ minHeight: 280 }}>
+          <div className="ic-content-inner" style={{ minHeight: 280 }}>
             <AppBreadcrumb />
             <Outlet />
           </div>
         </Content>
       </Layout>
       <CommandPalette />
+      <AIAssistant />
     </Layout>
   );
 };

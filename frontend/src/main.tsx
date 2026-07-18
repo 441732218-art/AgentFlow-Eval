@@ -8,11 +8,10 @@ import App from "./App";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { buildAntdTheme } from "@/theme/antdTheme";
 import "@/styles/theme.css";
+import "@/styles/command-center.css";
 
-// Apply theme before first paint (avoid flash)
+// Apply theme before first paint (avoid flash) — Cyber Command default
 try {
-  // Keep in sync with useThemeStore STORAGE_KEY (v2 → default light)
-  const saved = localStorage.getItem("agentflow_theme_v2");
   const known = new Set([
     "dark",
     "light",
@@ -21,12 +20,15 @@ try {
     "ocean",
     "sunset",
   ]);
+  const saved =
+    localStorage.getItem("agentflow_theme_v3") ||
+    localStorage.getItem("agentflow_theme_v2");
   document.documentElement.setAttribute(
     "data-theme",
-    saved && known.has(saved) ? saved : "light"
+    saved && known.has(saved) ? saved : "dark"
   );
 } catch {
-  document.documentElement.setAttribute("data-theme", "light");
+  document.documentElement.setAttribute("data-theme", "dark");
 }
 
 function Root() {

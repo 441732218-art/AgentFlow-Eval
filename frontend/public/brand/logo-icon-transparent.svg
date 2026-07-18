@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AgentFlow Intelligence — App Mark (128) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" role="img" aria-label="AgentFlow Intelligence">
+  <defs>
+    <linearGradient id="afi-bg" x1="12" y1="8" x2="116" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0A1628"/>
+      <stop offset="0.55" stop-color="#050816"/>
+      <stop offset="1" stop-color="#12082A"/>
+    </linearGradient>
+    <linearGradient id="afi-core" x1="40" y1="36" x2="88" y2="92" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00D4FF"/>
+      <stop offset="0.5" stop-color="#5B8CFF"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="afi-stream" x1="18" y1="78" x2="110" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00D4FF" stop-opacity="0"/>
+      <stop offset="0.25" stop-color="#00D4FF"/>
+      <stop offset="0.55" stop-color="#8B5CF6"/>
+      <stop offset="0.82" stop-color="#FFC857"/>
+      <stop offset="1" stop-color="#FFC857" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="afi-glow" cx="50%" cy="48%" r="42%">
+      <stop offset="0%" stop-color="#00D4FF" stop-opacity="0.55"/>
+      <stop offset="45%" stop-color="#8B5CF6" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#050816" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="afi-soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.2" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- App tile -->
+  <rect x="4" y="4" width="120" height="120" rx="30" fill="url(#afi-bg)"/>
+  <rect x="4.75" y="4.75" width="118.5" height="118.5" rx="29.25" stroke="url(#afi-core)" stroke-opacity="0.35" stroke-width="1.5"/>
+  <circle cx="64" cy="62" r="46" fill="url(#afi-glow)"/>
+
+  <!-- Outer neural ring -->
+  <circle cx="64" cy="62" r="38" stroke="#00D4FF" stroke-opacity="0.18" stroke-width="1.2" stroke-dasharray="3 5"/>
+  <circle cx="64" cy="62" r="28" stroke="#8B5CF6" stroke-opacity="0.28" stroke-width="1.4"/>
+
+  <!-- Flow stream (workflow / observability) -->
+  <path d="M20 86 C36 58, 48 92, 64 62 S92 28, 110 44" stroke="url(#afi-stream)" stroke-width="3.2" stroke-linecap="round" fill="none" filter="url(#afi-soft)"/>
+  <path d="M24 74 C40 52, 52 78, 64 58 S86 40, 106 52" stroke="#00D4FF" stroke-opacity="0.25" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+
+  <!-- Network links -->
+  <g stroke="#00D4FF" stroke-opacity="0.45" stroke-width="1.3">
+    <path d="M64 34 L86 46"/>
+    <path d="M86 46 L92 72"/>
+    <path d="M92 72 L64 90"/>
+    <path d="M64 90 L36 72"/>
+    <path d="M36 72 L42 46"/>
+    <path d="M42 46 L64 34"/>
+    <path d="M42 46 L64 62"/>
+    <path d="M86 46 L64 62"/>
+    <path d="M36 72 L64 62"/>
+    <path d="M92 72 L64 62"/>
+  </g>
+
+  <!-- Neural nodes -->
+  <circle cx="64" cy="34" r="4.2" fill="#00D4FF"/>
+  <circle cx="86" cy="46" r="4" fill="#8B5CF6"/>
+  <circle cx="92" cy="72" r="4.2" fill="#00D4FF"/>
+  <circle cx="64" cy="90" r="4" fill="#FFC857"/>
+  <circle cx="36" cy="72" r="4.2" fill="#8B5CF6"/>
+  <circle cx="42" cy="46" r="4" fill="#00D4FF"/>
+
+  <!-- Central AI core (hex + diamond pulse, not brain/robot) -->
+  <g filter="url(#afi-soft)">
+    <path d="M64 46 L76 54 L76 70 L64 78 L52 70 L52 54 Z" fill="url(#afi-core)" fill-opacity="0.2" stroke="url(#afi-core)" stroke-width="1.6"/>
+    <circle cx="64" cy="62" r="9.5" fill="url(#afi-core)"/>
+    <circle cx="64" cy="62" r="5.2" fill="#F0FBFF"/>
+    <circle cx="64" cy="62" r="2.2" fill="#FFC857"/>
+  </g>
+
+  <!-- Evaluation tick node (monitoring quality signal) -->
+  <circle cx="100" cy="34" r="7" fill="#0A1628" stroke="#FFC857" stroke-width="1.6"/>
+  <path d="M96.5 34 L99 36.5 L104 30.5" stroke="#FFC857" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

@@ -73,7 +73,7 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="af-page">
+    <div className="ic-page af-page">
       <PageHeader
         title={t("reports.title")}
         subtitle={t("reports.subtitle")}

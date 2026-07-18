@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import type { Trace, JudgeResult } from "../types";
-import { traceService } from "../services/traceService";
+import { traceApi } from "@/api/endpoints/traces";
 
 interface TraceState {
   traces: Trace[];
@@ -27,7 +27,7 @@ export const useTraceStore = create<TraceState>((set) => ({
   fetchTraces: async (testSuiteId?: string) => {
     set({ loading: true });
     try {
-      const res = await traceService.list({ test_suite_id: testSuiteId, page_size: 50 });
+      const res = await traceApi.list({ test_suite_id: testSuiteId, page_size: 50 });
       set({ traces: res.items, total: res.total });
     } finally {
       set({ loading: false });
@@ -37,7 +37,7 @@ export const useTraceStore = create<TraceState>((set) => ({
   fetchTrace: async (id: string) => {
     set({ loading: true });
     try {
-      const trace = await traceService.getById(id);
+      const trace = await traceApi.get(id);
       set({ currentTrace: trace });
     } finally {
       set({ loading: false });
@@ -47,7 +47,7 @@ export const useTraceStore = create<TraceState>((set) => ({
   judgeTrace: async (id: string) => {
     set({ loading: true });
     try {
-      const result = await traceService.judge(id);
+      const result = await traceApi.judge(id);
       set({ currentJudgeResult: result });
     } finally {
       set({ loading: false });

@@ -2,6 +2,7 @@ import type { ThemeConfig } from "antd";
 import { theme as antTheme } from "antd";
 import type { ThemeMode } from "@/stores/useThemeStore";
 import { isDarkTheme } from "@/stores/useThemeStore";
+import { COMMAND_PALETTE, FONT, RADIUS } from "@/theme/tokens";
 
 type Palette = {
   colorPrimary: string;
@@ -29,27 +30,27 @@ type Palette = {
 
 const palettes: Record<ThemeMode, Palette> = {
   dark: {
-    colorPrimary: "#38bdf8",
-    colorInfo: "#818cf8",
-    colorSuccess: "#34d399",
-    colorWarning: "#fbbf24",
-    colorError: "#f87171",
-    colorBgBase: "#07090f",
-    colorBgContainer: "#121826",
-    colorBgElevated: "#1a2234",
-    colorBorder: "rgba(148,163,184,0.14)",
-    colorBorderSecondary: "rgba(148,163,184,0.1)",
-    colorText: "#e8eef9",
-    colorTextSecondary: "#94a3b8",
-    headerBg: "#0c101a",
-    tableHeaderBg: "#0c101a",
-    rowHoverBg: "rgba(56,189,248,0.06)",
-    itemHoverBg: "rgba(56,189,248,0.08)",
-    itemSelectedColor: "#38bdf8",
-    primaryShadow: "0 4px 14px rgba(56, 189, 248, 0.25)",
-    activeBorder: "#38bdf8",
-    hoverBorder: "#7dd3fc",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+    colorPrimary: COMMAND_PALETTE.primary,
+    colorInfo: COMMAND_PALETTE.accent,
+    colorSuccess: COMMAND_PALETTE.success,
+    colorWarning: COMMAND_PALETTE.warning,
+    colorError: COMMAND_PALETTE.danger,
+    colorBgBase: COMMAND_PALETTE.bg,
+    colorBgContainer: COMMAND_PALETTE.bgSurface,
+    colorBgElevated: COMMAND_PALETTE.bgMuted,
+    colorBorder: COMMAND_PALETTE.border,
+    colorBorderSecondary: "rgba(0,212,255,0.1)",
+    colorText: COMMAND_PALETTE.text,
+    colorTextSecondary: COMMAND_PALETTE.textSecondary,
+    headerBg: COMMAND_PALETTE.bgElevated,
+    tableHeaderBg: COMMAND_PALETTE.bgElevated,
+    rowHoverBg: "rgba(0,212,255,0.06)",
+    itemHoverBg: "rgba(0,212,255,0.08)",
+    itemSelectedColor: COMMAND_PALETTE.primary,
+    primaryShadow: "0 4px 14px rgba(0, 212, 255, 0.28)",
+    activeBorder: COMMAND_PALETTE.primary,
+    hoverBorder: "#5ce1ff",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
   },
   midnight: {
     colorPrimary: "#a78bfa",
@@ -187,12 +188,11 @@ export function buildAntdTheme(mode: ThemeMode): ThemeConfig {
       colorBorderSecondary: p.colorBorderSecondary,
       colorText: p.colorText,
       colorTextSecondary: p.colorTextSecondary,
-      borderRadius: 10,
-      borderRadiusLG: 14,
-      fontFamily:
-        '"Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
+      borderRadius: RADIUS.md,
+      borderRadiusLG: RADIUS.lg,
+      fontFamily: FONT.sans,
       fontSize: 14,
-      controlHeight: 38,
+      controlHeight: 36,
       boxShadow: p.boxShadow,
       wireframe: false,
     },
@@ -205,21 +205,23 @@ export function buildAntdTheme(mode: ThemeMode): ThemeConfig {
       },
       Card: {
         colorBgContainer: p.colorBgContainer,
-        paddingLG: 20,
+        paddingLG: 18,
       },
       Menu: {
         itemBg: "transparent",
         subMenuItemBg: "transparent",
         itemSelectedColor: p.itemSelectedColor,
         itemHoverBg: p.itemHoverBg,
+        itemBorderRadius: RADIUS.sm,
       },
       Button: {
         primaryShadow: p.primaryShadow,
-        borderRadius: 10,
+        borderRadius: RADIUS.md,
       },
       Input: {
         activeBorderColor: p.activeBorder,
         hoverBorderColor: p.hoverBorder,
+        borderRadius: RADIUS.md,
       },
       Tag: {
         borderRadiusSM: 6,
@@ -231,6 +233,11 @@ export function buildAntdTheme(mode: ThemeMode): ThemeConfig {
       Modal: {
         contentBg: p.colorBgContainer,
         headerBg: p.colorBgContainer,
+        borderRadiusLG: RADIUS.lg,
+      },
+      Segmented: {
+        trackBg: p.colorBgElevated,
+        itemSelectedBg: p.colorBgContainer,
       },
     },
   };

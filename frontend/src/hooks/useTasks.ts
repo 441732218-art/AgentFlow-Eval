@@ -5,16 +5,37 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query";
 import { taskApi } from "@/api/endpoints/tasks";
+import { dashboardApi } from "@/api/endpoints/dashboard";
 import type { TaskListParams, CreateTestSuiteInput, Task, TaskReport } from "@/types";
+import { QUERY_STALE } from "@/lib/query-client";
 
 export const TASKS_QUERY_KEY = ["tasks"] as const;
+export const DASHBOARD_QUERY_KEY = ["dashboard", "stats"] as const;
+
+function invalidateTaskRelated(queryClient: ReturnType<typeof useQueryClient>, id?: string) {
+  queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY });
+  queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY });
+  if (id) {
+    queryClient.invalidateQueries({ queryKey: ["task", id] });
+  }
+}
 
 export function useTasks(params?: TaskListParams) {
   return useQuery({
     queryKey: [...TASKS_QUERY_KEY, params],
     queryFn: () => taskApi.list(params),
-    staleTime: 60_000,
+    // Align with backend list cache TTL (~30s)
+    staleTime: QUERY_STALE.taskList,
     placeholderData: keepPreviousData,
+  });
+}
+
+export function useDashboardStats(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: DASHBOARD_QUERY_KEY,
+    queryFn: () => dashboardApi.stats(),
+    staleTime: QUERY_STALE.dashboard,
+    ...options,
   });
 }
 
@@ -23,6 +44,7 @@ export function useTaskDetail(id: string | undefined, options?: { refetchInterva
     queryKey: ["task", id],
     queryFn: () => taskApi.get(id!),
     enabled: !!id,
+    staleTime: QUERY_STALE.taskDetail,
     retry: (_failureCount, error) => {
       return (error as any)?.response?.status !== 404;
     },
@@ -35,6 +57,7 @@ export function useTaskReport(id: string | undefined, options?: { refetchInterva
     queryKey: ["task-report", id],
     queryFn: () => taskApi.getReport(id!),
     enabled: !!id,
+    staleTime: QUERY_STALE.report,
     ...options,
   });
 }
@@ -44,7 +67,7 @@ export function useCreateTask() {
   return useMutation({
     mutationFn: taskApi.create,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY });
+      invalidateTaskRelated(queryClient);
     },
   });
 }
@@ -54,7 +77,7 @@ export function useDeleteTask() {
   return useMutation({
     mutationFn: taskApi.delete,
     onSuccess: (_data, id) => {
-      queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY });
+      invalidateTaskRelated(queryClient, id);
       queryClient.removeQueries({ queryKey: ["task", id] });
     },
   });
@@ -65,7 +88,10 @@ export function useExecuteTask() {
   return useMutation({
     mutationFn: taskApi.execute,
     onSuccess: (_data, id) => {
-      queryClient.invalidateQueries({ queryKey: ["task", id] });
+      invalidateTaskRelated(queryClient, id);
+      // Refresh quota strip after a successful run is queued
+      queryClient.invalidateQueries({ queryKey: ["billing", "quota"] });
+      queryClient.invalidateQueries({ queryKey: ["billing", "usage"] });
     },
   });
 }
@@ -75,8 +101,7 @@ export function useCancelTask() {
   return useMutation({
     mutationFn: taskApi.cancel,
     onSuccess: (_data, id) => {
-      queryClient.invalidateQueries({ queryKey: ["task", id] });
-      queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY });
+      invalidateTaskRelated(queryClient, id);
     },
   });
 }
@@ -109,8 +134,7 @@ export function useArchiveTask() {
   return useMutation({
     mutationFn: taskApi.archive,
     onSuccess: (_data, id) => {
-      queryClient.invalidateQueries({ queryKey: ["task", id] });
-      queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY });
+      invalidateTaskRelated(queryClient, id);
     },
   });
 }

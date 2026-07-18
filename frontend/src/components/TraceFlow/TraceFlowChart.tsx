@@ -1,7 +1,7 @@
 /* (c) 2026 AgentFlow-Eval */
 /* Agent execution trace DAG visualization using ReactFlow */
 
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, memo } from "react";
 import {
   ReactFlow,
   Background,
@@ -89,7 +89,11 @@ interface AgentStepNodeData extends Record<string, unknown> {
   isSelected: boolean;
 }
 
-const AgentStepNode: React.FC<{ data: AgentStepNodeData }> = ({ data }) => {
+const AgentStepNode = memo(function AgentStepNode({
+  data,
+}: {
+  data: AgentStepNodeData;
+}) {
   const style = STEP_STYLES[data.stepType] || STEP_STYLES.thought;
   const displayContent = data.content || data.toolName || "(empty)";
   const truncated =
@@ -165,8 +169,9 @@ const AgentStepNode: React.FC<{ data: AgentStepNodeData }> = ({ data }) => {
       <Handle type="source" position={Position.Bottom} style={{ background: style.border }} />
     </div>
   );
-};
+});
 
+/** Stable reference — React Flow re-renders all nodes if nodeTypes identity changes */
 const nodeTypes = { agentStep: AgentStepNode as React.ComponentType<any> };
 
 /* ---- Layout Algorithm ---- */
@@ -238,10 +243,10 @@ interface TraceFlowChartProps {
   containerWidth?: number;
 }
 
-const TraceFlowChart: React.FC<TraceFlowChartProps> = ({
+const TraceFlowChart: React.FC<TraceFlowChartProps> = memo(function TraceFlowChart({
   steps,
   containerWidth = 600,
-}) => {
+}) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([] as Node[]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[]);
@@ -404,6 +409,6 @@ const TraceFlowChart: React.FC<TraceFlowChartProps> = ({
       )}
     </div>
   );
-};
+});
 
 export default TraceFlowChart;

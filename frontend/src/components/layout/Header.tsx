@@ -15,6 +15,7 @@ import { NotificationDrawer } from "./NotificationDrawer";
 import { openCommandPalette } from "@/components/CommandPalette";
 import { useNotificationStore } from "@/stores/useNotificationStore";
 import { useI18nStore, type Locale } from "@/i18n";
+import { HeaderQuotaBadge } from "@/components/billing/HeaderQuotaBadge";
 
 const { Header: AntHeader } = Layout;
 const { Text } = Typography;
@@ -43,15 +44,12 @@ export const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
   return (
     <>
       <AntHeader
-        className="af-no-print"
+        className="af-no-print ic-header"
         style={{
-          background: "var(--af-header)",
-          backdropFilter: "blur(14px)",
           padding: "0 20px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          borderBottom: "1px solid var(--af-border)",
           height: 64,
           position: "sticky",
           top: 0,
@@ -67,6 +65,7 @@ export const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
           />
           <Input
             readOnly
+            className="ic-header__search"
             onClick={() => openCommandPalette()}
             prefix={<SearchOutlined style={{ color: "var(--af-text-muted)" }} />}
             placeholder={t("header.search")}
@@ -78,14 +77,13 @@ export const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
             style={{
               width: 300,
               maxWidth: "42vw",
-              borderRadius: 10,
-              background: "var(--af-bg-muted)",
               cursor: "pointer",
             }}
           />
         </Space>
 
         <Space size={8}>
+          <HeaderQuotaBadge />
           <Dropdown
             menu={{
               selectedKeys: [locale],
