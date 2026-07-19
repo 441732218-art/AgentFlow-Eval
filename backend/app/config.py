@@ -189,9 +189,17 @@ class Settings(BaseSettings):
     # When true, only load modules listed in PLUGIN_MODULES (ignore PLUGIN_DIRS scan).
     # Production hardening: set PLUGIN_MODULES=pkg:Plugin,... and PLUGIN_STRICT_ALLOWLIST=true
     PLUGIN_STRICT_ALLOWLIST: bool = False
+    # Alias of PLUGIN_STRICT_ALLOWLIST (enterprise naming)
+    PLUGIN_STRICT_MODE: bool = False
     # Optional extra allowlist of module prefixes or full entries (comma-separated).
     # Empty = only PLUGIN_MODULES when strict; when not strict, no extra filter.
     PLUGIN_ALLOWLIST: str = ""
+    # When true, require HMAC signatures for PLUGIN_MODULES (see PLUGIN_SIGNATURES)
+    PLUGIN_SIGNATURE_CHECK: bool = False
+    # HMAC key for plugin file integrity
+    PLUGIN_SIGNING_SECRET: str = ""
+    # "module.path:hexdigest,other:hexdigest"
+    PLUGIN_SIGNATURES: str = ""
 
     @property
     def plugin_dir_list(self) -> list[str]:

@@ -1,0 +1,12 @@
+# AgentFlow-Eval Prometheus scrape config (compose profile: obs)
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: agentflow-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["agentflow-backend:8000"]
+        labels:
+          service: agentflow-api

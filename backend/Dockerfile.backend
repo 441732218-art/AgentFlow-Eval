@@ -1,7 +1,6 @@
-# (c) 2026 AgentFlow-Eval / 李凯昕
-# Default backend image (production-oriented multi-stage, non-root).
-# Prefer: docker build -f Dockerfile.backend -t agentflow-backend:local .
-# This file mirrors Dockerfile.backend for compose `dockerfile: Dockerfile` compatibility.
+# (c) 2026 AgentFlow-Eval
+# Production multi-stage backend image — non-root, slim runtime
+# Build: docker build -f Dockerfile.backend -t agentflow-backend:local .
 
 # ---- Builder ----
 FROM python:3.12-slim AS builder
@@ -18,11 +17,16 @@ RUN python -m venv /opt/venv \
 # ---- Runtime ----
 FROM python:3.12-slim AS runtime
 
+LABEL org.opencontainers.image.title="AgentFlow-Eval Backend" \
+      org.opencontainers.image.description="Agent evaluation API + Celery worker" \
+      org.opencontainers.image.version="1.0.0"
+
 ENV PYTHONPATH=/app \
     PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
+# Non-root user
 RUN groupadd --gid 10001 agentflow \
     && useradd --uid 10001 --gid agentflow --shell /usr/sbin/nologin --create-home agentflow \
     && mkdir -p /app/logs \

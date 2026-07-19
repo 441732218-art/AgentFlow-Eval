@@ -1,33 +1,65 @@
-# 安全政策
+# Security Policy — AgentFlow-Eval
 
-## 支持的版本
+## Supported versions
 
-| 版本 | 支持状态 |
-|------|----------|
-| 0.1.x / main | 安全修复会优先合入 `main` |
-| 更早提交 | 尽力而为，不保证回溯补丁 |
+| Version | Status |
+|---------|--------|
+| **1.0.x** | Active security fixes |
+| 0.1.x / earlier | Best effort only |
 
-## 报告漏洞
+## Reporting a vulnerability
 
-请**不要**通过公开 GitHub Issue 报告可被利用的安全漏洞。
+**Do not** open a public GitHub issue for exploitable vulnerabilities.
 
-建议通过以下方式私下联系维护者：
+Prefer:
 
-1. GitHub 仓库 **Security → Report a vulnerability**（若已启用）  
-2. 或通过仓库 Owner 的 GitHub 私信说明问题概要与复现条件  
+1. GitHub **Security → Report a vulnerability** (if enabled)  
+2. Private contact with the repository owner  
 
-请包含：影响范围、复现步骤、是否已有利用、你的联系方式。我们会尽快确认并协商披露时间。
+Include: impact, reproduction steps, whether an exploit is known, and contact info.
 
-## 安全使用建议
+## Production hardening checklist
 
-- **切勿**将 `OPENAI_API_KEY`、`SECRET_KEY`、数据库密码提交到 Git  
-- 生产环境建议：`AUTH_ENABLED=true` 并配置强随机 `API_KEYS`  
-- 生产使用 PostgreSQL + `CELERY_TASK_ALWAYS_EAGER=false` + 网络隔离 Redis  
-- 限制 `CORS_ORIGINS` 为真实前端域名  
-- 定期升级依赖（`pip` / `npm audit`）  
+| Control | Recommendation |
+|---------|----------------|
+| Auth | `AUTH_ENABLED=true` + strong random `API_KEYS` |
+| Secrets | Never commit `.env` / `.env.docker`; rotate on leak |
+| CORS | Explicit production origins only |
+| Tenancy | `MULTI_TENANT_ENABLED=true` for SaaS |
+| Plugins | `PLUGIN_STRICT_MODE=true`; optional `PLUGIN_SIGNATURE_CHECK=true` |
+| Containers | Prefer `Dockerfile.backend` non-root; `no-new-privileges` |
+| Network | Do not publish Postgres/Redis publicly |
+| TLS | Terminate TLS at reverse proxy / load balancer |
+| Rate limit | `RATE_LIMIT_ENABLED=true` |
+| Docs | Restrict `/docs` and `/redoc` on public internet |
 
-## 密钥泄露时
+## Built-in protections
 
-1. 立即在服务商控制台轮换 API Key  
-2. 轮换 `SECRET_KEY` 与数据库密码  
-3. 检查 Git 历史是否误提交密钥，必要时使用历史清理工具并视为已泄露  
+- Constant-time API key comparison  
+- RBAC permission matrix (enterprise roles)  
+- Actor + tenant isolation (404 on cross-tenant)  
+- Security response headers middleware  
+- Structured audit logs (`/api/v1/audit`)  
+- Billing quota gate → **429 QUOTA_EXCEEDED**  
+- Settings guard for weak prod `SECRET_KEY` / `DEBUG`  
+
+## Tooling
+
+```bash
+cd backend
+bandit -r app/ -ll
+pip-audit -r requirements.txt
+# after image build:
+trivy image agentflow-backend:local
+```
+
+CI: `.github/workflows/test.yml`, `docker-build.yml` (Trivy).
+
+Full review: [docs/security-audit-report.md](./docs/security-audit-report.md).
+
+## If secrets leak
+
+1. Rotate provider API keys (OpenAI, Stripe, …)  
+2. Rotate `SECRET_KEY`, `API_KEYS`, DB passwords  
+3. Purge git history if credentials were committed  
+4. Review audit logs for abuse  

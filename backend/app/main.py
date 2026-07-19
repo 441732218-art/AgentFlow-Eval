@@ -166,7 +166,10 @@ async def lifespan(app: FastAPI):
 
         if getattr(settings, "PLUGINS_ENABLED", True):
             mgr = get_plugin_manager()
-            strict = bool(getattr(settings, "PLUGIN_STRICT_ALLOWLIST", False))
+            strict = bool(
+                getattr(settings, "PLUGIN_STRICT_ALLOWLIST", False)
+                or getattr(settings, "PLUGIN_STRICT_MODE", False)
+            )
             modules = list(getattr(settings, "plugin_module_list", []) or [])
             directories = list(getattr(settings, "plugin_dir_list", []) or [])
             if strict:
@@ -174,8 +177,23 @@ async def lifespan(app: FastAPI):
                 directories = []
                 if not modules:
                     log.warning(
-                        "PLUGIN_STRICT_ALLOWLIST=true but PLUGIN_MODULES empty — no plugins loaded"
+                        "PLUGIN_STRICT_MODE/ALLOWLIST=true but PLUGIN_MODULES empty — no plugins loaded"
                     )
+            # Optional HMAC signature gate
+            try:
+                from app.core.plugins.signature import (
+                    filter_signed_modules,
+                    signature_check_enabled,
+                )
+
+                if signature_check_enabled() and modules:
+                    modules, rejected = filter_signed_modules(modules)
+                    if rejected:
+                        log.warning(
+                            "Plugin signature rejections: %s", rejected
+                        )
+            except Exception as sig_exc:
+                log.warning("Plugin signature check skipped: %s", sig_exc)
             summary = mgr.bootstrap(
                 enabled=True,
                 directories=directories,

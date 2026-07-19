@@ -18,6 +18,8 @@
 |------|------|
 | [**项目总结与竞争定位.md**](项目总结与竞争定位.md) | **总览总结**：功能结构、行业地图、竞争位置与差异化（推荐对外介绍） |
 | [**落地执行报告-完整与可部署.md**](落地执行报告-完整与可部署.md) | **落地实施记录**：已做优化、不足清单、后续升级路线（演示/双源/生产） |
+| [**本地容器数据库与功能测试报告.md**](本地容器数据库与功能测试报告.md) | Docker Postgres/Redis + 迁移 012 + API 功能测试结果 |
+| [**前后端联通与整体打包.md**](前后端联通与整体打包.md) | 同源 `/api/v1` + Vite 代理 + Docker nginx 一键打包 |
 | [**项目全面审查报告.md**](项目全面审查报告.md) | **全量审查归档**：功能、成熟度、进度、缺口、分阶段升级方案 |
 | [**Phase-A-提交与执行清单.md**](Phase-A-提交与执行清单.md) | Phase A：按主题拆分的 git 提交批次 + seed/日志卡片/E2E 验收 |
 | [项目报告.md](项目报告.md) | 产品概述版项目报告（软著/对外叙事） |
@@ -31,6 +33,19 @@
 | [用户操作手册.md](用户操作手册.md) | 界面操作说明 |
 | [功能模块清单.md](功能模块清单.md) | 模块 ↔ 源码目录 ↔ 主要接口 |
 | [截图清单.md](截图清单.md) | 建议截取的运行画面（6～8 张） |
+
+## v1.0 发布与安全
+
+| 文档 | 说明 |
+|------|------|
+| [../FINAL_RELEASE_REPORT.md](../FINAL_RELEASE_REPORT.md) | **v1.0 最终发布报告**与评分 |
+| [../DEPLOYMENT_GUIDE.md](../DEPLOYMENT_GUIDE.md) | 企业部署指南（lite/private/saas） |
+| [../API_REFERENCE.md](../API_REFERENCE.md) | API v1 总览 |
+| [../SECURITY.md](../SECURITY.md) | 安全政策与生产加固 |
+| [security-audit-report.md](security-audit-report.md) | OWASP 审计与修复记录 |
+| [api-contract.md](api-contract.md) | API 冻结契约 |
+| [rbac-enterprise.md](rbac-enterprise.md) | 企业 RBAC 矩阵 |
+| [benchmarks.md](benchmarks.md) | Benchmark 平台 |
 
 ## 部署与运维
 

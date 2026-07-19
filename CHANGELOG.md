@@ -6,6 +6,24 @@
 
 ### Added
 
+- **v1.0 阶段 7–12（安全 / Docker / CI / 发布）**
+  - 插件 `PLUGIN_STRICT_MODE` + `PLUGIN_SIGNATURE_CHECK`（HMAC）
+  - 多阶段非 root 后端镜像 `Dockerfile.backend`；prod compose 资源限制 / no-new-privileges / Prometheus+Grafana profile
+  - CI：`test.yml`、`docker-build.yml`（Trivy）、`release.yml`（tag v1.*）
+  - 环境模板：`.env.lite|private|saas.example`
+  - 文档：`FINAL_RELEASE_REPORT.md`、`DEPLOYMENT_GUIDE.md`、`API_REFERENCE.md`、`docs/security-audit-report.md`；`SECURITY.md` 升级
+
+## [1.0.0] — 2026-07-19
+
+### Added
+
+- **Enterprise Agent Evaluation Platform v1.0**
+  - API Freeze、企业多租户、企业 RBAC、Billing 商业化、Benchmark 平台
+  - 安全加固与生产 Docker / CI/CD 发布链路
+  - 详见 `FINAL_RELEASE_REPORT.md`
+
+### Added (prior unreleased rolled into 1.0)
+
 - **v1.0 阶段 5–6（Billing / Benchmark）**
   - Billing：Free/Pro/Enterprise 限额（task/token/storage/plugin）、`GET /billing/plan`、`POST /billing/webhook` 别名；超额 **429 QUOTA_EXCEEDED**；migration `014`
   - Benchmark 平台：`benchmarks`/`cases`/`runs`/`results`、import JSON/CSV、run→Evaluation Engine、leaderboard；前端 `/benchmarks`；migration `015`；文档 `docs/benchmarks.md`
