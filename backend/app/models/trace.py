@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Enum, Float, ForeignKey, Index, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, PKMixin, TimestampMixin
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.metric_score import MetricScore
@@ -20,7 +20,7 @@ class TraceStatus(str, enum.Enum):
     FAILED = "failed"
 
 
-class Trace(PKMixin, TimestampMixin, Base):
+class Trace(PKMixin, TenantMixin, TimestampMixin, Base):
     """执行轨迹。
 
     保存 Agent 运行一次测试用例的完整 ReAct 步骤、Token 消耗和响应时间，
@@ -32,6 +32,7 @@ class Trace(PKMixin, TimestampMixin, Base):
         # List traces for a suite ordered by time
         Index("ix_traces_suite_created", "test_suite_id", "created_at"),
         Index("ix_traces_created_at", "created_at"),
+        Index("ix_traces_tenant_created", "tenant_id", "created_at"),
     )
 
     test_suite_id: Mapped[str] = mapped_column(
@@ -54,7 +55,11 @@ class Trace(PKMixin, TimestampMixin, Base):
         Integer, nullable=False, default=0, comment="执行耗时（毫秒）",
     )
     status: Mapped[TraceStatus] = mapped_column(
-        Enum(TraceStatus, name="trace_status"),
+        Enum(
+            TraceStatus,
+            name="trace_status",
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
         nullable=False,
         default=TraceStatus.SUCCESS,
         comment="执行状态：success / failed",

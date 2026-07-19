@@ -69,6 +69,12 @@ def test_frontend_permission_strings_cover_backend_enum():
         "user:manage",
         "system:config",
         "audit:read",
+        "tenant:create",
+        "tenant:manage",
+        "billing:read",
+        "billing:manage",
+        "benchmark:create",
+        "benchmark:read",
     }
     assert backend == frontend
 

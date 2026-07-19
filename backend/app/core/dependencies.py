@@ -74,6 +74,30 @@ async def get_db() -> AsyncGenerator[AsyncSession, Any]:
             await session.close()
 
 
+async def bind_tenant(request: Any, session: AsyncSession) -> Any:
+    """Resolve X-Tenant-ID against DB membership; store on request.state.
+
+    Call from endpoints after injecting ``Request`` + ``get_db`` session, or
+    wrap with ``Depends`` via a thin FastAPI-layer helper in routers.
+    """
+    from app.core.tenant_context import extract_tenant_header, resolve_tenant_context
+
+    actor = getattr(request.state, "actor", None) or "anonymous"
+    role = getattr(request.state, "role", None)
+    role_s = role.value if hasattr(role, "value") else (str(role) if role else "")
+    header = extract_tenant_header(request)
+    ctx = await resolve_tenant_context(
+        session,
+        actor=actor,
+        header_value=header,
+        system_role=role_s,
+    )
+    request.state.tenant_id = ctx.tenant_id
+    request.state.tenant_slug = ctx.tenant_slug
+    request.state.tenant_member_role = ctx.member_role
+    return ctx
+
+
 # ---- Redis cache ----
 _redis: aioredis.Redis | None = None
 

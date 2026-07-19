@@ -4,10 +4,10 @@
 from sqlalchemy import Index, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, PKMixin, TimestampMixin
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
 
 
-class AuditLog(PKMixin, TimestampMixin, Base):
+class AuditLog(PKMixin, TenantMixin, TimestampMixin, Base):
     """Immutable-style audit record (no update API)."""
 
     __tablename__ = "audit_logs"
@@ -16,6 +16,7 @@ class AuditLog(PKMixin, TimestampMixin, Base):
         Index("ix_audit_logs_action", "action"),
         Index("ix_audit_logs_resource", "resource_type", "resource_id"),
         Index("ix_audit_logs_actor_created", "actor", "created_at"),
+        Index("ix_audit_logs_tenant_created", "tenant_id", "created_at"),
     )
 
     actor: Mapped[str] = mapped_column(

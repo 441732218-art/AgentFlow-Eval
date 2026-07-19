@@ -33,17 +33,23 @@ from app.utils.exceptions import NotFoundError
 
 class TestRolePermissionMatrix:
     def test_all_roles_defined(self) -> None:
-        assert set(Role) == {
-            Role.ADMIN,
+        # Enterprise + legacy aliases
+        assert {
+            Role.SYSTEM_ADMIN,
+            Role.TENANT_ADMIN,
             Role.MANAGER,
             Role.REVIEWER,
+            Role.MEMBER,
+            Role.VIEWER,
+            Role.ADMIN,
             Role.USER,
             Role.GUEST,
-        }
+        }.issubset(set(Role))
 
     def test_admin_has_all(self) -> None:
         for perm in Permission:
             assert has_permission(Role.ADMIN, perm)
+            assert has_permission(Role.SYSTEM_ADMIN, perm)
 
     def test_guest_read_only(self) -> None:
         assert has_permission(Role.GUEST, Permission.TASK_READ)
@@ -84,7 +90,10 @@ class TestRolePermissionMatrix:
     def test_matrix_export(self) -> None:
         m = matrix_as_dict()
         assert "admin" in m
-        assert Permission.TASK_CREATE.value in m["user"]
+        assert "user" in m or "member" in m
+        # legacy user or enterprise member both hold task:create
+        create_roles = [k for k, v in m.items() if Permission.TASK_CREATE.value in v]
+        assert "user" in create_roles or "member" in create_roles
 
     def test_has_any(self) -> None:
         assert has_any_permission(Role.GUEST, [Permission.TASK_CREATE, Permission.TASK_READ])
@@ -171,7 +180,9 @@ class TestApiKeyRoles:
             s.ACTOR_ROLES = ""
             s.DEFAULT_ROLE = "user"
             with patch("app.core.tenancy.settings", s):
-                assert resolve_role_for_actor("root") == Role.ADMIN
+                # ADMIN_ACTORS resolve to enterprise system_admin
+                assert resolve_role_for_actor("root") == Role.SYSTEM_ADMIN
+                # DEFAULT_ROLE=user → legacy USER (same perms as MEMBER)
                 assert resolve_role_for_actor("nobody") == Role.USER
 
 

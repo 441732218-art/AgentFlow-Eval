@@ -4,14 +4,14 @@
 from typing import TYPE_CHECKING
 from sqlalchemy import ForeignKey, JSON, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.models.base import Base, PKMixin, TimestampMixin
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.task import Task
     from app.models.trace import Trace
 
 
-class TestSuite(PKMixin, TimestampMixin, Base):
+class TestSuite(PKMixin, TenantMixin, TimestampMixin, Base):
     __tablename__ = "test_suites"
 
     task_id: Mapped[str] = mapped_column(

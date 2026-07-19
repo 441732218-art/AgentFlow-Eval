@@ -81,7 +81,8 @@ class Settings(BaseSettings):
     # When true (and AUTH_ENABLED), enforce role permissions on API endpoints.
     RBAC_ENABLED: bool = True
     # Default role for actors without ACTOR_ROLES / key-embedded role.
-    DEFAULT_ROLE: str = "user"
+    # Enterprise default: member (legacy "user" still accepted via Role.parse).
+    DEFAULT_ROLE: str = "member"
     # Optional actor→role map: "alice:manager,bob:reviewer"
     ACTOR_ROLES: str = ""
 
@@ -89,8 +90,13 @@ class Settings(BaseSettings):
     # When AUTH_ENABLED or TENANCY_ENABLED is true, tasks are scoped by created_by.
     TENANCY_ENABLED: bool = False
     # Comma-separated actors that can see all tasks, e.g. "admin,ops"
-    # These actors also resolve to Role.ADMIN when no explicit role is set.
+    # These actors also resolve to Role.SYSTEM_ADMIN when no explicit role is set.
     ADMIN_ACTORS: str = "admin"
+
+    # ---- Enterprise multi-tenant (org tables + X-Tenant-ID) ----
+    # When true: resolve X-Tenant-ID, enforce membership, filter by tenant_id.
+    # Lite/private demos keep this false (actor isolation only).
+    MULTI_TENANT_ENABLED: bool = False
 
     # ---- Tool sandbox ----
     TOOL_TIMEOUT_SEC: float = 3.0

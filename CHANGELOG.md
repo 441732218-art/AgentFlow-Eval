@@ -6,6 +6,11 @@
 
 ### Added
 
+- **v1.0 阶段 1–4（审计 / API Freeze / Tenant / RBAC）**
+  - `PROJECT_STATUS.md` 全面审计
+  - API 冻结：`docs/api-contract.md`、`docs/openapi-v1.json`、`scripts/export_openapi.py`、`test_api_contract.py`
+  - 企业多租户：`tenants` / `tenant_members`、核心表 `tenant_id`、migration `013`、`X-Tenant-ID`、`/api/v1/tenants/*`、隔离测试
+  - 企业 RBAC：`system_admin` / `tenant_admin` / `member` / `viewer` + 遗留别名；权限 `tenant:*` / `billing:*` / `benchmark:*`；`docs/rbac-enterprise.md`
 - **落地加固（完整与可部署）**
   - 增强 `python -m app.core.seed`：COMPLETED 任务 + 成功/失败 Trace + MetricScore + AOLS `agent_logs`（驾驶舱/诊断/监控可开箱有数）
   - Dashboard AOLS 双源卡片：`/logs/statistics` → Events / Errors / Agent Fail；空库 EmptyState 引导 seed

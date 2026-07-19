@@ -8,13 +8,13 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import ForeignKey, Index, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, PKMixin, TimestampMixin
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.task import Task
 
 
-class Experiment(PKMixin, TimestampMixin, Base):
+class Experiment(PKMixin, TenantMixin, TimestampMixin, Base):
     """A comparison experiment grouping multiple evaluation runs.
 
     Suites are snapshotted as JSON so later base-task edits do not alter
@@ -27,6 +27,7 @@ class Experiment(PKMixin, TimestampMixin, Base):
         Index("ix_experiments_created_at", "created_at"),
         Index("ix_experiments_base_task_id", "base_task_id"),
         Index("ix_experiments_owner_created", "created_by", "created_at"),
+        Index("ix_experiments_tenant_created", "tenant_id", "created_at"),
     )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False, comment="实验名称")
@@ -61,12 +62,13 @@ class Experiment(PKMixin, TimestampMixin, Base):
         return f"<Experiment id={self.id} name={self.name!r}>"
 
 
-class ExperimentRun(PKMixin, TimestampMixin, Base):
+class ExperimentRun(PKMixin, TenantMixin, TimestampMixin, Base):
     """One evaluation run inside an experiment (maps 1:1 to a Task)."""
 
     __tablename__ = "experiment_runs"
     __table_args__ = (
         UniqueConstraint("experiment_id", "label", name="uq_experiment_run_label"),
+        Index("ix_experiment_runs_tenant", "tenant_id"),
     )
 
     experiment_id: Mapped[str] = mapped_column(

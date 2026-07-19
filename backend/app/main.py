@@ -54,6 +54,7 @@ def _ensure_sqlite_columns(connection) -> None:
         "celery_task_id": "ALTER TABLE tasks ADD COLUMN celery_task_id VARCHAR(255)",
         "is_archived": "ALTER TABLE tasks ADD COLUMN is_archived BOOLEAN NOT NULL DEFAULT 0",
         "created_by": "ALTER TABLE tasks ADD COLUMN created_by VARCHAR(100) NOT NULL DEFAULT 'anonymous'",
+        "tenant_id": "ALTER TABLE tasks ADD COLUMN tenant_id VARCHAR(36)",
     }
     existing = _sqlite_table_columns(connection, "tasks")
     for name, ddl in task_cols.items():

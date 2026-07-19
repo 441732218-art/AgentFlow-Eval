@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Boolean, Index, JSON, Enum, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, PKMixin, TimestampMixin
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.test_suite import TestSuite
@@ -56,7 +56,7 @@ class TaskStatus(str, enum.Enum):
         return target in self.allowed_transitions().get(self, set())
 
 
-class Task(PKMixin, TimestampMixin, Base):
+class Task(PKMixin, TenantMixin, TimestampMixin, Base):
     """评测任务。
 
     一个 Task 包含多个 TestSuite 测试用例，执行时逐条运行并汇总评分。
@@ -76,6 +76,7 @@ class Task(PKMixin, TimestampMixin, Base):
         Index("ix_tasks_created_by", "created_by"),
         Index("ix_tasks_celery_task_id", "celery_task_id"),
         Index("ix_tasks_is_archived", "is_archived"),
+        Index("ix_tasks_tenant_created", "tenant_id", "created_at"),
     )
 
     name: Mapped[str] = mapped_column(

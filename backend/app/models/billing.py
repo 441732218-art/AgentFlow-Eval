@@ -19,7 +19,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, PKMixin, TimestampMixin
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
 
 
 class BillingPlan(PKMixin, TimestampMixin, Base):
@@ -40,12 +40,13 @@ class BillingPlan(PKMixin, TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
-class Subscription(PKMixin, TimestampMixin, Base):
+class Subscription(PKMixin, TenantMixin, TimestampMixin, Base):
     """Actor/tenant subscription to a plan."""
 
     __tablename__ = "subscriptions"
     __table_args__ = (
         Index("ix_subscriptions_actor_status", "actor", "status"),
+        Index("ix_subscriptions_tenant_status", "tenant_id", "status"),
     )
 
     actor: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
@@ -62,7 +63,7 @@ class Subscription(PKMixin, TimestampMixin, Base):
     external_ref: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
 
-class UsageRecord(PKMixin, Base):
+class UsageRecord(PKMixin, TenantMixin, Base):
     """Immutable usage event (token / task / judge / storage)."""
 
     __tablename__ = "usage_records"
@@ -70,6 +71,7 @@ class UsageRecord(PKMixin, Base):
         Index("ix_usage_actor_created", "actor", "created_at"),
         Index("ix_usage_metric_created", "metric", "created_at"),
         Index("ix_usage_trace_id", "trace_id"),
+        Index("ix_usage_tenant_created", "tenant_id", "created_at"),
     )
 
     actor: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
@@ -105,11 +107,14 @@ class QuotaBalance(PKMixin, TimestampMixin, Base):
     task_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
 
 
-class Invoice(PKMixin, TimestampMixin, Base):
+class Invoice(PKMixin, TenantMixin, TimestampMixin, Base):
     """Billing period invoice (draft until payment integration)."""
 
     __tablename__ = "invoices"
-    __table_args__ = (Index("ix_invoices_actor_period", "actor", "period"),)
+    __table_args__ = (
+        Index("ix_invoices_actor_period", "actor", "period"),
+        Index("ix_invoices_tenant_period", "tenant_id", "period"),
+    )
 
     actor: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     period: Mapped[str] = mapped_column(String(7), nullable=False)

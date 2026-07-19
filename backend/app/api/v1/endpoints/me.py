@@ -38,6 +38,20 @@ async def get_me(request: Request) -> dict[str, Any]:
     except Exception:
         status = {}
 
+    tenant_info: dict[str, Any] = {}
+    try:
+        from app.core.tenant_context import multi_tenant_enabled, tenant_dict
+
+        tenant_info = tenant_dict()
+        if not tenant_info.get("multi_tenant_enabled"):
+            tenant_info = {
+                "multi_tenant_enabled": multi_tenant_enabled(),
+                "tenant_id": getattr(request.state, "tenant_id", None),
+                "tenant_slug": getattr(request.state, "tenant_slug", None),
+            }
+    except Exception:
+        tenant_info = {"multi_tenant_enabled": False}
+
     return {
         "actor": actor,
         "role": role.value if hasattr(role, "value") else str(role),
@@ -45,6 +59,10 @@ async def get_me(request: Request) -> dict[str, Any]:
         "rbac_enforced": rbac_enforced(),
         "auth_enabled": bool(getattr(settings, "AUTH_ENABLED", False)),
         "billing_enabled": bool(getattr(settings, "BILLING_ENABLED", False)),
+        "multi_tenant_enabled": bool(
+            getattr(settings, "MULTI_TENANT_ENABLED", False)
+        ),
+        "tenant": tenant_info,
         "deploy": status,
         "request_id": getattr(request.state, "request_id", None),
     }

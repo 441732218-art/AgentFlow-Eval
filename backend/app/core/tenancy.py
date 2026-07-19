@@ -1,5 +1,5 @@
 # (c) 2026 AgentFlow-Eval
-"""Lightweight multi-tenant helpers keyed by API-key actor."""
+"""Actor isolation + enterprise tenant filtering helpers."""
 
 from __future__ import annotations
 
@@ -38,21 +38,43 @@ def can_access_task(
 ) -> bool:
     """Return True if actor may read/mutate the task.
 
-    Cross-tenant access is granted to ADMIN/MANAGER/REVIEWER roles when RBAC
-    is active; otherwise falls back to ADMIN_ACTORS + ownership checks.
+    Cross-owner access is granted to ADMIN/MANAGER/REVIEWER / enterprise
+    system_admin / tenant_admin roles when RBAC is active; otherwise falls
+    back to ADMIN_ACTORS + ownership checks.
+
+    When multi-tenant is on and a tenant is selected, also enforce tenant_id.
     """
+    # Tenant boundary first
+    try:
+        from app.core.tenant_context import (
+            current_tenant_id,
+            multi_tenant_enabled,
+        )
+
+        if multi_tenant_enabled():
+            tid = current_tenant_id()
+            if tid:
+                resource_tid = getattr(task, "tenant_id", None)
+                if resource_tid and resource_tid != tid:
+                    return False
+                if not resource_tid:
+                    # Legacy row without tenant: deny when tenant scoped
+                    return False
+    except Exception:
+        pass
+
     if not tenancy_enforced():
         return True
     if is_admin(actor):
         return True
-    # Role-based cross-tenant (RBAC)
+    # Role-based cross-owner (RBAC)
     try:
-        from app.core.rbac import CROSS_TENANT_ROLES, Role, rbac_enforced
+        from app.core.rbac import CROSS_OWNER_ROLES, Role, rbac_enforced
 
         if rbac_enforced() and role:
             try:
                 r = Role.parse(str(role))
-                if r in CROSS_TENANT_ROLES:
+                if r in CROSS_OWNER_ROLES:
                     return True
             except ValueError:
                 pass
@@ -81,17 +103,27 @@ def apply_owner_filter(
     *,
     role: str | None = None,
 ) -> Select:
-    """Restrict Task list queries to the current actor when tenancy is on."""
+    """Restrict Task list queries to the current actor when tenancy is on.
+
+    Also applies ``tenant_id`` filter when multi-tenant context is active.
+    """
+    try:
+        from app.core.tenant_context import apply_tenant_filter
+
+        query = apply_tenant_filter(query, Task)
+    except Exception:
+        pass
+
     if not tenancy_enforced():
         return query
     if is_admin(actor):
         return query
     try:
-        from app.core.rbac import CROSS_TENANT_ROLES, Role, rbac_enforced
+        from app.core.rbac import CROSS_OWNER_ROLES, Role, rbac_enforced
 
         if rbac_enforced() and role:
             try:
-                if Role.parse(str(role)) in CROSS_TENANT_ROLES:
+                if Role.parse(str(role)) in CROSS_OWNER_ROLES:
                     return query
             except ValueError:
                 pass
@@ -103,6 +135,13 @@ def apply_owner_filter(
 
 def apply_trace_owner_filter(query: Select, actor: str | None) -> Select:
     """Restrict Trace queries to suites belonging to actor-owned tasks."""
+    try:
+        from app.core.tenant_context import apply_tenant_filter
+
+        query = apply_tenant_filter(query, Trace)
+    except Exception:
+        pass
+
     if not tenancy_enforced():
         return query
     if is_admin(actor):

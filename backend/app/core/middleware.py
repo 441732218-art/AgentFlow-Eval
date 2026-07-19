@@ -267,14 +267,14 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
             from app.core.rbac import Role
 
             request.state.actor = "anonymous"
-            request.state.role = Role.ADMIN
+            request.state.role = Role.SYSTEM_ADMIN
             return await call_next(request)
 
         if is_public_path(path) or not path.startswith("/api/"):
             from app.core.rbac import Role
 
             request.state.actor = "public"
-            request.state.role = Role.GUEST
+            request.state.role = Role.VIEWER
             return await call_next(request)
 
         if request.method == "OPTIONS":

@@ -133,7 +133,7 @@ def require_auth_if_enabled(
             key_id="dev",
             actor="anonymous",
             raw_key_prefix="dev",
-            role=Role.ADMIN,
+            role=Role.SYSTEM_ADMIN,
         )
         request.state.actor = identity.actor
         request.state.auth = identity

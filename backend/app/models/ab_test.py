@@ -21,7 +21,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, PKMixin, TimestampMixin
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
 
 if TYPE_CHECKING:
     pass
@@ -37,7 +37,7 @@ class ABStatus(str, enum.Enum):
     ARCHIVED = "archived"
 
 
-class ABExperiment(PKMixin, TimestampMixin, Base):
+class ABExperiment(PKMixin, TenantMixin, TimestampMixin, Base):
     """Online A/B experiment with sticky assignment and event logging.
 
     Complements offline ``Experiment`` (batch suite comparison):
@@ -50,6 +50,7 @@ class ABExperiment(PKMixin, TimestampMixin, Base):
         UniqueConstraint("key", name="uq_ab_experiments_key"),
         Index("ix_ab_experiments_status", "status"),
         Index("ix_ab_experiments_created_by", "created_by"),
+        Index("ix_ab_experiments_tenant", "tenant_id"),
     )
 
     key: Mapped[str] = mapped_column(

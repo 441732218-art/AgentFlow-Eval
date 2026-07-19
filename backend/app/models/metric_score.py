@@ -6,13 +6,13 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Boolean, Float, ForeignKey, Index, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, PKMixin, TimestampMixin
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.trace import Trace
 
 
-class MetricScore(PKMixin, TimestampMixin, Base):
+class MetricScore(PKMixin, TenantMixin, TimestampMixin, Base):
     """评测指标得分。
 
     记录每个 Trace 在某个指标维度（如准确率、工具调用正确性等）的评分，
@@ -23,6 +23,7 @@ class MetricScore(PKMixin, TimestampMixin, Base):
     __table_args__ = (
         Index("ix_metric_scores_trace_metric", "trace_id", "metric_name"),
         Index("ix_metric_scores_human_reviewed", "is_human_reviewed"),
+        Index("ix_metric_scores_tenant", "tenant_id"),
     )
 
     trace_id: Mapped[str] = mapped_column(

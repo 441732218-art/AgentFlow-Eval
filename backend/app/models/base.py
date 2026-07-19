@@ -44,3 +44,15 @@ class PKMixin:
         default=lambda: str(uuid4()),
         comment="UUID 主键",
     )
+
+
+class TenantMixin:
+    """Optional enterprise tenant scope (nullable for Lite / pre-migration rows)."""
+
+    tenant_id: Mapped[str | None] = mapped_column(
+        String(36),
+        nullable=True,
+        index=True,
+        default=None,
+        comment="所属租户 ID（企业多租户）；空=未绑定/单租户模式",
+    )

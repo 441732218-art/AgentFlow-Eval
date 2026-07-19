@@ -141,10 +141,17 @@ async def list_tasks(
     Cached 30s with version-based invalidation on task mutations.
     """
     from app.core.cache.services import get_cached_task_list
+    from app.core.tenant_context import extract_tenant_header, resolve_tenant_context
     from app.schemas.task import TaskResponse as TR
 
     actor = _actor(request)
     role = _role(request)
+    await resolve_tenant_context(
+        session,
+        actor=actor,
+        header_value=extract_tenant_header(request),
+        system_role=role,
+    )
     payload = await get_cached_task_list(
         session,
         actor=actor,
@@ -172,12 +179,29 @@ async def create_task(
 ) -> Any:
     """Create a new evaluation task owned by the current actor."""
     actor = _actor(request)
+    from app.core.tenant_context import (
+        current_tenant_id,
+        extract_tenant_header,
+        resolve_tenant_context,
+    )
+
+    role = getattr(request.state, "role", None)
+    role_s = role.value if hasattr(role, "value") else str(role or "")
+    await resolve_tenant_context(
+        session,
+        actor=actor,
+        header_value=extract_tenant_header(request),
+        system_role=role_s,
+    )
+    tenant_id = current_tenant_id()
+
     task = Task(
         name=body.name,
         description=body.description,
         agent_config=body.agent_config,
         status=TaskStatus.CREATED,
         created_by=actor,
+        tenant_id=tenant_id,
     )
     session.add(task)
     await session.flush()

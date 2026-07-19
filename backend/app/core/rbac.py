@@ -1,15 +1,19 @@
 # (c) 2026 AgentFlow-Eval
 """Role-Based Access Control (RBAC) for AgentFlow-Eval.
 
-Roles
------
-ADMIN, MANAGER, REVIEWER, USER, GUEST
+Enterprise roles (v1.0)
+-----------------------
+system_admin, tenant_admin, manager, reviewer, member, viewer
+
+Legacy aliases (still accepted)
+-------------------------------
+admin → system_admin, user → member, guest → viewer
 
 Permissions
 -----------
-task:create | task:read | task:update | task:delete | task:execute | task:cancel
-evaluation:read | evaluation:submit | evaluation:approve
-user:manage | system:config | audit:read
+task:* | evaluation:* | user:manage | system:config | audit:read
+tenant:create | tenant:manage | billing:read | billing:manage
+benchmark:create | benchmark:read
 
 API key format (``API_KEYS``)
 -----------------------------
@@ -18,7 +22,7 @@ API key format (``API_KEYS``)
 - ``secret:actor:role``   e.g. ``sk-ops:alice:manager``
 
 Optional ``ACTOR_ROLES=alice:manager,bob:user`` overrides / fills role when not
-embedded in the key. Actors listed in ``ADMIN_ACTORS`` default to ADMIN.
+embedded in the key. Actors listed in ``ADMIN_ACTORS`` default to SYSTEM_ADMIN.
 """
 
 from __future__ import annotations
@@ -47,26 +51,57 @@ R = TypeVar("R")
 
 
 class Role(str, Enum):
-    """System roles ordered from most to least privileged."""
+    """Roles ordered from most to least privileged.
 
-    ADMIN = "admin"
+    Enterprise (canonical): system_admin, tenant_admin, manager, reviewer,
+    member, viewer.
+
+    Legacy members (admin/user/guest) remain for backward-compatible API keys
+    and tests; they share permission sets with their enterprise equivalents.
+    """
+
+    SYSTEM_ADMIN = "system_admin"
+    TENANT_ADMIN = "tenant_admin"
     MANAGER = "manager"
     REVIEWER = "reviewer"
+    MEMBER = "member"
+    VIEWER = "viewer"
+    # Legacy aliases (distinct enum members, same permission mapping)
+    ADMIN = "admin"
     USER = "user"
     GUEST = "guest"
 
     @classmethod
     def parse(cls, value: str | None, default: "Role | None" = None) -> "Role":
-        """Parse a role string (case-insensitive)."""
+        """Parse a role string (case-insensitive); maps legacy names."""
         if value is None or not str(value).strip():
             if default is not None:
                 return default
             raise ValueError("empty role")
-        key = str(value).strip().lower()
+        key = str(value).strip().lower().replace("-", "_")
+        # Prefer enterprise names when both exist
+        aliases = {
+            "sysadmin": cls.SYSTEM_ADMIN,
+            "systemadmin": cls.SYSTEM_ADMIN,
+            "owner": cls.TENANT_ADMIN,
+            "org_admin": cls.TENANT_ADMIN,
+        }
+        if key in aliases:
+            return aliases[key]
         for role in cls:
             if role.value == key or role.name.lower() == key:
                 return role
         raise ValueError(f"unknown role: {value!r}")
+
+    def canonical(self) -> "Role":
+        """Map legacy roles to enterprise names."""
+        if self is Role.ADMIN:
+            return Role.SYSTEM_ADMIN
+        if self is Role.USER:
+            return Role.MEMBER
+        if self is Role.GUEST:
+            return Role.VIEWER
+        return self
 
 
 class Permission(str, Enum):
@@ -86,6 +121,13 @@ class Permission(str, Enum):
     USER_MANAGE = "user:manage"
     SYSTEM_CONFIG = "system:config"
     AUDIT_READ = "audit:read"
+
+    TENANT_CREATE = "tenant:create"
+    TENANT_MANAGE = "tenant:manage"
+    BILLING_READ = "billing:read"
+    BILLING_MANAGE = "billing:manage"
+    BENCHMARK_CREATE = "benchmark:create"
+    BENCHMARK_READ = "benchmark:read"
 
 
 # ---------------------------------------------------------------------------
@@ -109,43 +151,91 @@ _ALL_EVAL = frozenset(
         Permission.EVALUATION_APPROVE,
     }
 )
+_TENANT_OPS = frozenset({Permission.TENANT_MANAGE})
+_BILLING = frozenset({Permission.BILLING_READ, Permission.BILLING_MANAGE})
+_BENCHMARK = frozenset({Permission.BENCHMARK_CREATE, Permission.BENCHMARK_READ})
+
+_SYSTEM_ADMIN_PERMS = frozenset(Permission)
+
+_TENANT_ADMIN_PERMS = frozenset(
+    {
+        *_ALL_TASK,
+        *_ALL_EVAL,
+        Permission.AUDIT_READ,
+        Permission.USER_MANAGE,
+        *_TENANT_OPS,
+        *_BILLING,
+        *_BENCHMARK,
+        # no system:config / tenant:create (platform-level)
+    }
+)
+
+_MANAGER_PERMS = frozenset(
+    {
+        *_ALL_TASK,
+        *_ALL_EVAL,
+        Permission.AUDIT_READ,
+        Permission.BILLING_READ,
+        Permission.BENCHMARK_CREATE,
+        Permission.BENCHMARK_READ,
+    }
+)
+
+_REVIEWER_PERMS = frozenset(
+    {
+        Permission.TASK_READ,
+        Permission.EVALUATION_READ,
+        Permission.EVALUATION_SUBMIT,
+        Permission.EVALUATION_APPROVE,
+        Permission.AUDIT_READ,
+        Permission.BENCHMARK_READ,
+    }
+)
+
+_MEMBER_PERMS = frozenset(
+    {
+        *_ALL_TASK,
+        Permission.EVALUATION_READ,
+        Permission.EVALUATION_SUBMIT,
+        Permission.BENCHMARK_READ,
+        Permission.BILLING_READ,
+    }
+)
+
+_VIEWER_PERMS = frozenset(
+    {
+        Permission.TASK_READ,
+        Permission.EVALUATION_READ,
+        Permission.BENCHMARK_READ,
+    }
+)
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
-    Role.ADMIN: frozenset(Permission),  # all
-    Role.MANAGER: frozenset(
-        {
-            *_ALL_TASK,
-            *_ALL_EVAL,
-            Permission.AUDIT_READ,
-            # no user:manage / system:config
-        }
-    ),
-    Role.REVIEWER: frozenset(
-        {
-            Permission.TASK_READ,
-            Permission.EVALUATION_READ,
-            Permission.EVALUATION_SUBMIT,
-            Permission.EVALUATION_APPROVE,
-            Permission.AUDIT_READ,
-        }
-    ),
-    Role.USER: frozenset(
-        {
-            *_ALL_TASK,
-            Permission.EVALUATION_READ,
-            Permission.EVALUATION_SUBMIT,
-        }
-    ),
-    Role.GUEST: frozenset(
-        {
-            Permission.TASK_READ,
-            Permission.EVALUATION_READ,
-        }
-    ),
+    Role.SYSTEM_ADMIN: _SYSTEM_ADMIN_PERMS,
+    Role.TENANT_ADMIN: _TENANT_ADMIN_PERMS,
+    Role.MANAGER: _MANAGER_PERMS,
+    Role.REVIEWER: _REVIEWER_PERMS,
+    Role.MEMBER: _MEMBER_PERMS,
+    Role.VIEWER: _VIEWER_PERMS,
+    # Legacy mirrors
+    Role.ADMIN: _SYSTEM_ADMIN_PERMS,
+    Role.USER: _MEMBER_PERMS,
+    Role.GUEST: _VIEWER_PERMS,
 }
 
-# Roles that may access resources owned by other actors
-CROSS_TENANT_ROLES: frozenset[Role] = frozenset({Role.ADMIN, Role.MANAGER, Role.REVIEWER})
+# Roles that may access resources owned by other actors *within the same tenant*
+CROSS_OWNER_ROLES: frozenset[Role] = frozenset(
+    {
+        Role.SYSTEM_ADMIN,
+        Role.TENANT_ADMIN,
+        Role.MANAGER,
+        Role.REVIEWER,
+        Role.ADMIN,  # legacy
+    }
+)
+
+# Backward-compatible alias used by older code / docs
+CROSS_TENANT_ROLES = CROSS_OWNER_ROLES
 
 
 class ForbiddenError(AgentFlowError):
@@ -174,15 +264,15 @@ def rbac_enforced() -> bool:
 
 def default_role() -> Role:
     """Default role for authenticated actors without an explicit mapping."""
-    raw = getattr(settings, "DEFAULT_ROLE", None) or "user"
+    raw = getattr(settings, "DEFAULT_ROLE", None) or "member"
     try:
-        return Role.parse(str(raw), default=Role.USER)
+        return Role.parse(str(raw), default=Role.MEMBER)
     except ValueError:
-        return Role.USER
+        return Role.MEMBER
 
 
 def parse_actor_roles(raw: str | None = None) -> dict[str, Role]:
-    """Parse ``ACTOR_ROLES`` config: ``alice:manager,bob:user``."""
+    """Parse ``ACTOR_ROLES`` config: ``alice:manager,bob:member``."""
     text = raw if raw is not None else getattr(settings, "ACTOR_ROLES", "") or ""
     mapping: dict[str, Role] = {}
     for part in str(text).split(","):
@@ -208,7 +298,7 @@ def resolve_role_for_actor(actor: str, explicit: Role | None = None) -> Role:
     from app.core.tenancy import admin_actors
 
     if actor in admin_actors():
-        return Role.ADMIN
+        return Role.SYSTEM_ADMIN
     mapped = parse_actor_roles().get(actor)
     if mapped is not None:
         return mapped
@@ -273,9 +363,9 @@ def get_request_role(request: Request) -> Role:
     actor = getattr(request.state, "actor", None) or "anonymous"
     # Public health paths may set actor=public
     if actor in {"public", "anonymous"} and not rbac_enforced():
-        return Role.ADMIN  # unrestricted local mode
+        return Role.SYSTEM_ADMIN  # unrestricted local mode
     if actor == "public":
-        return Role.GUEST
+        return Role.VIEWER
     return resolve_role_for_actor(actor)
 
 
@@ -310,8 +400,9 @@ def ensure_resource_access(
 ) -> None:
     """Permission + ownership check for a single resource.
 
-    ADMIN / MANAGER / REVIEWER may cross tenants for permitted actions.
-    USER / GUEST are limited to resources they own (``owner == actor``).
+    SYSTEM_ADMIN / TENANT_ADMIN / MANAGER / REVIEWER may cross *owners*
+    within the same tenant for permitted actions.
+    MEMBER / VIEWER are limited to resources they own (``owner == actor``).
 
     Args:
         role: Caller role.
@@ -328,11 +419,11 @@ def ensure_resource_access(
         return
 
     try:
-        r = role if isinstance(role, Role) else Role.parse(str(role or "guest"))
+        r = role if isinstance(role, Role) else Role.parse(str(role or "viewer"))
     except ValueError:
-        r = Role.GUEST
+        r = Role.VIEWER
 
-    if r in CROSS_TENANT_ROLES:
+    if r in CROSS_OWNER_ROLES:
         return
 
     owner_s = (owner or "anonymous").strip() or "anonymous"

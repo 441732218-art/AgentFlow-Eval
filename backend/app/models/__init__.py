@@ -19,6 +19,7 @@ from app.models.billing import (
 )
 from app.models.slow_task import SlowTaskEvent
 from app.models.agent_log import AgentLog
+from app.models.tenant import Tenant, TenantMember
 
 __all__ = [
     "Base",
@@ -41,4 +42,6 @@ __all__ = [
     "Invoice",
     "SlowTaskEvent",
     "AgentLog",
+    "Tenant",
+    "TenantMember",
 ]

@@ -8,14 +8,14 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import ForeignKey, Index, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, PKMixin, TimestampMixin
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.task import Task
     from app.models.test_suite import TestSuite
 
 
-class MediaAsset(PKMixin, TimestampMixin, Base):
+class MediaAsset(PKMixin, TenantMixin, TimestampMixin, Base):
     """Stored multimodal artifact with extraction results."""
 
     __tablename__ = "media_assets"
@@ -24,6 +24,7 @@ class MediaAsset(PKMixin, TimestampMixin, Base):
         Index("ix_media_assets_suite_id", "test_suite_id"),
         Index("ix_media_assets_created_by", "created_by"),
         Index("ix_media_assets_kind", "media_kind"),
+        Index("ix_media_assets_tenant", "tenant_id"),
     )
 
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
