@@ -96,6 +96,14 @@ export const NAV_ITEMS: Array<{
     group: "evaluate",
   },
   {
+    key: "/benchmarks",
+    icon: <BarChartOutlined />,
+    labelKey: "nav.benchmarks",
+    label: "Benchmark",
+    permission: "benchmark:read",
+    group: "evaluate",
+  },
+  {
     key: "/billing",
     icon: <AccountBookOutlined />,
     labelKey: "nav.billing",
@@ -128,6 +136,7 @@ export function resolveSelectedKey(pathname: string): string {
   if (pathname.startsWith("/analytics")) return "/analytics";
   if (pathname.startsWith("/monitoring")) return "/monitoring";
   if (pathname.startsWith("/reports")) return "/reports";
+  if (pathname.startsWith("/benchmarks")) return "/benchmarks";
   if (pathname === "/tasks/create") return "/tasks/create";
   if (pathname.startsWith("/tasks")) return "/tasks";
   if (pathname.startsWith("/billing")) return "/billing";

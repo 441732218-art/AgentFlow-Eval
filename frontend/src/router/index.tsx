@@ -17,6 +17,7 @@ const ReportsPage = lazy(() => import("@/pages/reports/index"));
 const ReportDetailPage = lazy(() => import("@/pages/reports/ReportDetail"));
 const SettingsPage = lazy(() => import("@/pages/Settings"));
 const BillingPage = lazy(() => import("@/pages/billing/index"));
+const BenchmarksPage = lazy(() => import("@/pages/benchmarks/index"));
 const PluginsPage = lazy(() => import("@/pages/plugins/index"));
 const NotFoundPage = lazy(() => import("@/pages/NotFound"));
 
@@ -83,6 +84,10 @@ export const router = createBrowserRouter([
       {
         path: "billing",
         element: withSuspense(BillingPage, "cards", "task:read"),
+      },
+      {
+        path: "benchmarks",
+        element: withSuspense(BenchmarksPage, "cards", "benchmark:read"),
       },
       {
         path: "plugins",

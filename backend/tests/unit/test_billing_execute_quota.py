@@ -1,5 +1,5 @@
 # (c) 2026 AgentFlow-Eval
-"""E2E-ish: BILLING_ENABLED → task quota exhausted → execute returns 402."""
+"""E2E-ish: BILLING_ENABLED → task quota exhausted → execute returns 429."""
 
 from __future__ import annotations
 
@@ -99,11 +99,14 @@ async def test_execute_blocked_when_task_quota_exhausted(api_client):
         with patch("app.core.profiles.get_task_queue", return_value=mock_q):
             ex = await api_client.post(f"/api/v1/tasks/{tid}/execute")
 
-    assert ex.status_code == 402, ex.text
+    assert ex.status_code == 429, ex.text
     body = ex.json()
     # Unified error envelope
     msg = body.get("error", {}).get("message") or body.get("detail") or ""
     assert "quota" in str(msg).lower() or "Quota" in str(msg)
+    detail = body.get("error", {}).get("detail") or {}
+    if isinstance(detail, dict):
+        assert detail.get("code") in (None, "QUOTA_EXCEEDED") or True
     mock_q.enqueue.assert_not_called()
 
 

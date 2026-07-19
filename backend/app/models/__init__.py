@@ -20,6 +20,12 @@ from app.models.billing import (
 from app.models.slow_task import SlowTaskEvent
 from app.models.agent_log import AgentLog
 from app.models.tenant import Tenant, TenantMember
+from app.models.benchmark import (
+    Benchmark,
+    BenchmarkCase,
+    BenchmarkResult,
+    BenchmarkRun,
+)
 
 __all__ = [
     "Base",
@@ -44,4 +50,8 @@ __all__ = [
     "AgentLog",
     "Tenant",
     "TenantMember",
+    "Benchmark",
+    "BenchmarkCase",
+    "BenchmarkRun",
+    "BenchmarkResult",
 ]

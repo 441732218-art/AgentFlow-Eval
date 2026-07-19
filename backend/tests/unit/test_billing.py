@@ -79,8 +79,38 @@ async def test_quota_exceeded_when_billing_on(session, monkeypatch):
     bal = await svc._get_or_create_balance(session, "carol")
     bal.task_used = bal.task_limit
     await session.flush()
-    with pytest.raises(QuotaExceededError):
+    with pytest.raises(QuotaExceededError) as ei:
         await svc.ensure_task_quota(session, "carol")
+    assert ei.value.status_code == 429
+    detail = ei.value.detail or {}
+    assert isinstance(detail, dict)
+    assert detail.get("code") == "QUOTA_EXCEEDED"
+
+
+@pytest.mark.asyncio
+async def test_get_current_plan_and_limits(session, monkeypatch):
+    monkeypatch.setattr("app.config.settings.BILLING_ENABLED", True)
+    monkeypatch.setattr("app.core.billing.service.billing_enabled", lambda: True)
+    svc = get_billing_service()
+    await svc.ensure_default_plans(session)
+    await svc.subscribe(session, actor="dana", plan_code="pro")
+    plan = await svc.get_current_plan(session, "dana")
+    assert plan["plan"]["code"] == "pro"
+    assert plan["quota"]["task_limit"] >= 1000
+    assert "storage_limit_mb" in plan["quota"]
+    assert "plugin_limit" in plan["quota"]
+    assert plan["quota"]["limits"]["tasks"] == plan["quota"]["task_limit"]
+
+
+@pytest.mark.asyncio
+async def test_billing_plan_api(api_client):
+    r = await api_client.get("/api/v1/billing/plans")
+    assert r.status_code == 200
+    assert r.json()["total"] >= 3
+    r2 = await api_client.get("/api/v1/billing/plan")
+    assert r2.status_code == 200
+    body = r2.json()
+    assert "plan" in body and "quota" in body
 
 
 @pytest_asyncio.fixture

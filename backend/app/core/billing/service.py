@@ -25,10 +25,26 @@ logger = logging.getLogger(__name__)
 
 
 class QuotaExceededError(AgentFlowError):
-    """HTTP 402 when billing is enabled and quota is exhausted."""
+    """HTTP 429 QUOTA_EXCEEDED when billing is enabled and quota is exhausted.
 
-    def __init__(self, message: str = "Quota exceeded", detail: Any = None) -> None:
-        super().__init__(message=message, status_code=402, detail=detail)
+    Legacy clients that only handled 402 should also treat 429 as quota failure.
+    """
+
+    def __init__(
+        self,
+        message: str = "Quota exceeded",
+        detail: Any = None,
+        *,
+        metric: str | None = None,
+    ) -> None:
+        payload: dict[str, Any] = {"code": "QUOTA_EXCEEDED"}
+        if isinstance(detail, dict):
+            payload.update(detail)
+        elif detail is not None:
+            payload["detail"] = detail
+        if metric:
+            payload["metric"] = metric
+        super().__init__(message=message, status_code=429, detail=payload)
 
 
 def period_key(dt: datetime | None = None) -> str:
@@ -55,8 +71,11 @@ DEFAULT_PLANS: list[dict[str, Any]] = [
         "name": "Free",
         "description": "Personal / demo tier",
         "price_month_cents": 0,
+        "billing_cycle": "monthly",
         "token_quota": 50_000,
         "task_quota": 50,
+        "storage_quota_mb": 500,
+        "plugin_quota": 4,
         "features": {
             "plugins": [
                 "echo_tool",
@@ -65,6 +84,12 @@ DEFAULT_PLANS: list[dict[str, Any]] = [
                 "echo_runner",
             ],
             "vision": False,
+            "limits": {
+                "tasks": 50,
+                "tokens": 50_000,
+                "storage_mb": 500,
+                "plugins": 4,
+            },
         },
     },
     {
@@ -72,13 +97,23 @@ DEFAULT_PLANS: list[dict[str, Any]] = [
         "name": "Pro",
         "description": "Small team private / SaaS starter",
         "price_month_cents": 4900,
+        "billing_cycle": "monthly",
         "token_quota": 1_000_000,
         "task_quota": 1000,
+        "storage_quota_mb": 10_000,
+        "plugin_quota": 50,
         "features": {
             "plugins": ["*"],
             "vision": True,
             "ab": True,
             "premium_plugins": True,
+            "benchmark": True,
+            "limits": {
+                "tasks": 1000,
+                "tokens": 1_000_000,
+                "storage_mb": 10_000,
+                "plugins": 50,
+            },
         },
     },
     {
@@ -86,9 +121,24 @@ DEFAULT_PLANS: list[dict[str, Any]] = [
         "name": "Enterprise",
         "description": "Unlimited private deployment baseline",
         "price_month_cents": 0,
+        "billing_cycle": "monthly",
         "token_quota": 100_000_000,
         "task_quota": 100_000,
-        "features": {"plugins": ["*"], "vision": True, "ab": True, "sso": True},
+        "storage_quota_mb": 1_000_000,
+        "plugin_quota": 10_000,
+        "features": {
+            "plugins": ["*"],
+            "vision": True,
+            "ab": True,
+            "sso": True,
+            "benchmark": True,
+            "limits": {
+                "tasks": 100_000,
+                "tokens": 100_000_000,
+                "storage_mb": 1_000_000,
+                "plugins": 10_000,
+            },
+        },
     },
 ]
 
@@ -116,6 +166,15 @@ class BillingService:
                     features=dict(p["features"]),
                     is_public=True,
                     is_active=True,
+                    **{
+                        k: p[k]
+                        for k in (
+                            "billing_cycle",
+                            "storage_quota_mb",
+                            "plugin_quota",
+                        )
+                        if k in p and hasattr(BillingPlan, k)
+                    },
                 )
             )
             created += 1
@@ -177,25 +236,35 @@ class BillingService:
         bal = await self._get_or_create_balance(session, actor, plan)
         bal.token_limit = plan.token_quota
         bal.task_limit = plan.task_quota
+        if hasattr(bal, "storage_limit_mb"):
+            bal.storage_limit_mb = int(
+                getattr(plan, "storage_quota_mb", None) or bal.storage_limit_mb or 1024
+            )
+        if hasattr(bal, "plugin_limit"):
+            bal.plugin_limit = int(
+                getattr(plan, "plugin_quota", None) or bal.plugin_limit or 10
+            )
         await session.flush()
         return sub
 
     async def _resolve_limits(
         self, session: AsyncSession, actor: str
-    ) -> tuple[int, int]:
-        """Return (token_limit, task_limit) from sub plan or free defaults."""
+    ) -> tuple[int, int, int, int]:
+        """Return (token, task, storage_mb, plugin) limits from plan or free."""
         sub = await self.get_active_subscription(session, actor)
+        plan: BillingPlan | None = None
         if sub is not None:
             r = await session.execute(
                 select(BillingPlan).where(BillingPlan.id == sub.plan_id)
             )
             plan = r.scalar_one_or_none()
-            if plan:
-                return plan.token_quota, plan.task_quota
-        free = await self.get_plan_by_code(session, "free")
-        if free:
-            return free.token_quota, free.task_quota
-        return 50_000, 50
+        if plan is None:
+            plan = await self.get_plan_by_code(session, "free")
+        if plan:
+            storage = int(getattr(plan, "storage_quota_mb", None) or 1024)
+            plugins = int(getattr(plan, "plugin_quota", None) or 10)
+            return plan.token_quota, plan.task_quota, storage, plugins
+        return 50_000, 50, 500, 4
 
     async def _get_or_create_balance(
         self,
@@ -212,11 +281,14 @@ class BillingService:
         bal = r.scalar_one_or_none()
         if bal:
             return bal
-        token_limit, task_limit = (
-            (plan.token_quota, plan.task_quota)
-            if plan
-            else await self._resolve_limits(session, actor)
-        )
+        if plan:
+            token_limit, task_limit = plan.token_quota, plan.task_quota
+            storage_limit = int(getattr(plan, "storage_quota_mb", None) or 1024)
+            plugin_limit = int(getattr(plan, "plugin_quota", None) or 10)
+        else:
+            token_limit, task_limit, storage_limit, plugin_limit = (
+                await self._resolve_limits(session, actor)
+            )
         bal = QuotaBalance(
             id=str(uuid4()),
             actor=actor,
@@ -225,6 +297,10 @@ class BillingService:
             token_limit=token_limit,
             task_used=0,
             task_limit=task_limit,
+            storage_used_mb=0.0,
+            storage_limit_mb=storage_limit,
+            plugin_used=0,
+            plugin_limit=plugin_limit,
         )
         session.add(bal)
         await session.flush()
@@ -235,13 +311,18 @@ class BillingService:
         bal = await self._get_or_create_balance(session, actor)
         sub = await self.get_active_subscription(session, actor)
         plan_code = None
+        plan_obj: BillingPlan | None = None
         if sub:
-            plan = (
+            plan_obj = (
                 await session.execute(
                     select(BillingPlan).where(BillingPlan.id == sub.plan_id)
                 )
             ).scalar_one_or_none()
-            plan_code = plan.code if plan else None
+            plan_code = plan_obj.code if plan_obj else None
+        if plan_code is None:
+            free = await self.get_plan_by_code(session, "free")
+            plan_obj = free
+            plan_code = "free"
         return {
             "actor": actor,
             "period": bal.period,
@@ -249,8 +330,46 @@ class BillingService:
             "token_limit": bal.token_limit,
             "task_used": bal.task_used,
             "task_limit": bal.task_limit,
-            "plan_code": plan_code or "free",
+            "storage_used_mb": getattr(bal, "storage_used_mb", 0) or 0,
+            "storage_limit_mb": getattr(bal, "storage_limit_mb", 0) or 0,
+            "plugin_used": getattr(bal, "plugin_used", 0) or 0,
+            "plugin_limit": getattr(bal, "plugin_limit", 0) or 0,
+            "plan_code": plan_code,
+            "billing_cycle": getattr(plan_obj, "billing_cycle", None) or "monthly",
             "subscription_status": sub.status if sub else "none",
+            "billing_enabled": billing_enabled(),
+            "limits": {
+                "tasks": bal.task_limit,
+                "tokens": bal.token_limit,
+                "storage_mb": getattr(bal, "storage_limit_mb", 0) or 0,
+                "plugins": getattr(bal, "plugin_limit", 0) or 0,
+            },
+        }
+
+    async def get_current_plan(
+        self, session: AsyncSession, actor: str
+    ) -> dict[str, Any]:
+        """Current plan + quota snapshot for GET /billing/plan."""
+        await self.ensure_default_plans(session)
+        quota = await self.get_quota(session, actor)
+        plan = await self.get_plan_by_code(session, quota.get("plan_code") or "free")
+        return {
+            "plan": {
+                "id": plan.id if plan else None,
+                "code": plan.code if plan else "free",
+                "name": plan.name if plan else "Free",
+                "description": plan.description if plan else "",
+                "price_month_cents": plan.price_month_cents if plan else 0,
+                "billing_cycle": getattr(plan, "billing_cycle", None) or "monthly",
+                "token_quota": plan.token_quota if plan else quota["token_limit"],
+                "task_quota": plan.task_quota if plan else quota["task_limit"],
+                "storage_quota_mb": getattr(plan, "storage_quota_mb", None)
+                or quota.get("storage_limit_mb"),
+                "plugin_quota": getattr(plan, "plugin_quota", None)
+                or quota.get("plugin_limit"),
+                "features": (plan.features if plan else {}) or {},
+            },
+            "quota": quota,
             "billing_enabled": billing_enabled(),
         }
 
@@ -268,6 +387,60 @@ class BillingService:
                     "task_limit": bal.task_limit,
                     "period": bal.period,
                 },
+                metric="task",
+            )
+
+    async def ensure_token_quota(
+        self, session: AsyncSession, actor: str, *, quantity: float = 0
+    ) -> None:
+        if not billing_enabled():
+            return
+        bal = await self._get_or_create_balance(session, actor)
+        if float(bal.token_used) + float(quantity) > float(bal.token_limit):
+            raise QuotaExceededError(
+                "Token quota exceeded for this billing period",
+                detail={
+                    "token_used": bal.token_used,
+                    "token_limit": bal.token_limit,
+                    "period": bal.period,
+                },
+                metric="token",
+            )
+
+    async def ensure_storage_quota(
+        self, session: AsyncSession, actor: str, *, add_mb: float = 0
+    ) -> None:
+        if not billing_enabled():
+            return
+        bal = await self._get_or_create_balance(session, actor)
+        used = float(getattr(bal, "storage_used_mb", 0) or 0)
+        limit = float(getattr(bal, "storage_limit_mb", 0) or 0)
+        if limit and used + float(add_mb) > limit:
+            raise QuotaExceededError(
+                "Storage quota exceeded for this billing period",
+                detail={
+                    "storage_used_mb": used,
+                    "storage_limit_mb": limit,
+                    "period": bal.period,
+                },
+                metric="storage",
+            )
+
+    async def ensure_plugin_quota(self, session: AsyncSession, actor: str) -> None:
+        if not billing_enabled():
+            return
+        bal = await self._get_or_create_balance(session, actor)
+        used = int(getattr(bal, "plugin_used", 0) or 0)
+        limit = int(getattr(bal, "plugin_limit", 0) or 0)
+        if limit and used >= limit:
+            raise QuotaExceededError(
+                "Plugin quota exceeded for this billing period",
+                detail={
+                    "plugin_used": used,
+                    "plugin_limit": limit,
+                    "period": bal.period,
+                },
+                metric="plugin",
             )
 
     async def record_usage(
@@ -304,6 +477,14 @@ class BillingService:
             elif metric == "judge":
                 # judge counts toward token-ish soft budget: +100 abstract units
                 bal.token_used = float(bal.token_used) + float(quantity) * 100
+            elif metric in {"storage", "storage_mb"}:
+                bal.storage_used_mb = float(
+                    getattr(bal, "storage_used_mb", 0) or 0
+                ) + float(quantity)
+            elif metric == "plugin":
+                bal.plugin_used = int(getattr(bal, "plugin_used", 0) or 0) + int(
+                    quantity
+                )
         await session.flush()
         return rec
 
@@ -409,7 +590,9 @@ class BillingService:
         bal = existing.scalar_one_or_none()
         if bal is not None:
             return bal
-        token_limit, task_limit = await self._resolve_limits(session, actor)
+        token_limit, task_limit, storage_limit, plugin_limit = (
+            await self._resolve_limits(session, actor)
+        )
         bal = QuotaBalance(
             id=str(uuid4()),
             actor=actor,
@@ -418,15 +601,21 @@ class BillingService:
             token_limit=token_limit,
             task_used=0,
             task_limit=task_limit,
+            storage_used_mb=0.0,
+            storage_limit_mb=storage_limit,
+            plugin_used=0,
+            plugin_limit=plugin_limit,
         )
         session.add(bal)
         await session.flush()
         logger.info(
-            "Quota rollover actor=%s period=%s limits token=%s task=%s",
+            "Quota rollover actor=%s period=%s limits token=%s task=%s storage=%s plugins=%s",
             actor,
             period,
             token_limit,
             task_limit,
+            storage_limit,
+            plugin_limit,
         )
         return bal
 

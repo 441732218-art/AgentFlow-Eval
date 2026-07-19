@@ -14,13 +14,27 @@ Feature Flag：`BILLING_ENABLED=false` 时配额门闩与计量落库为 **no-op
 
 迁移：`alembic/versions/010_billing.py`
 
+## 套餐（Free / Pro / Enterprise）
+
+| 套餐 | 任务 | Token | Storage (MB) | Plugins | 价格 |
+|------|------|-------|--------------|---------|------|
+| free | 50 | 50k | 500 | 4 | $0 |
+| pro | 1000 | 1M | 10k | 50 | $49/mo |
+| enterprise | 100k | 100M | 1M | 10k | custom |
+
+限额字段：`task_quota` / `token_quota` / `storage_quota_mb` / `plugin_quota`（migration `014`）。
+
 ## API
 
 ```
 GET  /api/v1/billing/plans
+GET  /api/v1/billing/plan          # 当前套餐 + quota 快照
 GET  /api/v1/billing/quota
 GET  /api/v1/billing/usage
-POST /api/v1/billing/subscribe   { "plan_code": "pro" }
+POST /api/v1/billing/subscribe     { "plan_code": "pro" }
+POST /api/v1/billing/checkout
+POST /api/v1/billing/webhook       # Stripe 兼容别名
+POST /api/v1/billing/webhook/stripe
 GET  /api/v1/billing/invoices
 POST /api/v1/billing/invoices/draft
 ```
@@ -29,7 +43,7 @@ POST /api/v1/billing/invoices/draft
 
 - `POST /tasks/{id}/execute` → `ensure_task_quota`（仅 BILLING_ENABLED）+ `record_usage(metric=task)`
 - `observe_suite_run` / `observe_judge` → `MeteringPort.record`（token/judge），**actor = Task.created_by**
-- 超额：HTTP **402** + 前端错误文案「额度不足」
+- 超额：HTTP **429** + `detail.code = QUOTA_EXCEEDED`（前端提示额度超限）
 
 ## 账期重置
 

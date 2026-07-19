@@ -164,6 +164,7 @@ AUTH_PUBLIC_PATHS = frozenset(
         "/openapi.json",
         # Stripe webhook (verified by signature, not API key)
         "/api/v1/billing/webhook/stripe",
+        "/api/v1/billing/webhook",
     }
 )
 
@@ -175,5 +176,7 @@ def is_public_path(path: str) -> bool:
     if path.startswith("/docs") or path.startswith("/redoc"):
         return True
     if path.rstrip("/").endswith("/billing/webhook/stripe"):
+        return True
+    if path.rstrip("/").endswith("/billing/webhook"):
         return True
     return False

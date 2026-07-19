@@ -9,4 +9,11 @@ export type { ActorInfo, PublicSettings } from "./endpoints/settings";
 export type { DashboardStats, DashboardOverview } from "./endpoints/dashboard";
 export type { DiagnosisResult } from "./endpoints/diagnosis";
 export type { AgentLogItem, LogsStatistics } from "./endpoints/logs";
+export { benchmarksApi } from "./endpoints/benchmarks";
+export type {
+  Benchmark,
+  BenchmarkCase,
+  BenchmarkRun,
+  LeaderboardRow,
+} from "./endpoints/benchmarks";
 export { apiClient } from "./client";

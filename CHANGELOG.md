@@ -6,6 +6,9 @@
 
 ### Added
 
+- **v1.0 阶段 5–6（Billing / Benchmark）**
+  - Billing：Free/Pro/Enterprise 限额（task/token/storage/plugin）、`GET /billing/plan`、`POST /billing/webhook` 别名；超额 **429 QUOTA_EXCEEDED**；migration `014`
+  - Benchmark 平台：`benchmarks`/`cases`/`runs`/`results`、import JSON/CSV、run→Evaluation Engine、leaderboard；前端 `/benchmarks`；migration `015`；文档 `docs/benchmarks.md`
 - **v1.0 阶段 1–4（审计 / API Freeze / Tenant / RBAC）**
   - `PROJECT_STATUS.md` 全面审计
   - API 冻结：`docs/api-contract.md`、`docs/openapi-v1.json`、`scripts/export_openapi.py`、`test_api_contract.py`

@@ -1,19 +1,8 @@
 import axios from "axios";
 import type { AxiosInstance } from "axios";
+import { readLocalApiKey } from "@/lib/settings-storage";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
-const SETTINGS_KEY = "agentflow_settings";
-
-function readLocalApiKey(): string {
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return "";
-    const parsed = JSON.parse(raw) as { apiKey?: string };
-    return (parsed.apiKey || "").trim();
-  } catch {
-    return "";
-  }
-}
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
@@ -33,6 +22,32 @@ apiClient.interceptors.request.use((config) => {
 function extractErrorMessage(error: any): string {
   const data = error?.response?.data;
   const status: number | undefined = error?.response?.status;
+
+  // Quota exceeded (enterprise: 429 QUOTA_EXCEEDED; legacy also used 402)
+  if (status === 429) {
+    const code = data?.error?.detail?.code || data?.error?.code;
+    const structured =
+      data?.error?.message ||
+      (typeof data?.error?.detail === "string" ? data.error.detail : null) ||
+      data?.detail;
+    if (code === "QUOTA_EXCEEDED" || /quota/i.test(String(structured || ""))) {
+      return `额度超限（429 QUOTA_EXCEEDED）：${
+        typeof structured === "string" ? structured : "请升级套餐或等待账期重置"
+      }`;
+    }
+  }
+
+  // Auth required — guide user to Settings / ApiKeyGate
+  if (status === 401) {
+    const structured =
+      data?.error?.message ||
+      data?.error?.detail ||
+      (typeof data?.detail === "string" ? data.detail : null);
+    if (structured && typeof structured === "string" && structured !== "Unauthorized") {
+      return `${structured}（请在设置中填写 API Key，或检查 backend API_KEYS）`;
+    }
+    return "未授权：后端已开启 AUTH_ENABLED，请在「设置」填写 API Key（API_KEYS 的 secret 段）";
+  }
 
   // Structured backend error: { error: { message, detail } }
   const structured =

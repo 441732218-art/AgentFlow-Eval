@@ -33,15 +33,25 @@ def _plan_dict(p) -> dict[str, Any]:
         "name": p.name,
         "description": p.description,
         "price_month_cents": p.price_month_cents,
+        "billing_cycle": getattr(p, "billing_cycle", None) or "monthly",
         "token_quota": p.token_quota,
         "task_quota": p.task_quota,
+        "storage_quota_mb": getattr(p, "storage_quota_mb", None),
+        "plugin_quota": getattr(p, "plugin_quota", None),
         "features": p.features or {},
+        "limits": (p.features or {}).get("limits")
+        or {
+            "tasks": p.task_quota,
+            "tokens": p.token_quota,
+            "storage_mb": getattr(p, "storage_quota_mb", None),
+            "plugins": getattr(p, "plugin_quota", None),
+        },
         "is_public": p.is_public,
     }
 
 
 @router.get("/plans")
-@require_permission(Permission.TASK_READ)
+@require_permission(Permission.BILLING_READ, Permission.TASK_READ, require_all=False)
 async def list_plans(
     request: Request,
     session: AsyncSession = Depends(get_db),
@@ -56,8 +66,20 @@ async def list_plans(
     }
 
 
+@router.get("/plan")
+@require_permission(Permission.BILLING_READ, Permission.TASK_READ, require_all=False)
+async def get_current_plan(
+    request: Request,
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Current actor plan + quota (enterprise contract alias)."""
+    actor = _actor(request)
+    svc = get_billing_service()
+    return await svc.get_current_plan(session, actor)
+
+
 @router.get("/quota")
-@require_permission(Permission.TASK_READ)
+@require_permission(Permission.BILLING_READ, Permission.TASK_READ, require_all=False)
 async def get_quota(
     request: Request,
     session: AsyncSession = Depends(get_db),
@@ -68,7 +90,7 @@ async def get_quota(
 
 
 @router.get("/usage")
-@require_permission(Permission.TASK_READ)
+@require_permission(Permission.BILLING_READ, Permission.TASK_READ, require_all=False)
 async def list_usage(
     request: Request,
     limit: int = Query(50, ge=1, le=500),
@@ -108,7 +130,9 @@ class MockConfirmBody(BaseModel):
 
 
 @router.post("/subscribe")
-@require_permission(Permission.SYSTEM_CONFIG)
+@require_permission(
+    Permission.BILLING_MANAGE, Permission.SYSTEM_CONFIG, require_all=False
+)
 async def subscribe(
     request: Request,
     body: SubscribeBody,
@@ -139,7 +163,9 @@ async def subscribe(
 
 
 @router.post("/checkout")
-@require_permission(Permission.SYSTEM_CONFIG)
+@require_permission(
+    Permission.BILLING_MANAGE, Permission.SYSTEM_CONFIG, require_all=False
+)
 async def create_checkout(
     request: Request,
     body: CheckoutBody,
@@ -191,7 +217,9 @@ async def create_checkout(
 
 
 @router.post("/checkout/mock-confirm")
-@require_permission(Permission.SYSTEM_CONFIG)
+@require_permission(
+    Permission.BILLING_MANAGE, Permission.SYSTEM_CONFIG, require_all=False
+)
 async def mock_confirm_checkout(
     request: Request,
     body: MockConfirmBody,
@@ -239,15 +267,11 @@ async def mock_confirm_checkout(
     }
 
 
-@router.post("/webhook/stripe")
-async def stripe_webhook(
+async def _handle_stripe_webhook(
     request: Request,
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession,
 ) -> dict[str, Any]:
-    """Stripe webhook receiver (public path — signature verified).
-
-    Handles ``checkout.session.completed`` / mock equivalent and activates plan.
-    """
+    """Shared Stripe/mock webhook body (public — signature verified)."""
     from app.core.billing.stripe_checkout import (
         parse_checkout_completed_event,
         verify_webhook_signature,
@@ -310,6 +334,24 @@ async def stripe_webhook(
         "plan_code": parsed["plan_code"],
         "subscription_id": sub.id,
     }
+
+
+@router.post("/webhook/stripe")
+async def stripe_webhook(
+    request: Request,
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Stripe webhook receiver (public path — signature verified)."""
+    return await _handle_stripe_webhook(request, session)
+
+
+@router.post("/webhook")
+async def billing_webhook(
+    request: Request,
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Stripe-compatible webhook alias (POST /api/v1/billing/webhook)."""
+    return await _handle_stripe_webhook(request, session)
 
 
 @router.get("/invoices")

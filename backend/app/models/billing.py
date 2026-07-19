@@ -32,8 +32,13 @@ class BillingPlan(PKMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     price_month_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    billing_cycle: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="monthly"
+    )  # monthly | yearly
     token_quota: Mapped[int] = mapped_column(Integer, nullable=False, default=100_000)
     task_quota: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    storage_quota_mb: Mapped[int] = mapped_column(Integer, nullable=False, default=1024)
+    plugin_quota: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
     # Free-form feature flags, e.g. {"plugins": ["echo_tool"], "vision": true}
     features: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -105,6 +110,10 @@ class QuotaBalance(PKMixin, TimestampMixin, Base):
     token_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=100_000)
     task_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     task_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    storage_used_mb: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    storage_limit_mb: Mapped[int] = mapped_column(Integer, nullable=False, default=1024)
+    plugin_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    plugin_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
 
 
 class Invoice(PKMixin, TenantMixin, TimestampMixin, Base):

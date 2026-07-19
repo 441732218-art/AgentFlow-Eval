@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     ab,
     audit,
+    benchmarks,
     billing,
     dashboard,
     diagnosis,
@@ -29,6 +30,7 @@ router = APIRouter(prefix="/api/v1")
 router.include_router(me.router, prefix="/me", tags=["当前用户"])
 router.include_router(tenants.router, prefix="/tenants", tags=["多租户"])
 router.include_router(billing.router, prefix="/billing", tags=["计费"])
+router.include_router(benchmarks.router, prefix="/benchmarks", tags=["Benchmark"])
 router.include_router(observability.router, prefix="/observability", tags=["可观测"])
 router.include_router(tasks.router, prefix="/tasks", tags=["评测任务"])
 router.include_router(dashboard.router, prefix="/dashboard", tags=["仪表板"])
