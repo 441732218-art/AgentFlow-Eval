@@ -236,8 +236,7 @@ def _t_sf_approx(t: float, df: float) -> float:
     # For large df, normal approximation is fine
     if df > 100:
         return 2 * (1 - _norm_cdf(abs(t)))
-    # Hill's approximation of t CDF
-    x = df / (df + t * t)
+    # Hill's approximation of t CDF (via normal adj using df/(df+t^2))
     # incomplete beta I_x(df/2, 0.5) ≈ continued fraction lite via erf transform
     # Use: p ≈ 2 * (1 - Phi(t * sqrt(1 - 1/(4df)))) rough
     adj = abs(t) * math.sqrt(df / (df + t * t) * (1 - 1 / (4 * df)))

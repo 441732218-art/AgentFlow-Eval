@@ -9,18 +9,17 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import write_audit
-from app.core.db.queries import batch_suite_counts, count_suites_for_task
+from app.core.db.queries import count_suites_for_task
 from app.core.dependencies import get_db
 from app.core.rbac import Permission, get_request_role, require_permission
-from app.core.tenancy import apply_owner_filter, ensure_task_access
+from app.core.tenancy import ensure_task_access
 from app.models.task import Task, TaskStatus
 from app.models.test_suite import TestSuite
 from app.schemas.task import TaskCreate, TaskListResponse, TaskResponse
-from app.utils.exceptions import NotFoundError
 
 router = APIRouter()
 

@@ -23,7 +23,6 @@ from app.core.tenancy import apply_owner_filter
 from app.models.metric_score import MetricScore
 from app.models.task import Task, TaskStatus
 from app.models.test_suite import TestSuite
-from app.models.trace import Trace
 
 
 def _task_dict(task: Task, suite_count: int = 0) -> dict[str, Any]:

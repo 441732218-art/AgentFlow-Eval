@@ -61,8 +61,6 @@ async def api_client(monkeypatch):
 @pytest.mark.asyncio
 async def test_execute_blocked_when_task_quota_exhausted(api_client):
     # Seed plans + fill quota for anonymous (default actor when auth off)
-    from app.core.billing.service import get_billing_service
-    from app.core.dependencies import async_session_factory  # may not match test db
 
     # Use API to get quota then force limit via service on same overridden DB
     # Direct: call subscribe + max out through billing API session via app dependency

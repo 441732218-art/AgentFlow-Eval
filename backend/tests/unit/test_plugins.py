@@ -19,7 +19,7 @@ from app.core.plugins.base import (
     PluginType,
 )
 from app.core.plugins.hooks import HookRegistry
-from app.core.plugins.manager import PluginManager, reset_plugin_manager
+from app.core.plugins.manager import reset_plugin_manager
 from app.core.plugins.market import PluginMarket, reset_plugin_market
 from app.core.plugins.loader import PluginLoadError, instantiate_plugin
 

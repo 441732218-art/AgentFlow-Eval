@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.billing.service import (
     QuotaExceededError,
-    billing_enabled,
     get_billing_service,
     period_key,
 )

@@ -30,9 +30,9 @@ from __future__ import annotations
 import functools
 import inspect
 import logging
-from collections.abc import Awaitable, Callable, Collection
+from collections.abc import Callable, Collection
 from enum import Enum
-from typing import Any, ParamSpec, TypeVar, overload
+from typing import Any, ParamSpec, TypeVar
 
 from fastapi import Depends, Request
 

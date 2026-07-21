@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy import func, select
@@ -14,7 +14,6 @@ from app.core.celery_app.tasks import (
     run_judge_evaluation,
     run_single_test_suite,
     _mark_task_failed,
-    _run_async,
 )
 from app.models.metric_score import MetricScore
 from app.models.task import Task, TaskStatus
@@ -23,7 +22,6 @@ from app.models.trace import Trace
 from app.core.celery_app.tests.conftest import (
     MOCK_AGENT_FAILED,
     MOCK_AGENT_SUCCESS,
-    MOCK_JUDGE_RESULT,
 )
 
 

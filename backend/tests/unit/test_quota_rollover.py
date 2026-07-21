@@ -7,7 +7,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.core.billing.service import get_billing_service, period_key
+from app.core.billing.service import get_billing_service
 from app.models.base import Base
 
 TEST_DB = "sqlite+aiosqlite:///./test_rollover.db"

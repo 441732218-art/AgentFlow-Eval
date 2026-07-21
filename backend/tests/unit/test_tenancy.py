@@ -10,7 +10,7 @@ from app.core.tenancy import (
     is_admin,
     tenancy_enforced,
 )
-from app.models.task import Task, TaskStatus
+from app.models.task import Task
 from app.utils.exceptions import NotFoundError
 from sqlalchemy import select
 

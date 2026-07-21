@@ -10,15 +10,13 @@ import pytest
 from sqlalchemy import select
 
 from app.core.tenant_context import (
-    TenantAccessError,
     apply_tenant_filter,
     ensure_tenant_resource,
     multi_tenant_enabled,
     set_tenant_context,
     TenantContext,
-    current_tenant_id,
 )
-from app.core.tenancy import can_access_task, apply_owner_filter
+from app.core.tenancy import can_access_task
 from app.models.task import Task, TaskStatus
 from app.models.tenant import Tenant, TenantMember
 from app.utils.exceptions import NotFoundError

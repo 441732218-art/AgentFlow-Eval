@@ -3,14 +3,9 @@
 
 from __future__ import annotations
 
-import json
-import logging
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from starlette.requests import Request
-from starlette.responses import JSONResponse
 
 from app.core.middleware import RequestIDMiddleware
 from app.core.observability.aols.context import (

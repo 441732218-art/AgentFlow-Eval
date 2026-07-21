@@ -12,7 +12,6 @@ from starlette.requests import Request
 
 from app.core.rbac import (
     CROSS_TENANT_ROLES,
-    ROLE_PERMISSIONS,
     ForbiddenError,
     Permission,
     Role,
@@ -22,7 +21,6 @@ from app.core.rbac import (
     has_any_permission,
     has_permission,
     matrix_as_dict,
-    permissions_for,
     require_permission,
     resolve_role_for_actor,
 )

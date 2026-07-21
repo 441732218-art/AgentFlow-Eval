@@ -10,7 +10,6 @@ from app.core.rbac import (
     has_permission,
     matrix_as_dict,
     permissions_for,
-    resolve_role_for_actor,
 )
 
 

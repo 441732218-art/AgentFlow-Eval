@@ -7,8 +7,7 @@ import uuid
 from typing import Any
 
 try:
-    import structlog
-    from structlog.contextvars import (
+    from structlog.contextvars import (  # type: ignore[import-untyped]
         bind_contextvars,
         clear_contextvars,
         get_contextvars,

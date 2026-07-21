@@ -1,5 +1,5 @@
 # (c) 2026 AgentFlow-Eval
-from app.core.plugins.manager import PluginManager, reset_plugin_manager
+from app.core.plugins.manager import reset_plugin_manager
 
 
 def test_bootstrap_allowlist_skips_unknown():

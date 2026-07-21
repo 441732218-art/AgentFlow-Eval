@@ -12,7 +12,7 @@ from app.config import settings
 from app.core.plugins.commerce import PluginCommerceMeta, check_entitlement
 from app.core.plugins.sandbox import PluginSandboxPolicy, validate_activate
 from app.core.plugins.versioning import check_core_requirement
-from app.core.rbac import Permission, get_request_role, permissions_for, rbac_enforced
+from app.core.rbac import get_request_role, permissions_for, rbac_enforced
 from app.utils.exceptions import AgentFlowError
 
 logger = logging.getLogger(__name__)

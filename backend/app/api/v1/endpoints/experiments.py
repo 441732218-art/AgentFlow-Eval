@@ -17,7 +17,7 @@ from app.core.evaluation.compare import (
     deltas_vs_best,
     pick_best_label,
 )
-from app.core.rbac import Permission, get_request_role, require_permission
+from app.core.rbac import Permission, require_permission
 from app.core.tenancy import ensure_task_access
 from app.models.experiment import Experiment, ExperimentRun
 from app.models.task import Task, TaskStatus

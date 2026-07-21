@@ -7,7 +7,6 @@ import os
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.db.queries import batch_suite_counts, tasks_with_suite_counts

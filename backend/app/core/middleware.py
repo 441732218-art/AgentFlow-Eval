@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import time
 import uuid
-from datetime import datetime, timezone
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
@@ -13,7 +12,6 @@ from starlette.responses import JSONResponse, Response
 
 from app.config import settings
 from app.core.security import (
-    AUTH_PUBLIC_PATHS,
     authenticate_api_key,
     extract_api_key,
     is_public_path,

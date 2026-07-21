@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import base64
 import logging
-import mimetypes
 from typing import Any
 
 from app.core.multimodal.extractors.image import cosine_similarity

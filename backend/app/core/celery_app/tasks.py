@@ -23,7 +23,7 @@ Architecture:
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from typing import Any
 
 from celery import group
 from sqlalchemy import select
@@ -869,7 +869,8 @@ def run_full_evaluation(self, task_id: str, _trace_id: str | None = None) -> dic
             )
         except Exception:
             pass
-        _run_async(lambda: _mark_task_failed(task_id, str(exc)))
+        err_msg = str(exc)
+        _run_async(lambda msg=err_msg: _mark_task_failed(task_id, msg))
         try:
             from app.core.observability.metrics import (
                 observe_evaluation,
