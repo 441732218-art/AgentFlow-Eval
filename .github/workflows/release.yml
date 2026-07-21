@@ -1,6 +1,6 @@
 # Tag release gate: tests + GitHub Release notes.
-# Container images are built/pushed by "Docker Build & Push" (docker-build.yml)
-# on the same tag — single Docker pipeline only.
+# Container images are built/pushed by "Docker Build & Push" (docker.yml)
+# on the same tag �?single Docker pipeline only.
 
 name: Release
 
@@ -88,22 +88,19 @@ jobs:
             echo "Using $FILE"
             echo "path=$FILE" >> "$GITHUB_OUTPUT"
           else
-            echo "No $FILE — writing fallback notes"
+            echo "No $FILE �?writing fallback notes"
             mkdir -p docs/releases
             cat > /tmp/release-body.md <<EOF
           ## AgentFlow Intelligence ${TAG}
 
-          Enterprise Agent Evaluation Platform（lite / private / saas）。
-
+          Enterprise Agent Evaluation Platform（lite / private / saas）�?
           ### Desktop
-          安装包由 Windows / macOS 桌面 CI 上传到本 Release Assets。
-
+          安装包由 Windows / macOS 桌面 CI 上传到本 Release Assets�?
           ### Container images (GHCR)
           - \`ghcr.io/441732218-art/agentflow-eval-backend:${TAG}\`
           - \`ghcr.io/441732218-art/agentflow-eval-frontend:${TAG}\`
 
-          详见 \`DEPLOYMENT_GUIDE.md\`、\`SECURITY.md\`。
-          EOF
+          详见 \`DEPLOYMENT_GUIDE.md\`、\`SECURITY.md\`�?          EOF
             echo "path=/tmp/release-body.md" >> "$GITHUB_OUTPUT"
           fi
       - uses: softprops/action-gh-release@v2

@@ -1,4 +1,4 @@
-# Security Audit Report â€” AgentFlow-Eval v1.0
+# Security Audit Report â€?AgentFlow-Eval v1.0
 
 | Field | Value |
 |-------|-------|
@@ -21,7 +21,7 @@
 | A07 Auth Failures | **Mitigated** | AUTH_ENABLED + constant-time key compare; public path allowlist |
 | A08 Data Integrity | **Partial** | Plugin HMAC optional (`PLUGIN_SIGNATURE_CHECK`) |
 | A09 Logging Failures | **Mitigated** | AOLS + audit_logs; secrets redaction |
-| A10 SSRF | **Partial** | HttpAgentRunner user-controlled URLs â€” restrict network in prod |
+| A10 SSRF | **Partial** | HttpAgentRunner user-controlled URLs â€?restrict network in prod |
 
 ---
 
@@ -67,7 +67,7 @@ trivy image agentflow-frontend:local
 semgrep --config=p/python app/
 ```
 
-CI: `.github/workflows/test.yml` (bandit high), `docker-build.yml` (Trivy).
+CI: `.github/workflows/test.yml` (bandit high), `docker.yml` (Trivy).
 
 ---
 
