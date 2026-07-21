@@ -1,0 +1,384 @@
+/* AgentFlow Intelligence — Adaptive / Responsive shell
+ * Breakpoints: phone <768 | tablet 768–991 | desktop ≥992 (Ant lg)
+ */
+
+:root {
+  --af-header-h: 64px;
+  --af-bottom-nav-h: 0px;
+  --af-safe-top: env(safe-area-inset-top, 0px);
+  --af-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --af-safe-left: env(safe-area-inset-left, 0px);
+  --af-safe-right: env(safe-area-inset-right, 0px);
+  --af-touch-min: 44px;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  min-height: 100dvh;
+}
+
+body {
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* ---- Fluid containers ---- */
+.ic-content-inner {
+  width: 100%;
+  max-width: 1600px;
+  margin-inline: auto;
+  padding-bottom: calc(var(--af-bottom-nav-h) + var(--af-safe-bottom) + 8px);
+}
+
+.af-responsive-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.af-responsive-grid > .span-12 { grid-column: span 12; }
+.af-responsive-grid > .span-8 { grid-column: span 8; }
+.af-responsive-grid > .span-6 { grid-column: span 6; }
+.af-responsive-grid > .span-4 { grid-column: span 4; }
+.af-responsive-grid > .span-3 { grid-column: span 3; }
+
+/* ---- Touch-friendly controls ---- */
+@media (pointer: coarse) {
+  .ant-btn {
+    min-height: var(--af-touch-min);
+  }
+
+  .ant-menu-item,
+  .ant-menu-submenu-title {
+    min-height: var(--af-touch-min) !important;
+    line-height: var(--af-touch-min) !important;
+  }
+
+  .ic-tree-item {
+    min-height: var(--af-touch-min);
+    display: flex;
+    align-items: center;
+  }
+}
+
+/* ---- Tablet (≤991px) ---- */
+@media (max-width: 991px) {
+  :root {
+    --af-header-h: 56px;
+  }
+
+  .ic-header.ant-layout-header {
+    height: var(--af-header-h) !important;
+    line-height: var(--af-header-h) !important;
+    padding-inline: 12px !important;
+    padding-top: var(--af-safe-top);
+  }
+
+  .ic-header__search {
+    max-width: min(240px, 36vw) !important;
+  }
+
+  .ic-header .af-kbd {
+    display: none !important;
+  }
+
+  .af-layout.ic-shell .af-content-shell {
+    margin: 10px 12px 16px;
+    min-height: calc(100dvh - var(--af-header-h) - var(--af-bottom-nav-h) - 24px);
+  }
+
+  .ic-split {
+    grid-template-columns: 1fr !important;
+    min-height: auto;
+  }
+
+  .af-responsive-grid > .span-8,
+  .af-responsive-grid > .span-6,
+  .af-responsive-grid > .span-4,
+  .af-responsive-grid > .span-3 {
+    grid-column: span 12;
+  }
+
+  /* Ant Design tables: allow horizontal scroll without page overflow */
+  .ant-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ant-card {
+    border-radius: 12px;
+  }
+
+  .ant-page-header,
+  .ic-page .ant-space {
+    flex-wrap: wrap;
+  }
+
+  /* Charts & flow canvases */
+  .react-flow,
+  .xyflow {
+    min-height: 280px !important;
+  }
+}
+
+/* ---- Phone (≤767px) ---- */
+@media (max-width: 767px) {
+  :root {
+    --af-bottom-nav-h: 56px;
+  }
+
+  body.af-has-bottom-nav {
+    padding-bottom: 0;
+  }
+
+  .ic-header__search-wrap {
+    display: none !important;
+  }
+
+  .ic-header__search {
+    display: none !important;
+  }
+
+  .ic-header .af-workspace-label,
+  .ic-header .af-quota-badge-text {
+    display: none !important;
+  }
+
+  .af-layout.ic-shell .af-content-shell {
+    margin: 8px 10px 12px;
+    padding-bottom: calc(var(--af-bottom-nav-h) + var(--af-safe-bottom));
+  }
+
+  .ic-content-inner {
+    padding-bottom: calc(var(--af-bottom-nav-h) + var(--af-safe-bottom) + 12px);
+  }
+
+  .ic-panel-title {
+    font-size: 12px;
+  }
+
+  .ant-statistic-content {
+    font-size: 20px !important;
+  }
+
+  /* Stack page action bars */
+  .af-form-actions {
+    position: sticky;
+    bottom: calc(var(--af-bottom-nav-h) + var(--af-safe-bottom) + 8px);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .af-form-actions .ant-btn {
+    flex: 1 1 auto;
+  }
+
+  /* Breadcrumb compact */
+  .ant-breadcrumb {
+    font-size: 12px;
+    margin-bottom: 8px !important;
+  }
+
+  /* Modal / drawer full-ish on phone */
+  .ant-modal {
+    max-width: calc(100vw - 24px) !important;
+    margin: 12px auto !important;
+  }
+
+  .ant-drawer-content-wrapper {
+    max-width: min(320px, 88vw) !important;
+  }
+
+  /* AI assistant: lift above bottom nav */
+  .ic-assistant-fab {
+    bottom: calc(var(--af-bottom-nav-h) + var(--af-safe-bottom) + 16px) !important;
+    right: max(16px, var(--af-safe-right)) !important;
+  }
+
+  .ic-assistant-panel {
+    bottom: calc(var(--af-bottom-nav-h) + var(--af-safe-bottom) + 72px) !important;
+    right: max(12px, var(--af-safe-right)) !important;
+    left: max(12px, var(--af-safe-left)) !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+}
+
+/* ---- Extra-small (≤380px) ---- */
+@media (max-width: 380px) {
+  .ic-header.ant-layout-header {
+    padding-inline: 8px !important;
+  }
+
+  .af-mobile-bottom-nav__label {
+    font-size: 10px !important;
+  }
+}
+
+/* ---- Landscape phone ---- */
+@media (max-height: 480px) and (orientation: landscape) {
+  :root {
+    --af-bottom-nav-h: 48px;
+  }
+
+  .ic-header.ant-layout-header {
+    height: 48px !important;
+  }
+}
+
+/* ---- Desktop large ---- */
+@media (min-width: 1400px) {
+  .ic-content-inner {
+    padding-inline: 8px;
+  }
+}
+
+/* ---- PWA standalone (installed app chrome) ---- */
+@media (display-mode: standalone), (display-mode: window-controls-overlay) {
+  .ic-header.ant-layout-header {
+    padding-top: max(0px, var(--af-safe-top));
+  }
+
+  body {
+    user-select: none;
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"] {
+    user-select: text;
+  }
+}
+
+/* ---- Reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  .ic-page,
+  .af-mobile-bottom-nav,
+  .af-pwa-install {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ---- Mobile bottom navigation ---- */
+.af-mobile-bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  height: calc(var(--af-bottom-nav-h) + var(--af-safe-bottom));
+  padding: 0 var(--af-safe-right) var(--af-safe-bottom) var(--af-safe-left);
+  background: var(--af-header);
+  backdrop-filter: blur(16px) saturate(1.2);
+  border-top: 1px solid var(--af-border);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.af-mobile-bottom-nav__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: var(--af-bottom-nav-h);
+  min-width: 0;
+  padding: 6px 4px;
+  border: none;
+  background: transparent;
+  color: var(--af-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s ease;
+}
+
+.af-mobile-bottom-nav__item .anticon {
+  font-size: 18px;
+}
+
+.af-mobile-bottom-nav__item.is-active {
+  color: var(--af-primary);
+}
+
+.af-mobile-bottom-nav__label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+/* Hide bottom nav on larger screens (component also gated) */
+@media (min-width: 768px) {
+  .af-mobile-bottom-nav {
+    display: none !important;
+  }
+}
+
+/* ---- Install / PWA banner ---- */
+.af-pwa-install {
+  position: fixed;
+  left: max(12px, var(--af-safe-left));
+  right: max(12px, var(--af-safe-right));
+  bottom: calc(var(--af-bottom-nav-h) + var(--af-safe-bottom) + 12px);
+  z-index: 110;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--af-border-strong);
+  background: var(--af-bg-elevated);
+  box-shadow: var(--af-shadow-glow, 0 8px 32px rgba(0, 0, 0, 0.35));
+  animation: af-fade-in 0.28s ease both;
+}
+
+@media (min-width: 768px) {
+  .af-pwa-install {
+    left: auto;
+    right: 20px;
+    bottom: 20px;
+    max-width: 380px;
+  }
+}
+
+.af-pwa-install__text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--af-text);
+}
+
+.af-pwa-install__text small {
+  display: block;
+  margin-top: 2px;
+  color: var(--af-text-muted);
+  font-size: 11px;
+}
+
+/* ---- Desktop app (Electron) titlebar drag region ---- */
+body.af-desktop-shell .ic-header {
+  -webkit-app-region: drag;
+}
+
+body.af-desktop-shell .ic-header button,
+body.af-desktop-shell .ic-header input,
+body.af-desktop-shell .ic-header .ant-dropdown-trigger,
+body.af-desktop-shell .ic-header a {
+  -webkit-app-region: no-drag;
+}

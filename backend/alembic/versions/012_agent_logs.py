@@ -35,8 +35,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
-            server_default=sa.text("CURRENT_TIMESTAMP"),
-            nullable=False,
+            nullable=True,  # matches TimestampMixin; set on update only
         ),
     )
     op.create_index("ix_agent_logs_created_at", "agent_logs", ["created_at"])

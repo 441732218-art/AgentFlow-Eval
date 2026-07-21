@@ -8,6 +8,8 @@ x-common: &common
 
 services:
   # ---- PostgreSQL ----
+  # Host ports bind 127.0.0.1 only (not LAN/public). Set PUBLISH_DB_PORTS=0 in
+  # .env.docker and remove the ports block below for air-gapped / strict prod.
   postgres:
     <<: *common
     image: postgres:16-alpine
@@ -17,7 +19,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentflow_secret}
       POSTGRES_DB: ${POSTGRES_DB:-agentflow_eval}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -32,7 +34,7 @@ services:
     image: redis:7-alpine
     container_name: agentflow-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -41,7 +43,7 @@ services:
       timeout: 3s
       retries: 5
 
-  # ---- DB migrations (alembic head: 010 billing, 011 slow_task_events, …) ----
+  # ---- DB migrations (alembic head … 012_agent_logs) ----
   migrate:
     <<: *common
     image: agentflow-backend:local
@@ -60,6 +62,7 @@ services:
         required: false
     environment:
       ENV: ${ENV:-prod}
+      PYTHONPATH: /app
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-agentflow}:${POSTGRES_PASSWORD:-agentflow_secret}@postgres:5432/${POSTGRES_DB:-agentflow_eval}
     command: ["alembic", "upgrade", "head"]
     healthcheck:
@@ -73,6 +76,26 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: agentflow-backend
+    # Explicit CMD so patched images never inherit `sleep` from docker commit
+    command:
+      [
+        "gunicorn",
+        "app.main:app",
+        "--worker-class",
+        "uvicorn.workers.UvicornWorker",
+        "--workers",
+        "2",
+        "--bind",
+        "0.0.0.0:8000",
+        "--timeout",
+        "120",
+        "--graceful-timeout",
+        "30",
+        "--access-logfile",
+        "-",
+        "--error-logfile",
+        "-",
+      ]
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,6 +112,7 @@ services:
     environment:
       ENV: prod
       DEBUG: "false"
+      PYTHONPATH: /app
       DEPLOY_PROFILE: ${DEPLOY_PROFILE:-private}
       BILLING_ENABLED: ${BILLING_ENABLED:-false}
       STRIPE_MODE: ${STRIPE_MODE:-mock}
@@ -97,20 +121,28 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       CELERY_TASK_ALWAYS_EAGER: "false"
-      CORS_ORIGINS: ${CORS_ORIGINS:-'["http://localhost","http://localhost:80","http://localhost:3000"]'}
+      # Frontend on :80 (docker) and :5173 (vite) — browser may hit API via nginx proxy (no CORS) or direct
+      CORS_ORIGINS: ${CORS_ORIGINS:-'["http://localhost","http://localhost:80","http://127.0.0.1","http://127.0.0.1:80","http://localhost:5173","http://127.0.0.1:5173"]'}
       LOG_LEVEL: INFO
       LOG_FORMAT: json
-      AUTH_ENABLED: ${AUTH_ENABLED:-false}
+      # Delivery default: auth on. Set AUTH_ENABLED=false only for local demos.
+      AUTH_ENABLED: ${AUTH_ENABLED:-true}
       API_KEYS: ${API_KEYS:-}
       TENANCY_ENABLED: ${TENANCY_ENABLED:-false}
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health/ready"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 25s
 
   # ---- Celery Worker ----
   celery-worker:
@@ -185,18 +217,30 @@ services:
       - redis
       - celery-worker
 
-  # ---- Frontend (Nginx) ----
+  # ---- Frontend (Nginx) — same-origin /api → backend ----
   frontend:
     <<: *common
     image: agentflow-frontend:local
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      args:
+        # Browser calls /api/v1/* on same host; nginx proxies to backend service
+        VITE_API_BASE_URL: /api/v1
     container_name: agentflow-frontend
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.docker
+        required: false
+    environment:
+      # Entrypoint writes /runtime-config.json so SPA auto-fills X-API-Key (private deploy)
+      API_KEYS: ${API_KEYS:-}
     ports:
       - "80:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     healthcheck:
       # Use 127.0.0.1 — alpine wget may fail on localhost (::1) if nginx is IPv4-only
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]

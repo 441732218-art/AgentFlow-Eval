@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { apiClient } from "@/api/client";
+import { bootstrapApiKey } from "@/lib/bootstrap-api-key";
 import type { MeResponse, Permission } from "./permissions";
 
 type AuthState = {
@@ -18,6 +19,8 @@ type AuthState = {
   permissions: Set<string>;
   rbacEnforced: boolean;
   authEnabled: boolean;
+  /** True when backend returns 401 / auth required and no valid session */
+  needsApiKey: boolean;
   me: MeResponse | null;
   error: string | null;
   refresh: () => Promise<void>;
@@ -47,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [me, setMe] = useState<MeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [needsApiKey, setNeedsApiKey] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -54,21 +58,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data } = await apiClient.get<MeResponse>("/me");
       setMe(data);
       setError(null);
+      setNeedsApiKey(false);
     } catch (e: unknown) {
       setMe(null);
-      setError(e instanceof Error ? e.message : "failed to load /me");
+      const msg = e instanceof Error ? e.message : "failed to load /me";
+      setError(msg);
+      const status =
+        e && typeof e === "object" && "status" in e
+          ? Number((e as { status?: number }).status)
+          : undefined;
+      // 401 = AUTH_ENABLED without valid key
+      setNeedsApiKey(status === 401 || /未授权|Unauthorized|API [Kk]ey/i.test(msg));
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void refresh();
+    let cancelled = false;
+    (async () => {
+      await bootstrapApiKey();
+      if (!cancelled) await refresh();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [refresh]);
 
   const permissions = useMemo(() => {
     if (me?.permissions?.length) return new Set(me.permissions);
     // Auth off or fetch failed → open (matches backend unrestricted local mode)
+    // When needsApiKey, still return open perms so route guards don't 403 before gate
     return OPEN_PERMS;
   }, [me]);
 
@@ -91,7 +111,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role: me?.role ?? "admin",
     permissions,
     rbacEnforced,
-    authEnabled: Boolean(me?.auth_enabled),
+    authEnabled: Boolean(me?.auth_enabled) || needsApiKey,
+    // Show gate whenever /me returned 401 (missing or invalid API key)
+    needsApiKey,
     me,
     error,
     refresh,

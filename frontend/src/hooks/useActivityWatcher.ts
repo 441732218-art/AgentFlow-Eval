@@ -26,7 +26,7 @@ function readApiKey(): string {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return "";
-    return ((JSON.parse(raw) as { apiKey?: string }).apiKey || "").trim();
+    return ((JSON.parse(raw) as { apiKey?: string }).apiKey || "").trim(); // kept in sync with settings-storage
   } catch {
     return "";
   }

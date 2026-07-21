@@ -10,11 +10,13 @@
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder",
-    "dist:win": "electron-builder --win nsis portable",
-    "dist:mac": "electron-builder --mac dmg zip",
-    "dist:linux": "electron-builder --linux AppImage deb",
-    "dist:all": "electron-builder -mwl"
+    "build": "electron-builder --win --publish never",
+    "dist": "electron-builder --publish never",
+    "dist:win": "electron-builder --win nsis portable --publish never",
+    "release:win": "electron-builder --win --publish always",
+    "dist:mac": "electron-builder --mac dmg zip --publish never",
+    "dist:linux": "electron-builder --linux AppImage deb --publish never",
+    "dist:all": "electron-builder -mwl --publish never"
   },
   "build": {
     "appId": "ai.agentflow.intelligence",
@@ -37,6 +39,14 @@
       }
     ],
     "asar": true,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "441732218-art",
+        "repo": "AgentFlow-Eval",
+        "releaseType": "release"
+      }
+    ],
     "win": {
       "target": [
         { "target": "nsis", "arch": ["x64"] },

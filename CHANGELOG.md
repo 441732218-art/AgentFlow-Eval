@@ -6,6 +6,12 @@
 
 ### Added
 
+- **跨端打包与自适应交付**
+  - 前端自适应：`responsive.css`、手机底栏导航、顶栏触控优化、PWA safe-area
+  - PWA：`vite-plugin-pwa`、安装横幅、可添加到主屏幕（Android / iOS / 桌面浏览器）
+  - Electron 桌面壳 `desktop/`（Windows NSIS+portable / macOS dmg / Linux AppImage+deb）
+  - 统一打包脚本 `scripts/build-release.ps1`；文档 `docs/跨端打包与安装交付.md`
+  - 运行时 `APP_VERSION` / 前端版本对齐 **1.0.0**
 - **v1.0 阶段 7–12（安全 / Docker / CI / 发布）**
   - 插件 `PLUGIN_STRICT_MODE` + `PLUGIN_SIGNATURE_CHECK`（HMAC）
   - 多阶段非 root 后端镜像 `Dockerfile.backend`；prod compose 资源限制 / no-new-privileges / Prometheus+Grafana profile

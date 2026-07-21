@@ -246,7 +246,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     description="Agent automated evaluation platform",
-    version="0.1.0",
+    version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs" if not settings.is_prod else None,
     redoc_url="/redoc" if not settings.is_prod else None,
@@ -381,7 +381,7 @@ async def prometheus_metrics() -> Any:
 
 
 # ---- Health checks (liveness / readiness / composite) ----
-APP_VERSION = "0.1.0"
+APP_VERSION = "1.0.0"
 
 
 async def _probe_services() -> dict[str, str]:

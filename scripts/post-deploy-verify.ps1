@@ -5,6 +5,7 @@
 
 param(
   [string]$BaseUrl = "http://127.0.0.1:8000",
+  [string]$ApiKey = "",
   [switch]$Strict
 )
 
@@ -14,6 +15,36 @@ $failed = 0
 function Ok($msg) { Write-Host "  OK   $msg" -ForegroundColor Green }
 function Bad($msg) { Write-Host "  FAIL $msg" -ForegroundColor Red; $script:failed++ }
 function Info($msg) { Write-Host "  --   $msg" -ForegroundColor DarkGray }
+
+# Resolve API key: -ApiKey > env AGENTFLOW_API_KEY > first secret in backend/.env.docker API_KEYS
+if (-not $ApiKey) { $ApiKey = $env:AGENTFLOW_API_KEY }
+if (-not $ApiKey) {
+  $envDocker = Join-Path (Split-Path -Parent $PSScriptRoot) "backend\.env.docker"
+  if (Test-Path $envDocker) {
+    Get-Content $envDocker -Encoding UTF8 | ForEach-Object {
+      if ($_ -match '^\s*API_KEYS=(.+)$') {
+        $raw = $Matches[1].Trim().Trim('"').Trim("'")
+        if ($raw) { $ApiKey = ($raw -split ",")[0].Trim().Split(":")[0] }
+      }
+    }
+  }
+}
+
+$script:ApiHeaders = @{}
+if ($ApiKey) {
+  $script:ApiHeaders["X-API-Key"] = $ApiKey
+  Info "using X-API-Key (prefix $($ApiKey.Substring(0, [Math]::Min(4, $ApiKey.Length)))***)"
+} else {
+  Info "no API key — ok if AUTH_ENABLED=false"
+}
+
+function Invoke-AfRest([string]$Path) {
+  $uri = "$BaseUrl$Path"
+  if ($script:ApiHeaders.Count -gt 0) {
+    return Invoke-RestMethod $uri -Headers $script:ApiHeaders -TimeoutSec 8
+  }
+  return Invoke-RestMethod $uri -TimeoutSec 8
+}
 
 Write-Host "==> Post-deploy verify: $BaseUrl" -ForegroundColor Cyan
 
@@ -57,7 +88,7 @@ try {
 
 # 4) Me / permissions contract
 try {
-  $me = Invoke-RestMethod "$BaseUrl/api/v1/me" -TimeoutSec 5
+  $me = Invoke-AfRest "/api/v1/me"
   if ($me.permissions -and $me.permissions.Count -gt 0) {
     Ok "/api/v1/me actor=$($me.actor) role=$($me.role) perms=$($me.permissions.Count)"
   } else {
@@ -69,7 +100,7 @@ try {
 
 # 5) Billing plans seed path
 try {
-  $plans = Invoke-RestMethod "$BaseUrl/api/v1/billing/plans" -TimeoutSec 8
+  $plans = Invoke-AfRest "/api/v1/billing/plans"
   if ($plans.total -ge 1) {
     Ok "/api/v1/billing/plans total=$($plans.total)"
   } else {
@@ -81,7 +112,7 @@ try {
 
 # 6) Plugin market
 try {
-  $m = Invoke-RestMethod "$BaseUrl/api/v1/plugins/market" -TimeoutSec 8
+  $m = Invoke-AfRest "/api/v1/plugins/market"
   if ($m.total -ge 1) {
     Ok "/api/v1/plugins/market total=$($m.total)"
   } else {

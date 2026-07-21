@@ -60,6 +60,19 @@
 
 ---
 
+## 跨端安装与打包（手机 + 电脑）
+
+| 形态 | 命令 / 路径 | 说明 |
+|------|-------------|------|
+| **自适应 Web / PWA** | `cd frontend && npm run build:web` | 安装到手机主屏幕 / 电脑浏览器（Win·macOS·Linux） |
+| **桌面安装包** | `scripts\build-release.ps1 -Targets web,desktop` | Electron：Windows exe / macOS dmg / Linux AppImage |
+| **一键发行** | `scripts\build-release.ps1` | 产物在 `artifacts/release/` |
+| **Docker 私有化** | `scripts\docker-up.ps1` | 服务端全栈；客户端用浏览器或 PWA/桌面包连接 |
+
+详见 [docs/跨端打包与安装交付.md](docs/跨端打包与安装交付.md)。UI 已按手机 / 平板 / 桌面自适应（底栏 + 抽屉 + 安全区）。
+
+---
+
 ## 快速开始（推荐）
 
 | 形态 | 命令 | 依赖 |

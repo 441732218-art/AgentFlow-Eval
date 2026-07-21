@@ -1,16 +1,50 @@
 import axios from "axios";
 import type { AxiosInstance } from "axios";
-import { readLocalApiKey } from "@/lib/settings-storage";
+import { loadSettings, readLocalApiKey } from "@/lib/settings-storage";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+/**
+ * Resolve API base for browser / PWA / Electron.
+ * Priority: settings.apiBaseUrl → localStorage agentflow_api_base → VITE_ → /api/v1
+ * Electron shell writes agentflow_api_base (host only); we append /api/v1 when needed.
+ */
+export function resolveApiBaseUrl(): string {
+  try {
+    const fromSettings = loadSettings().apiBaseUrl?.trim();
+    if (fromSettings && fromSettings !== "/api/v1") {
+      return fromSettings.replace(/\/$/, "");
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    const injected = localStorage.getItem("agentflow_api_base")?.trim();
+    if (injected) {
+      const base = injected.replace(/\/$/, "");
+      if (base.endsWith("/api/v1")) return base;
+      return `${base}/api/v1`;
+    }
+  } catch {
+    /* ignore */
+  }
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return String(import.meta.env.VITE_API_BASE_URL).replace(/\/$/, "");
+  }
+  // file:// or custom protocol (packaged Electron without injected key)
+  if (typeof window !== "undefined" && window.location?.protocol === "file:") {
+    return "http://127.0.0.1:8000/api/v1";
+  }
+  return "/api/v1";
+}
 
 const apiClient: AxiosInstance = axios.create({
-  baseURL: BASE_URL,
+  baseURL: resolveApiBaseUrl(),
   timeout: 30000,
   headers: { "Content-Type": "application/json" },
 });
 
 apiClient.interceptors.request.use((config) => {
+  // Re-resolve each request so Settings / Electron inject take effect without reload
+  config.baseURL = resolveApiBaseUrl();
   const key = readLocalApiKey();
   if (key) {
     config.headers = config.headers || {};

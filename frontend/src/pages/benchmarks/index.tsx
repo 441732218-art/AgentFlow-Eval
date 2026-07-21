@@ -154,7 +154,7 @@ const BenchmarksPage: React.FC = () => {
             >
               刷新
             </Button>
-            <Can permission="benchmark:create">
+            <Can perm="benchmark:create">
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
@@ -218,7 +218,7 @@ const BenchmarksPage: React.FC = () => {
                 title={detailQ.data?.name || selectedId}
                 loading={detailQ.isLoading}
                 extra={
-                  <Can permission="benchmark:create">
+                  <Can perm="benchmark:create">
                     <Button
                       type="primary"
                       icon={<PlayCircleOutlined />}

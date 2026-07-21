@@ -4,11 +4,22 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/assets/logo/favicon.svg" />
     <link rel="apple-touch-icon" href="/assets/logo/logo.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5"
+    />
+    <meta name="theme-color" content="#050816" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#050816" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AgentFlow" />
+    <meta name="application-name" content="AgentFlow Intelligence" />
+    <meta name="format-detection" content="telephone=no" />
     <meta
       name="description"
-      content="AgentFlow Intelligence — enterprise AI agent observability, evaluation, and diagnosis platform."
+      content="AgentFlow Intelligence — enterprise AI agent observability, evaluation, and diagnosis platform. Installable on desktop and mobile."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -18,7 +29,8 @@
     />
     <title>AgentFlow Intelligence</title>
     <style>
-      html, body { background: #050816; }
+      html, body { background: #050816; margin: 0; }
+      #root { min-height: 100dvh; }
     </style>
   </head>
   <body>

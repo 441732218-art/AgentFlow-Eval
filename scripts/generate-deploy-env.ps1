@@ -66,6 +66,10 @@ function Pick([string]$Key, [string]$Fallback = "") {
 $secretKey = Pick "SECRET_KEY" (New-Secret 48)
 $dbPass = Pick "POSTGRES_PASSWORD" (New-Secret 24)
 $flowerPass = Pick "FLOWER_PASSWORD" (New-Secret 16)
+$apiKeySecret = Pick "API_KEYS" ""
+if (-not $apiKeySecret -or $apiKeySecret -match "请替换|change-me|your-key") {
+  $apiKeySecret = "af-" + (New-Secret 32) + ":admin:admin"
+}
 $openai = Pick "OPENAI_API_KEY" ""
 $openaiBase = Pick "OPENAI_BASE_URL" "https://api.openai.com/v1"
 $dbUrlDocker = "postgresql+asyncpg://agentflow:${dbPass}@postgres:5432/agentflow_eval"
@@ -118,14 +122,19 @@ LOG_FORMAT=json
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_DEFAULT=100/minute
 
-AUTH_ENABLED=false
-API_KEYS=
+AUTH_ENABLED=true
+API_KEYS=$apiKeySecret
 TENANCY_ENABLED=false
 ADMIN_ACTORS=admin
+DEPLOY_PROFILE=private
+BILLING_ENABLED=false
 
 FLOWER_USER=admin
 FLOWER_PASSWORD=$flowerPass
 "@
+  # Print key once for operator (not written to other files)
+  $plainKey = ($apiKeySecret -split ":")[0]
+  Write-Host "  API key (configure in UI Settings / X-API-Key): $plainKey" -ForegroundColor Yellow
 }
 
 # ---- backend/.env.vercel-postgres (hybrid API) ----
@@ -162,8 +171,8 @@ OPENAI_BASE_URL=$openaiBase
 
 LOG_LEVEL=INFO
 LOG_FORMAT=json
-AUTH_ENABLED=false
-API_KEYS=
+AUTH_ENABLED=true
+API_KEYS=$apiKeySecret
 TENANCY_ENABLED=false
 ADMIN_ACTORS=admin
 "@

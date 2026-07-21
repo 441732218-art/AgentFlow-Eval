@@ -139,12 +139,18 @@ export default function DashboardPage() {
   }
 
   if (error) {
+    const msg = (error as Error).message || "";
+    const isAuth = /未授权|Unauthorized|API [Kk]ey|401/i.test(msg);
     return (
       <Alert
         type="error"
         showIcon
         message="驾驶舱加载失败"
-        description={(error as Error).message}
+        description={
+          isAuth
+            ? `${msg} — 请打开「设置」填写 API Key（backend/.env.docker 里 API_KEYS 冒号前的 secret），或刷新后使用登录门禁输入。`
+            : msg
+        }
         action={
           <Button size="small" onClick={() => void refetch()}>
             重试

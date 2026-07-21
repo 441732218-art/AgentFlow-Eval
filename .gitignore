@@ -20,6 +20,7 @@ desktop/release/
 backend/.env
 backend/.env.docker
 backend/.env.vercel-postgres
+backend/.env.runtime.test
 backend/.deploy-secrets.tmp
 frontend/.env.local
 frontend/.env.production.local
@@ -35,9 +36,16 @@ frontend/.env.production.local
 # Local screenshots / agent scratch (do not commit secrets or personal captures)
 artifacts/
 .grokforge/
+.txt
+githubworkflows
+docs/_docker_api_test_results.json
+backend/_start_api.py
+backend/scripts_local_api_test.py
+backend/uvicorn_docker_db.log
 
-# Soft-copyright generated dumps (regenerate via scripts/export-soft-copyright.ps1)
+# Soft-copyright generated dumps (regenerate via scripts)
 docs/soft-copyright/generated/
+scripts/docs/soft-copyright/generated/
 
 # IDE
 .idea/

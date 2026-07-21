@@ -27,8 +27,8 @@ def upgrade() -> None:
         sa.Column("token_quota", sa.Integer(), nullable=False, server_default="100000"),
         sa.Column("task_quota", sa.Integer(), nullable=False, server_default="100"),
         sa.Column("features", sa.JSON(), nullable=False),
-        sa.Column("is_public", sa.Boolean(), nullable=False, server_default=sa.text("1")),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column("is_public", sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

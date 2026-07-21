@@ -1,6 +1,7 @@
 # 生产上线检查清单（P0）
 
-> 增量交付清单，不推翻现有架构。勾选后再对公网放量。
+> 增量交付清单，不推翻现有架构。勾选后再对公网放量。  
+> 跨端安装包（PWA / Electron / Docker）见 [跨端打包与安装交付.md](./跨端打包与安装交付.md)。
 
 ## 1. 配置（必须）
 
@@ -12,7 +13,8 @@
 | `DATABASE_URL` | Postgres（非 sqlite） | compose / 托管库 |
 | `REDIS_URL` | 可达 | `/health/ready` services.redis=ok |
 | `CORS_ORIGINS` | 仅前端域名 | 配置审查 |
-| `AUTH_ENABLED` | 建议 `true` | 配 `API_KEYS` |
+| `AUTH_ENABLED` | 交付默认 `true` | 配 `API_KEYS`（`secret:actor:role`） |
+| Postgres/Redis 端口 | 仅 `127.0.0.1` 或不可达公网 | `docker-compose.yml` / `docker-compose.prod.yml` |
 | `DEPLOY_PROFILE` | `private` 或 `saas` | 非 lite 公网 |
 
 ```bash

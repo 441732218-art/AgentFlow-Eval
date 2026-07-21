@@ -9,6 +9,7 @@ import { useThemeStore } from "@/stores/useThemeStore";
 import { buildAntdTheme } from "@/theme/antdTheme";
 import "@/styles/theme.css";
 import "@/styles/command-center.css";
+import "@/styles/responsive.css";
 
 // Apply theme before first paint (avoid flash) — Cyber Command default
 try {

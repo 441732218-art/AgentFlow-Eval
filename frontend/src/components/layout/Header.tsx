@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Layout, Input, Space, Button, Tooltip, Badge, Typography, Dropdown } from "antd";
+import { Layout, Input, Space, Button, Tooltip, Badge, Typography, Dropdown, Grid } from "antd";
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -19,6 +19,7 @@ import { HeaderQuotaBadge } from "@/components/billing/HeaderQuotaBadge";
 
 const { Header: AntHeader } = Layout;
 const { Text } = Typography;
+const { useBreakpoint } = Grid;
 
 interface HeaderProps {
   collapsed: boolean;
@@ -28,6 +29,8 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
   const { mode, toggle } = useThemeStore();
   const navigate = useNavigate();
+  const screens = useBreakpoint();
+  const isPhone = !screens.md;
   const [notifyOpen, setNotifyOpen] = useState(false);
   const unread = useNotificationStore((s) => s.events.filter((e) => !e.read).length);
   const liveCount = useNotificationStore(
@@ -46,44 +49,57 @@ export const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
       <AntHeader
         className="af-no-print ic-header"
         style={{
-          padding: "0 20px",
+          padding: isPhone ? "0 10px" : "0 20px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          height: 64,
+          height: isPhone ? 56 : 64,
           position: "sticky",
           top: 0,
           zIndex: 15,
+          gap: 8,
         }}
       >
-        <Space size="middle">
+        <Space size={isPhone ? 4 : "middle"} style={{ minWidth: 0, flex: 1 }}>
           <Button
             type="text"
             icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             onClick={onToggle}
-            style={{ color: "var(--af-text-secondary)" }}
+            aria-label="Toggle navigation"
+            style={{ color: "var(--af-text-secondary)", minWidth: 40, minHeight: 40 }}
           />
-          <Input
-            readOnly
-            className="ic-header__search"
-            onClick={() => openCommandPalette()}
-            prefix={<SearchOutlined style={{ color: "var(--af-text-muted)" }} />}
-            placeholder={t("header.search")}
-            suffix={
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                <span className="af-kbd">⌘K</span>
-              </Text>
-            }
-            style={{
-              width: 300,
-              maxWidth: "42vw",
-              cursor: "pointer",
-            }}
-          />
+          {!isPhone && (
+            <Input
+              readOnly
+              className="ic-header__search"
+              onClick={() => openCommandPalette()}
+              prefix={<SearchOutlined style={{ color: "var(--af-text-muted)" }} />}
+              placeholder={t("header.search")}
+              suffix={
+                <Text type="secondary" style={{ fontSize: 11 }}>
+                  <span className="af-kbd">⌘K</span>
+                </Text>
+              }
+              style={{
+                width: screens.xl ? 300 : 220,
+                maxWidth: "42vw",
+                cursor: "pointer",
+              }}
+            />
+          )}
+          {isPhone && (
+            <Button
+              type="text"
+              icon={<SearchOutlined />}
+              onClick={() => openCommandPalette()}
+              aria-label={t("header.search")}
+              style={{ color: "var(--af-text-secondary)", minWidth: 40, minHeight: 40 }}
+            />
+          )}
         </Space>
 
-        <Space size={8}>
-          <HeaderQuotaBadge />
+        <Space size={isPhone ? 2 : 8} wrap={false}>
+          {!isPhone && <HeaderQuotaBadge />}
           <Dropdown
             menu={{
               selectedKeys: [locale],
@@ -98,7 +114,7 @@ export const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
               <Button
                 type="text"
                 icon={<GlobalOutlined />}
-                style={{ color: "var(--af-text-secondary)" }}
+                style={{ color: "var(--af-text-secondary)", minWidth: 40, minHeight: 40 }}
               />
             </Tooltip>
           </Dropdown>
@@ -109,7 +125,7 @@ export const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
               type="text"
               icon={isDarkTheme(mode) ? <SunOutlined /> : <MoonOutlined />}
               onClick={toggle}
-              style={{ color: "var(--af-text-secondary)" }}
+              style={{ color: "var(--af-text-secondary)", minWidth: 40, minHeight: 40 }}
             />
           </Tooltip>
           <Tooltip title={t("header.notify")}>
@@ -118,43 +134,45 @@ export const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
                 type="text"
                 icon={<BellOutlined />}
                 onClick={() => setNotifyOpen(true)}
-                style={{ color: "var(--af-text-secondary)" }}
+                style={{ color: "var(--af-text-secondary)", minWidth: 40, minHeight: 40 }}
               />
             </Badge>
           </Tooltip>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "4px 10px 4px 4px",
-              borderRadius: 999,
-              border: "1px solid var(--af-border)",
-              background: "var(--af-bg-muted)",
-              cursor: "pointer",
-            }}
-            onClick={() => navigate("/settings")}
-            title={t("nav.settings")}
-          >
+          {!isPhone && (
             <div
               style={{
-                width: 28,
-                height: 28,
-                borderRadius: "50%",
-                background: "var(--af-gradient)",
-                display: "grid",
-                placeItems: "center",
-                color: "#fff",
-                fontSize: 12,
-                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "4px 10px 4px 4px",
+                borderRadius: 999,
+                border: "1px solid var(--af-border)",
+                background: "var(--af-bg-muted)",
+                cursor: "pointer",
               }}
+              onClick={() => navigate("/settings")}
+              title={t("nav.settings")}
             >
-              AF
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "var(--af-gradient)",
+                  display: "grid",
+                  placeItems: "center",
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                AF
+              </div>
+              <Text className="af-workspace-label" style={{ fontSize: 13 }}>
+                {t("header.workspace")}
+              </Text>
             </div>
-            <Text className="af-workspace-label" style={{ fontSize: 13 }}>
-              {t("header.workspace")}
-            </Text>
-          </div>
+          )}
         </Space>
       </AntHeader>
 
