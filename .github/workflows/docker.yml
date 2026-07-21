@@ -1,8 +1,5 @@
-# Single Docker image pipeline → GHCR (+ Trivy advisory).
+# Single Docker image pipeline -> GHCR (+ Trivy advisory).
 # PR: build only. main / tags / manual: build + push + scan.
-#
-# ghcr.io/<owner>/agentflow-eval-backend
-# ghcr.io/<owner>/agentflow-eval-frontend
 
 name: Docker Build & Push
 
@@ -21,6 +18,7 @@ jobs:
   build-and-push:
     name: Build & Push (${{ matrix.service }})
     runs-on: ubuntu-latest
+    # Match the permissions set that previously succeeded on this repo
     permissions:
       contents: read
       packages: write
@@ -78,10 +76,10 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
           push: ${{ github.event_name != 'pull_request' }}
-          load: ${{ github.event_name == 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: ${{ matrix.service == 'frontend' && 'VITE_API_BASE_URL=/api/v1' || '' }}
+          # Avoid GHA cache when actions:write is not granted (reduces setup friction)
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
