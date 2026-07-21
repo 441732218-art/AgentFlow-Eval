@@ -1,8 +1,12 @@
 """Seed data for AgentFlow-Eval demonstration (soft-copyright / open-source demo).
 
-Populates tasks, suites, traces (incl. failure for Diagnosis), metric scores,
-and AOLS ``agent_logs`` so Dashboard / Monitoring / Diagnosis are non-empty
-after ``python -m app.core.seed``.
+Populates:
+  - Demo task + suites + traces (incl. failure for Diagnosis)
+  - Dimension metric scores (scorecard-aligned 40/40/20)
+  - AOLS agent_logs for Dashboard / Monitoring
+  - Multi-variant Experiment for /experiments compare UI
+
+Run: ``python -m app.core.seed`` or ``python -m app.core.seed --force``
 """
 
 from __future__ import annotations
@@ -10,23 +14,66 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+# Default scorecard (Phase 3) — same as judge_engine.scorecard.default_scorecard()
+SAMPLE_SCORECARD = {
+    "version": 1,
+    "name": "default_agent_eval",
+    "llm_refine": True,
+    "dimensions": [
+        {
+            "key": "tool_accuracy",
+            "label": "工具调用准确率",
+            "weight": 40,
+            "description": "是否按预期调用工具",
+            "method": "rule_tool",
+        },
+        {
+            "key": "answer_correctness",
+            "label": "答案准确性",
+            "weight": 40,
+            "description": "与 expected_output 一致性",
+            "method": "llm_or_lexical",
+        },
+        {
+            "key": "reasoning_coherence",
+            "label": "推理连贯性",
+            "weight": 20,
+            "description": "步骤是否自洽",
+            "method": "llm_only",
+        },
+    ],
+}
+
 SAMPLE_AGENT_CONFIG = {
+    "runner": "openai",
     "model": "gpt-4o-mini",
     "temperature": 0,
     "max_iterations": 5,
     "max_tokens": 4096,
+    "scorecard": SAMPLE_SCORECARD,
+}
+
+SAMPLE_AGENT_CONFIG_CANDIDATE = {
+    "runner": "openai",
+    "model": "gpt-4o",
+    "temperature": 0,
+    "max_iterations": 5,
+    "max_tokens": 4096,
+    "scorecard": SAMPLE_SCORECARD,
 }
 
 # Demo task: bilingual-friendly business scenarios for UI screenshots
 SAMPLE_TASK = {
     "name": "客服 Agent 综合评测（Demo）",
     "description": (
-        "演示用评测任务：覆盖天气查询、数值计算、差旅预订、邮件发送与常识问答，"
-        "用于本地启动后的界面展示与流水线验证。可通过 python -m app.core.seed 写入。"
-        "含成功/失败 Trace 与 AOLS 日志，便于驾驶舱与诊断页演示。"
+        "演示用评测任务：覆盖天气、计算、差旅、邮件与常识问答；"
+        "含成功/失败 Trace、三维评分与 AOLS 日志。"
+        "Seed 同时写入「多变体对比」实验，打开 /experiments 即可查看。"
     ),
     "agent_config": SAMPLE_AGENT_CONFIG,
 }
+
+DEMO_EXPERIMENT_NAME = "Demo 多变体对比（mini vs 4o）"
 
 SAMPLE_TEST_SUITES = [
     {
@@ -166,8 +213,19 @@ async def seed_database(async_session_factory, *, force: bool = False) -> None:
             existing = await session.execute(
                 select(Task).where(Task.name == SAMPLE_TASK["name"]).limit(1)
             )
-            if existing.scalar_one_or_none() is not None:
-                print("Demo task already exists; skipping seed.")
+            existing_task = existing.scalar_one_or_none()
+            if existing_task is not None:
+                print("Demo task already exists; ensuring experiment seed only.")
+                exp_id, labels = await _seed_experiment_pair(
+                    session,
+                    base_task_id=existing_task.id,
+                    now=datetime.now(timezone.utc),
+                )
+                await session.commit()
+                if exp_id:
+                    print(f"  Experiment: {DEMO_EXPERIMENT_NAME} ({exp_id})")
+                    print(f"  Variants  : {', '.join(labels)}")
+                    print("Next: open /experiments")
                 return
 
         now = datetime.now(timezone.utc)
@@ -240,27 +298,19 @@ async def seed_database(async_session_factory, *, force: bool = False) -> None:
             trace_ids.append(trace_id)
             await session.flush()
 
-            score = 42.0 if failed else 88.0 - idx * 1.5
-            session.add(
-                MetricScore(
-                    id=str(uuid4()),
-                    trace_id=trace_id,
-                    metric_name="overall",
-                    score=max(0.0, score),
-                    reason="seed demo score" if not failed else "tool loop / timeout",
-                    confidence=0.75 if not failed else 0.55,
+            for metric_name, score, reason in _dimension_scores(
+                failed=failed, idx=idx, variant="baseline"
+            ):
+                session.add(
+                    MetricScore(
+                        id=str(uuid4()),
+                        trace_id=trace_id,
+                        metric_name=metric_name,
+                        score=score,
+                        reason=reason,
+                        confidence=0.75 if not failed else 0.55,
+                    )
                 )
-            )
-            session.add(
-                MetricScore(
-                    id=str(uuid4()),
-                    trace_id=trace_id,
-                    metric_name="tool_accuracy",
-                    score=30.0 if failed else 92.0,
-                    reason="seed",
-                    confidence=0.7,
-                )
-            )
 
             # AOLS events for Monitoring + Dashboard log cards
             events = [
@@ -334,15 +384,211 @@ async def seed_database(async_session_factory, *, force: bool = False) -> None:
                 )
                 log_rows += 1
 
+        # --- Multi-variant experiment (compare UI) ---
+        exp_id, run_labels = await _seed_experiment_pair(
+            session,
+            base_task_id=task_id,
+            now=now,
+        )
+
         await session.commit()
         print(f"Seeded demo task with {len(SAMPLE_TEST_SUITES)} suites.")
         print(f"  Task name : {SAMPLE_TASK['name']}")
         print(f"  Task id   : {task_id}")
         print(f"  Traces    : {len(trace_ids)} (incl. 1 failed for Diagnosis)")
         print(f"  AgentLogs : {log_rows}")
+        print(f"  Scorecard : default 40/40/20 on agent_config")
+        if exp_id:
+            print(f"  Experiment: {DEMO_EXPERIMENT_NAME}")
+            print(f"  Exp id    : {exp_id}")
+            print(f"  Variants  : {', '.join(run_labels)}")
         print(
-            "Next: open /dashboard /diagnosis /monitoring — cards should be non-empty."
+            "Next: /dashboard · /experiments · demo task Trace + ScoreCard · /diagnosis"
         )
+
+
+def _dimension_scores(
+    *,
+    failed: bool,
+    idx: int,
+    variant: str = "baseline",
+) -> list[tuple[str, float, str]]:
+    """Scorecard-aligned seed scores (tool/answer/coherence)."""
+    # candidate (gpt-4o) slightly better for demo compare narrative
+    boost = 3.0 if variant == "candidate" else 0.0
+    if failed:
+        return [
+            ("tool_accuracy", 12.0, "seed: tool loop / timeout"),
+            ("answer_correctness", 15.0, "seed: incomplete answer"),
+            ("reasoning_coherence", 8.0, "seed: repeated steps"),
+        ]
+    tool = min(40.0, max(0.0, 36.0 - idx * 0.8 + boost))
+    ans = min(40.0, max(0.0, 34.0 - idx * 0.5 + boost))
+    coh = min(20.0, max(0.0, 17.5 - idx * 0.3 + boost * 0.5))
+    return [
+        ("tool_accuracy", round(tool, 1), "seed demo"),
+        ("answer_correctness", round(ans, 1), "seed demo"),
+        ("reasoning_coherence", round(coh, 1), "seed demo"),
+    ]
+
+
+async def _seed_variant_task(
+    session,
+    *,
+    label: str,
+    agent_config: dict,
+    snapshot: list[dict],
+    variant: str,
+    model_version: str,
+) -> str:
+    """Materialize one completed variant task with suites/traces/metrics."""
+    from app.models.metric_score import MetricScore
+    from app.models.task import Task, TaskStatus
+    from app.models.test_suite import TestSuite
+    from app.models.trace import Trace, TraceStatus
+
+    task_id = str(uuid4())
+    session.add(
+        Task(
+            id=task_id,
+            name=f"Demo 对比变体 · {label}",
+            description=f"Seed 变体 {label}，与其它变体共享相同用例快照。",
+            agent_config=agent_config,
+            status=TaskStatus.COMPLETED,
+            created_by="demo",
+        )
+    )
+    await session.flush()
+
+    for idx, case in enumerate(snapshot):
+        suite_id = str(uuid4())
+        session.add(
+            TestSuite(
+                id=suite_id,
+                task_id=task_id,
+                user_query=case["user_query"],
+                expected_output=case["expected_output"],
+                expected_tools=case["expected_tools"],
+            )
+        )
+        await session.flush()
+        steps = _success_steps(
+            case["user_query"], list(case.get("expected_tools") or [])
+        )
+        tokens = sum(int(s.get("tokens") or 0) for s in steps)
+        # candidate slightly more tokens/latency for cost narrative
+        token_mul = 1.15 if variant == "candidate" else 1.0
+        tokens = int(tokens * token_mul)
+        tid = str(uuid4())
+        session.add(
+            Trace(
+                id=tid,
+                test_suite_id=suite_id,
+                user_query=case["user_query"],
+                steps=steps,
+                total_tokens=tokens,
+                prompt_tokens=int(tokens * 0.6),
+                completion_tokens=int(tokens * 0.4),
+                response_time_ms=int(
+                    (750 + idx * 90) * (1.1 if variant == "candidate" else 1.0)
+                ),
+                status=TraceStatus.SUCCESS,
+                cost=round(tokens * 0.0000025, 6),
+                agent_version="demo-seed-1.0",
+                model_version=model_version,
+            )
+        )
+        await session.flush()
+        for metric_name, score, reason in _dimension_scores(
+            failed=False, idx=idx, variant=variant
+        ):
+            session.add(
+                MetricScore(
+                    id=str(uuid4()),
+                    trace_id=tid,
+                    metric_name=metric_name,
+                    score=score,
+                    reason=reason,
+                    confidence=0.8,
+                )
+            )
+    return task_id
+
+
+async def _seed_experiment_pair(session, *, base_task_id: str, now: datetime):
+    """Create two fair variant tasks + Experiment for /experiments compare."""
+    from app.models.experiment import Experiment, ExperimentRun
+    from sqlalchemy import select
+
+    _ = now
+    existing = await session.execute(
+        select(Experiment).where(Experiment.name == DEMO_EXPERIMENT_NAME).limit(1)
+    )
+    if existing.scalar_one_or_none() is not None:
+        print("Demo experiment already exists; skip experiment seed.")
+        return None, []
+
+    snapshot = [
+        {
+            "user_query": s["user_query"],
+            "expected_output": s["expected_output"],
+            "expected_tools": list(s.get("expected_tools") or []),
+        }
+        for s in SAMPLE_TEST_SUITES
+        if s.get("outcome") != "failed"
+    ][:3]
+
+    baseline_id = await _seed_variant_task(
+        session,
+        label="gpt-4o-mini",
+        agent_config=SAMPLE_AGENT_CONFIG,
+        snapshot=snapshot,
+        variant="baseline",
+        model_version="gpt-4o-mini",
+    )
+    candidate_id = await _seed_variant_task(
+        session,
+        label="gpt-4o",
+        agent_config=SAMPLE_AGENT_CONFIG_CANDIDATE,
+        snapshot=snapshot,
+        variant="candidate",
+        model_version="gpt-4o",
+    )
+
+    exp_id = str(uuid4())
+    session.add(
+        Experiment(
+            id=exp_id,
+            name=DEMO_EXPERIMENT_NAME,
+            description=(
+                "Seed 演示：同一套 3 条用例，对比 gpt-4o-mini 与 gpt-4o。"
+                "打开「对比实验」查看 Best / 维度分 / Token / 耗时。"
+            ),
+            base_task_id=base_task_id,
+            suite_snapshot=snapshot,
+            created_by="demo",
+        )
+    )
+    await session.flush()
+    session.add(
+        ExperimentRun(
+            id=str(uuid4()),
+            experiment_id=exp_id,
+            task_id=baseline_id,
+            label="gpt-4o-mini",
+            agent_config=SAMPLE_AGENT_CONFIG,
+        )
+    )
+    session.add(
+        ExperimentRun(
+            id=str(uuid4()),
+            experiment_id=exp_id,
+            task_id=candidate_id,
+            label="gpt-4o",
+            agent_config=SAMPLE_AGENT_CONFIG_CANDIDATE,
+        )
+    )
+    return exp_id, ["gpt-4o-mini", "gpt-4o"]
 
 
 def main() -> None:

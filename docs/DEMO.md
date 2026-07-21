@@ -64,13 +64,30 @@ powershell -ExecutionPolicy Bypass -File scripts\demo-playbook.ps1
 
 ---
 
+## 种子数据（推荐）
+
+```powershell
+cd backend
+python -m app.core.seed --force
+```
+
+写入内容：
+
+| 数据 | 用途 |
+|------|------|
+| 任务「客服 Agent 综合评测（Demo）」 | Trace / 三维评分卡 / 诊断失败用例 |
+| 实验「Demo 多变体对比（mini vs 4o）」 | `/experiments` 对比表（Best / 维度 / Token） |
+
+---
+
 ## UI 手点路径（录屏友好）
 
-1. **总览** `/` — 配额条 + KPI + 慢任务  
-2. **任务** — 创建 / 执行  
-3. **用量计费** `/billing` — 点 Pro「结账订阅」（mock 秒激活）  
-4. **插件市场** `/plugins` — 安装免费 + 付费 mock  
-5. **设置** — 主题 / API Key（若开启 AUTH）
+1. **总览** `/dashboard` — KPI + 活动  
+2. **对比实验** `/experiments` — 打开 Demo 多变体，看 Best 与 Δ  
+3. **任务** — Demo 任务详情 → Trace → 评分卡  
+4. **创建任务** — 切换 HTTP Runner 或编辑 Scorecard JSON  
+5. **用量计费** `/billing` — Pro mock 结账（可选）  
+6. **设置** — 主题 / API Key（若开启 AUTH）
 
 ---
 

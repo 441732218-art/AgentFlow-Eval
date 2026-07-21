@@ -6,9 +6,10 @@
 
 | 文档 | 说明 |
 |------|------|
-| [../README.md](../README.md) | 项目首页、快速开始、API 摘要 |
+| [../README.md](../README.md) | 项目首页：HTTP Agent · 对比实验 · 评分卡 · 快速开始 |
+| [http-agent-protocol.md](http-agent-protocol.md) | 外部 HTTP Agent 协议 · Probe · SSRF |
 | [brand/BRAND-GUIDE.md](brand/BRAND-GUIDE.md) | Logo / 色彩 / 品牌视觉规范 |
-| [DEMO.md](DEMO.md) | 15 分钟演示剧本（Lite / Docker） |
+| [DEMO.md](DEMO.md) | 演示剧本 + seed 后 UI 路径（含 /experiments） |
 | [production-checklist.md](production-checklist.md) | 生产上线检查清单（P0） |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | 开发与贡献流程 |
 

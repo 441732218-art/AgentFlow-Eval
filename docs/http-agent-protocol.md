@@ -1,10 +1,13 @@
 # HTTP Agent Protocol — agentflow.http.v1
 
-> Phase 0 契约文档。实现：`backend/app/core/agent_runner/protocol.py`、`http_runner.py`。
+> 产品契约文档（Runner 统一接口 + Probe + SSRF）。  
+> 实现：`backend/app/core/agent_runner/{protocol,http_runner,ssrf}.py` · UI：创建任务 → Runner=HTTP。
 
 ## 目标
 
 让用户托管的 Agent 服务通过 **HTTP JSON** 接入 AgentFlow-Eval 的任务执行与 Trace 体系，无需改平台核心流水线。
+
+**产品入口：** 前端「创建任务」选择 HTTP Runner → 可选「探测 Agent」→ 提交后走与 OpenAI 相同的评测流水线。
 
 ## 任务侧配置（`Task.agent_config`）
 
