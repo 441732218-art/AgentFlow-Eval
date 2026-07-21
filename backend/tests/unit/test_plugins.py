@@ -122,8 +122,8 @@ async def test_load_echo_runner_plugin():
     from app.core.agent_runner.factory import build_agent_runner
 
     runner = build_agent_runner({"runner": "echo", "prefix": ">> "})
-    result = await runner.run("hello", {"prefix": ">> "})
-    # AgentResult dataclass
+    # Phase-0 unified signature: run(query, tools=None, *, agent_config=...)
+    result = await runner.run("hello", agent_config={"prefix": ">> "})
     steps = result.steps if hasattr(result, "steps") else result.get("steps")
     assert any(">> hello" in str(s) for s in steps)
 

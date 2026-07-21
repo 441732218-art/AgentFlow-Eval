@@ -210,31 +210,15 @@ def run_single_test_suite(
                 },
             )
 
-            try:
-                agent_result = await runner.run(
-                    query=suite.user_query,
-                    tools=tools,
-                )
-            except TypeError:
-                # BaseAgentRunner signature: run(user_query, agent_config)
-                agent_result = await runner.run(
-                    suite.user_query,
-                    agent_config or {},
-                )
-                if hasattr(agent_result, "__dataclass_fields__"):
-                    from dataclasses import asdict
+            from app.core.agent_runner.base import ensure_pipeline_result
 
-                    agent_result = asdict(agent_result)
-                elif not isinstance(agent_result, dict):
-                    agent_result = {
-                        "steps": getattr(agent_result, "steps", []),
-                        "total_tokens": getattr(agent_result, "total_tokens", 0),
-                        "response_time_ms": getattr(
-                            agent_result, "response_time_ms", 0
-                        ),
-                        "status": getattr(agent_result, "status", "success"),
-                        "error_message": getattr(agent_result, "error_message", ""),
-                    }
+            # Unified Phase-0 contract: run(query, tools=..., agent_config=...)
+            raw_result = await runner.run(
+                suite.user_query,
+                tools=tools,
+                agent_config=agent_config or {},
+            )
+            agent_result = ensure_pipeline_result(raw_result)
 
             await hooks.emit(
                 HOOK_POST_AGENT_RUN,
@@ -242,25 +226,10 @@ def run_single_test_suite(
                     "test_suite_id": test_suite_id,
                     "query": suite.user_query,
                     "actor": actor_name,
-                    "status": (
-                        agent_result.get("status")
-                        if isinstance(agent_result, dict)
-                        else getattr(agent_result, "status", "")
-                    ),
-                    "agent_result": agent_result
-                    if isinstance(agent_result, dict)
-                    else None,
+                    "status": agent_result.get("status", ""),
+                    "agent_result": agent_result,
                 },
             )
-
-            if not isinstance(agent_result, dict):
-                agent_result = {
-                    "steps": getattr(agent_result, "steps", []),
-                    "total_tokens": getattr(agent_result, "total_tokens", 0),
-                    "response_time_ms": getattr(agent_result, "response_time_ms", 0),
-                    "status": getattr(agent_result, "status", "success"),
-                    "error_message": getattr(agent_result, "error_message", ""),
-                }
 
             mapped = map_agent_status_to_trace(agent_result.get("status", ""))
             trace_status = (

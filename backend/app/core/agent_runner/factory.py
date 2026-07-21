@@ -17,7 +17,7 @@ def build_agent_runner(agent_config: dict[str, Any] | None = None) -> Any:
       - ``http`` / ``http_agent`` — HttpAgentRunner
       - any key registered by an active **plugin** (e.g. ``echo``)
 
-    HTTP config keys (when runner=http)::
+    HTTP config keys (when runner=http) — protocol agentflow.http.v1::
 
         {
           "runner": "http",
@@ -28,6 +28,8 @@ def build_agent_runner(agent_config: dict[str, Any] | None = None) -> Any:
           "context": {"tenant": "acme"},
           "verify_ssl": true
         }
+
+    See ``docs/http-agent-protocol.md`` and ``agent_runner.protocol``.
 
     OpenAI config keys::
 

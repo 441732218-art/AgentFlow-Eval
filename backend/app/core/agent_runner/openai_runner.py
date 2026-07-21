@@ -207,7 +207,11 @@ class OpenAIReActRunner(BaseAgentRunner):
         self,
         query: str,
         tools: list[dict[str, Any]] | None = None,
+        *,
+        agent_config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Execute ReAct loop. ``agent_config`` is accepted for BaseAgentRunner parity."""
+        _ = agent_config  # model/max_iterations already set on the instance
         tool_defs, tool_map = self._parse_tools(tools or DEFAULT_TOOL_DEFS)
         openai_tools = [t.to_openai_tool() for t in tool_defs]
 
@@ -539,10 +543,19 @@ class OpenAIRunner(BaseAgentRunner):
     def __init__(self, api_key: str | None = None, base_url: str | None = None) -> None:
         self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
-    async def run(self, user_query: str, agent_config: dict[str, Any]) -> AgentResult:
-        model = agent_config.get("model", "gpt-4o")
-        temperature = agent_config.get("temperature", 0)
-        max_tokens = agent_config.get("max_tokens", 4096)
+    async def run(
+        self,
+        query: str,
+        tools: list[Any] | None = None,
+        *,
+        agent_config: dict[str, Any] | None = None,
+    ) -> AgentResult:
+        """Legacy single-turn run — unified BaseAgentRunner signature."""
+        _ = tools
+        cfg = dict(agent_config or {})
+        model = cfg.get("model", "gpt-4o")
+        temperature = cfg.get("temperature", 0)
+        max_tokens = cfg.get("max_tokens", 4096)
         start_time = time.monotonic()
         try:
             response = await self.client.chat.completions.create(
@@ -554,7 +567,7 @@ class OpenAIRunner(BaseAgentRunner):
                         + "\n"
                         + REACT_SINGLE_TURN_PROMPT,
                     },
-                    {"role": "user", "content": user_query},
+                    {"role": "user", "content": query},
                 ],
                 temperature=temperature,
                 max_tokens=max_tokens,

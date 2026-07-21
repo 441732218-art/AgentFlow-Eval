@@ -15,13 +15,15 @@ class EchoAgentRunner(BaseAgentRunner):
 
     async def run(
         self,
-        user_query: str,
-        agent_config: dict[str, Any],
+        query: str,
         tools: list[Any] | None = None,
-        **kwargs: Any,
+        *,
+        agent_config: dict[str, Any] | None = None,
     ) -> AgentResult:
-        prefix = str((agent_config or {}).get("prefix") or "ECHO: ")
-        text = f"{prefix}{user_query}"
+        _ = tools
+        cfg = dict(agent_config or {})
+        prefix = str(cfg.get("prefix") or "ECHO: ")
+        text = f"{prefix}{query}"
         steps = [
             {
                 "type": "thought",
@@ -38,6 +40,8 @@ class EchoAgentRunner(BaseAgentRunner):
             total_tokens=0,
             response_time_ms=1,
             status="success",
+            final_answer=text,
+            runner="echo",
             finished_at=datetime.now(timezone.utc),
         )
 
