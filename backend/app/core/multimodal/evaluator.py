@@ -132,7 +132,11 @@ async def vision_llm_score(
         user_content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
         if image_bytes and extracted.kind == MediaKind.IMAGE:
             mime = extracted.metadata.get("format", "png")
-            mime = f"image/{str(mime).lower()}" if not str(mime).startswith("image/") else mime
+            mime = (
+                f"image/{str(mime).lower()}"
+                if not str(mime).startswith("image/")
+                else mime
+            )
             b64 = base64.b64encode(image_bytes).decode("ascii")
             user_content.append(
                 {

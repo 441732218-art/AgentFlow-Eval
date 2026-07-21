@@ -14,6 +14,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class ModelPricing:
     """每百万 Token 的价格（USD）。"""
+
     prompt_per_million: float
     completion_per_million: float
 
@@ -73,10 +74,9 @@ def calculate_cost(
         0.075
     """
     pricing = MODEL_PRICING.get(model, _DEFAULT_PRICING)
-    cost = (
-        (prompt_tokens / 1_000_000) * pricing.prompt_per_million
-        + (completion_tokens / 1_000_000) * pricing.completion_per_million
-    )
+    cost = (prompt_tokens / 1_000_000) * pricing.prompt_per_million + (
+        completion_tokens / 1_000_000
+    ) * pricing.completion_per_million
     return round(cost, 8)
 
 

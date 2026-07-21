@@ -76,9 +76,15 @@ class ABExperiment(PKMixin, TenantMixin, TimestampMixin, Base):
     # Optional link to offline Experiment
     source_experiment_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     config: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
-    created_by: Mapped[str] = mapped_column(String(100), nullable=False, default="anonymous")
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[str] = mapped_column(
+        String(100), nullable=False, default="anonymous"
+    )
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    ended_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     winner_variant_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     variants: Mapped[list[ABVariant]] = relationship(
@@ -155,7 +161,9 @@ class ABEvent(PKMixin, TimestampMixin, Base):
         Index("ix_ab_events_variant_key", "variant_key"),
         Index("ix_ab_events_event_type", "event_type"),
         Index("ix_ab_events_unit_id", "unit_id"),
-        Index("ix_ab_events_exp_type_created", "experiment_id", "event_type", "created_at"),
+        Index(
+            "ix_ab_events_exp_type_created", "experiment_id", "event_type", "created_at"
+        ),
     )
 
     experiment_id: Mapped[str] = mapped_column(

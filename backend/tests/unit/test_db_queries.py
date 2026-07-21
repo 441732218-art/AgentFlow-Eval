@@ -78,9 +78,7 @@ def test_trace_and_score_indexes():
     from app.models.metric_score import MetricScore
     from app.models.trace import Trace
 
-    assert any(
-        ix.name == "ix_traces_suite_created" for ix in Trace.__table__.indexes
-    )
+    assert any(ix.name == "ix_traces_suite_created" for ix in Trace.__table__.indexes)
     assert any(
         ix.name == "ix_metric_scores_trace_metric"
         for ix in MetricScore.__table__.indexes

@@ -48,12 +48,12 @@ async def compute_dashboard_series(
             func.count(Trace.id).label("n"),
             func.coalesce(func.sum(Trace.total_tokens), 0).label("tokens"),
             func.avg(Trace.response_time_ms).label("avg_lat"),
-            func.sum(
-                case((Trace.status == TraceStatus.FAILED, 1), else_=0)
-            ).label("errors"),
-            func.sum(
-                case((Trace.status == TraceStatus.SUCCESS, 1), else_=0)
-            ).label("ok"),
+            func.sum(case((Trace.status == TraceStatus.FAILED, 1), else_=0)).label(
+                "errors"
+            ),
+            func.sum(case((Trace.status == TraceStatus.SUCCESS, 1), else_=0)).label(
+                "ok"
+            ),
         )
         .where(Trace.created_at >= since)
         .group_by(day_expr)

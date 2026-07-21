@@ -92,7 +92,9 @@ async def create_ab_experiment(
         key=body.key,
         name=body.name,
         description=body.description or "",
-        status=ABStatus.RUNNING.value if body.start_immediately else ABStatus.DRAFT.value,
+        status=ABStatus.RUNNING.value
+        if body.start_immediately
+        else ABStatus.DRAFT.value,
         alpha=body.alpha,
         min_sample_size=body.min_sample_size,
         primary_metric=body.primary_metric,
@@ -154,12 +156,16 @@ async def list_ab_experiments(
         cq = cq.where(ABExperiment.status == status)
     total = int((await session.execute(cq)).scalar() or 0)
     rows = (
-        await session.execute(
-            q.order_by(ABExperiment.created_at.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
+        (
+            await session.execute(
+                q.order_by(ABExperiment.created_at.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return ABExperimentListResponse(
         items=[_to_response(r) for r in rows],
         total=total,

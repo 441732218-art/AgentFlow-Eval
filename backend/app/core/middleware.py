@@ -77,7 +77,9 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
       4. Logs each request as ``http.request`` / ``http.request.failed``.
     """
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         request_id = (
             request.headers.get("X-Request-ID")
             or request.headers.get("X-Trace-ID")
@@ -176,7 +178,9 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         event = (
             str(LogEvent.HTTP_REQUEST_FAILED)
             if failed and LogEvent is not None
-            else (str(LogEvent.HTTP_REQUEST) if LogEvent is not None else "http.request")
+            else (
+                str(LogEvent.HTTP_REQUEST) if LogEvent is not None else "http.request"
+            )
         )
         if failed and LogEvent is None:
             event = "http.request.failed"
@@ -227,12 +231,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         "frame-ancestors 'none'"
     )
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         response = await call_next(request)
 
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault(
+            "Referrer-Policy", "strict-origin-when-cross-origin"
+        )
         response.headers.setdefault(
             "Permissions-Policy",
             "geolocation=(), microphone=(), camera=(), payment=()",
@@ -259,7 +267,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 class APIKeyAuthMiddleware(BaseHTTPMiddleware):
     """Enforce API key auth for /api/v1 when AUTH_ENABLED=true."""
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         path = request.url.path
         if not settings.AUTH_ENABLED:
             from app.core.rbac import Role

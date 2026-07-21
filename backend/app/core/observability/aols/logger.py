@@ -26,7 +26,9 @@ def _add_service_fields(
     logger: WrappedLogger, method_name: str, event_dict: EventDict
 ) -> EventDict:
     """Inject service / environment / default trace_id."""
-    event_dict.setdefault("service", getattr(settings, "LOG_SERVICE_NAME", "agentflow-api"))
+    event_dict.setdefault(
+        "service", getattr(settings, "LOG_SERVICE_NAME", "agentflow-api")
+    )
     event_dict.setdefault(
         "environment",
         getattr(settings, "ENV", None) or getattr(settings, "APP_ENV", "dev"),

@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
+
 def _collect_retry_exceptions() -> tuple[type[BaseException], ...]:
     """Build the default set of transient exception types to retry."""
     import asyncio

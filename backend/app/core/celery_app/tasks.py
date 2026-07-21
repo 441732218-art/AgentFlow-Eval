@@ -229,7 +229,9 @@ def run_single_test_suite(
                     agent_result = {
                         "steps": getattr(agent_result, "steps", []),
                         "total_tokens": getattr(agent_result, "total_tokens", 0),
-                        "response_time_ms": getattr(agent_result, "response_time_ms", 0),
+                        "response_time_ms": getattr(
+                            agent_result, "response_time_ms", 0
+                        ),
                         "status": getattr(agent_result, "status", "success"),
                         "error_message": getattr(agent_result, "error_message", ""),
                     }

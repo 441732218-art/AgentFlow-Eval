@@ -94,7 +94,11 @@ class HttpAgentRunner(BaseAgentRunner):
         headers = {"Content-Type": "application/json", **self.headers}
 
         try:
-            from app.core.observability.aols import LogEvent, emit_agent, new_execution_id
+            from app.core.observability.aols import (
+                LogEvent,
+                emit_agent,
+                new_execution_id,
+            )
 
             _exec_id = new_execution_id()
             emit_agent(
@@ -132,7 +136,9 @@ class HttpAgentRunner(BaseAgentRunner):
                 )
             except Exception:
                 pass
-            return self._normalize_response(response, query=query, elapsed_ms=elapsed_ms)
+            return self._normalize_response(
+                response, query=query, elapsed_ms=elapsed_ms
+            )
         except httpx.TimeoutException as exc:
             elapsed_ms = int((time.monotonic() - start) * 1000)
             logger.warning("HttpAgentRunner timeout: %s", exc)
@@ -239,7 +245,9 @@ class HttpAgentRunner(BaseAgentRunner):
 
         content_type = (response.headers.get("content-type") or "").lower()
         data: Any
-        if "application/json" in content_type or (response.text or "").lstrip().startswith(("{", "[")):
+        if "application/json" in content_type or (
+            response.text or ""
+        ).lstrip().startswith(("{", "[")):
             try:
                 data = response.json()
             except ValueError:

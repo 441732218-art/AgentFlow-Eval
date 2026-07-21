@@ -31,7 +31,9 @@ from app.core.celery_app.tests.conftest import (
 
 
 async def _get_suites(session, task_id: str) -> list[TestSuite]:
-    result = await session.execute(select(TestSuite).where(TestSuite.task_id == task_id))
+    result = await session.execute(
+        select(TestSuite).where(TestSuite.task_id == task_id)
+    )
     return list(result.scalars().all())
 
 
@@ -318,7 +320,11 @@ async def test_judge_accepts_object_result(db_session, sample_task, mock_llm):
     suite_result = run_single_test_suite(suites[0].id, sample_task.agent_config)
 
     obj = MagicMock()
-    obj.scores = {"tool_accuracy": 40.0, "answer_correctness": 40.0, "reasoning_coherence": 20.0}
+    obj.scores = {
+        "tool_accuracy": 40.0,
+        "answer_correctness": 40.0,
+        "reasoning_coherence": 20.0,
+    }
     obj.total = 100.0
     obj.reason = "object-style"
     obj.token_cost = 5

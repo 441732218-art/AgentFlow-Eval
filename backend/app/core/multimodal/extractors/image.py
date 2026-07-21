@@ -61,9 +61,7 @@ def extract_image(data: bytes, filename: str = "image") -> ExtractResult:
         hist = gray.histogram()
         # 256 bins → 8 buckets
         bucket = 32
-        compact = [
-            sum(hist[i * bucket : (i + 1) * bucket]) for i in range(8)
-        ]
+        compact = [sum(hist[i * bucket : (i + 1) * bucket]) for i in range(8)]
         total = sum(compact) or 1
         features["luma_hist8"] = [round(c / total, 4) for c in compact]
 

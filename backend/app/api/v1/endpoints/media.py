@@ -66,7 +66,9 @@ async def list_supported_formats(request: Request) -> SupportedFormatsResponse:
     return SupportedFormatsResponse(
         extensions=sorted(SUPPORTED_EXTENSIONS),
         kinds=[k.value for k in MediaKind],
-        max_upload_bytes=int(getattr(settings, "MEDIA_MAX_UPLOAD_BYTES", 20 * 1024 * 1024)),
+        max_upload_bytes=int(
+            getattr(settings, "MEDIA_MAX_UPLOAD_BYTES", 20 * 1024 * 1024)
+        ),
         storage_backend=str(getattr(settings, "STORAGE_BACKEND", "local")),
     )
 
@@ -231,7 +233,9 @@ async def evaluate_media(
 
         meta = asset.extract_meta or {}
         extracted = ExtractResult(
-            kind=MediaKind(asset.media_kind) if asset.media_kind in {k.value for k in MediaKind} else MediaKind.OTHER,
+            kind=MediaKind(asset.media_kind)
+            if asset.media_kind in {k.value for k in MediaKind}
+            else MediaKind.OTHER,
             text=asset.extracted_text or "",
             features=asset.features or {},
             metadata=meta.get("metadata") or {},

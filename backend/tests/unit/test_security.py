@@ -45,9 +45,10 @@ class TestAuthMiddleware:
 
     @pytest.mark.asyncio
     async def test_auth_enabled_blocks_api(self):
-        with patch("app.core.middleware.settings") as s, patch(
-            "app.core.security.settings"
-        ) as ss:
+        with (
+            patch("app.core.middleware.settings") as s,
+            patch("app.core.security.settings") as ss,
+        ):
             s.AUTH_ENABLED = True
             ss.AUTH_ENABLED = True
             ss.API_KEYS = "good-key:tester"

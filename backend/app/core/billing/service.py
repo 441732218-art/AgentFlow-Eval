@@ -195,9 +195,7 @@ class BillingService:
     async def get_plan_by_code(
         self, session: AsyncSession, code: str
     ) -> BillingPlan | None:
-        r = await session.execute(
-            select(BillingPlan).where(BillingPlan.code == code)
-        )
+        r = await session.execute(select(BillingPlan).where(BillingPlan.code == code))
         return r.scalar_one_or_none()
 
     async def get_active_subscription(
@@ -286,9 +284,12 @@ class BillingService:
             storage_limit = int(getattr(plan, "storage_quota_mb", None) or 1024)
             plugin_limit = int(getattr(plan, "plugin_quota", None) or 10)
         else:
-            token_limit, task_limit, storage_limit, plugin_limit = (
-                await self._resolve_limits(session, actor)
-            )
+            (
+                token_limit,
+                task_limit,
+                storage_limit,
+                plugin_limit,
+            ) = await self._resolve_limits(session, actor)
         bal = QuotaBalance(
             id=str(uuid4()),
             actor=actor,
@@ -503,9 +504,7 @@ class BillingService:
         )
         return list(r.scalars().all())
 
-    async def list_invoices(
-        self, session: AsyncSession, actor: str
-    ) -> list[Invoice]:
+    async def list_invoices(self, session: AsyncSession, actor: str) -> list[Invoice]:
         r = await session.execute(
             select(Invoice)
             .where(Invoice.actor == actor)
@@ -559,7 +558,9 @@ class BillingService:
         await session.flush()
         return inv
 
-    def plan_allows_plugin(self, features: dict[str, Any] | None, plugin_id: str) -> bool:
+    def plan_allows_plugin(
+        self, features: dict[str, Any] | None, plugin_id: str
+    ) -> bool:
         if not features:
             return True
         plugins = features.get("plugins")
@@ -590,9 +591,12 @@ class BillingService:
         bal = existing.scalar_one_or_none()
         if bal is not None:
             return bal
-        token_limit, task_limit, storage_limit, plugin_limit = (
-            await self._resolve_limits(session, actor)
-        )
+        (
+            token_limit,
+            task_limit,
+            storage_limit,
+            plugin_limit,
+        ) = await self._resolve_limits(session, actor)
         bal = QuotaBalance(
             id=str(uuid4()),
             actor=actor,

@@ -33,35 +33,53 @@ class MetricScore(PKMixin, TenantMixin, TimestampMixin, Base):
         comment="FK to trace",
     )
     metric_name: Mapped[str] = mapped_column(
-        String(100), nullable=False, comment="metric name",
+        String(100),
+        nullable=False,
+        comment="metric name",
     )
     score: Mapped[float] = mapped_column(
-        Float, nullable=False, comment="score 0-100",
+        Float,
+        nullable=False,
+        comment="score 0-100",
     )
     reason: Mapped[str] = mapped_column(
-        Text, nullable=False, default="", comment="deduction reason",
+        Text,
+        nullable=False,
+        default="",
+        comment="deduction reason",
     )
     extra_metadata: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True, default=None, comment="extra metadata",
+        JSON,
+        nullable=True,
+        default=None,
+        comment="extra metadata",
     )
 
     # ---- v1.0 新增：LLM 评分置信度 ----
     confidence: Mapped[float | None] = mapped_column(
-        Float, nullable=True, default=None,
+        Float,
+        nullable=True,
+        default=None,
         comment="LLM 评分置信度 0.0 ~ 1.0",
     )
 
     # ---- v1.0 新增：人工审核覆盖 ----
     is_human_reviewed: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False,
+        Boolean,
+        nullable=False,
+        default=False,
         comment="是否经过人工审核",
     )
     human_score: Mapped[float | None] = mapped_column(
-        Float, nullable=True, default=None,
+        Float,
+        nullable=True,
+        default=None,
         comment="人工审核给出的分数（覆盖 LLM 评分）",
     )
     reviewer: Mapped[str | None] = mapped_column(
-        String(100), nullable=True, default=None,
+        String(100),
+        nullable=True,
+        default=None,
         comment="人工审核人员标识",
     )
 

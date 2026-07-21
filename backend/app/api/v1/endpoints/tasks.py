@@ -248,9 +248,7 @@ async def get_task(
     """Get task details by ID (owner-scoped when tenancy on). Cached 5 min."""
     from app.core.cache.services import get_cached_task_detail
 
-    task = await _load_task(
-        session, task_id, _actor(request), role=_role(request)
-    )
+    task = await _load_task(session, task_id, _actor(request), role=_role(request))
     payload = await get_cached_task_detail(session, task)
     return TaskResponse(**payload)
 
@@ -302,7 +300,7 @@ async def execute_task(
         raise HTTPException(
             status_code=409,
             detail=f"Cannot execute task in '{task.status.value}' state. "
-                   f"Only tasks in 'created' state can be executed.",
+            f"Only tasks in 'created' state can be executed.",
         )
 
     # SaaS quota gate (no-op when BILLING_ENABLED=false)
@@ -427,7 +425,9 @@ async def upload_test_suites(
     try:
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
-        raise HTTPException(status_code=400, detail="File must be UTF-8 encoded") from exc
+        raise HTTPException(
+            status_code=400, detail="File must be UTF-8 encoded"
+        ) from exc
 
     items: list[dict] = []
     if filename.endswith(".json") or text.lstrip().startswith("["):
@@ -436,7 +436,9 @@ async def upload_test_suites(
         except json.JSONDecodeError as exc:
             raise HTTPException(status_code=400, detail=f"Invalid JSON: {exc}") from exc
         if not isinstance(data, list):
-            raise HTTPException(status_code=400, detail="JSON must be an array of test cases")
+            raise HTTPException(
+                status_code=400, detail="JSON must be an array of test cases"
+            )
         items = [x for x in data if isinstance(x, dict)]
     elif filename.endswith(".csv") or "," in text.splitlines()[0]:
         reader = csv.DictReader(io.StringIO(text))
@@ -444,7 +446,7 @@ async def upload_test_suites(
             raise HTTPException(
                 status_code=400,
                 detail="CSV must include a 'user_query' column "
-                       "(optional: expected_output, expected_tools)",
+                "(optional: expected_output, expected_tools)",
             )
         items = list(reader)
     else:
@@ -557,7 +559,7 @@ async def archive_task(
         raise HTTPException(
             status_code=409,
             detail=f"Cannot archive task in '{task.status.value}' state. "
-                   f"Only terminal-state tasks can be archived.",
+            f"Only terminal-state tasks can be archived.",
         )
 
     task.is_archived = True

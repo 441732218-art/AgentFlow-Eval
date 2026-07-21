@@ -55,7 +55,11 @@ async def api_client():
 async def test_create_and_list_task(api_client):
     r = await api_client.post(
         "/api/v1/tasks",
-        json={"name": "demo", "description": "d", "agent_config": {"model": "gpt-4o-mini"}},
+        json={
+            "name": "demo",
+            "description": "d",
+            "agent_config": {"model": "gpt-4o-mini"},
+        },
     )
     assert r.status_code == 201, r.text
     body = r.json()
@@ -150,9 +154,11 @@ async def test_archive_success(api_client):
 @pytest.mark.asyncio
 async def test_actor_isolation(api_client):
     """With AUTH+tenancy, alice cannot see bob's tasks."""
-    with patch("app.core.middleware.settings") as ms, patch(
-        "app.core.security.settings"
-    ) as ss, patch("app.core.tenancy.settings") as ts:
+    with (
+        patch("app.core.middleware.settings") as ms,
+        patch("app.core.security.settings") as ss,
+        patch("app.core.tenancy.settings") as ts,
+    ):
         ms.AUTH_ENABLED = True
         ss.AUTH_ENABLED = True
         ss.API_KEYS = "alice-key:alice,bob-key:bob,admin-key:admin"

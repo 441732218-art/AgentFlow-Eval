@@ -14,7 +14,9 @@ class PluginCommerceMeta:
     price_cents: int = 0
     currency: str = "USD"
     license: str = "MIT"  # MIT | proprietary | dual
-    entitlement_plan: list[str] = field(default_factory=lambda: ["free", "pro", "enterprise"])
+    entitlement_plan: list[str] = field(
+        default_factory=lambda: ["free", "pro", "enterprise"]
+    )
     trial_days: int = 0
     is_paid: bool = False
 

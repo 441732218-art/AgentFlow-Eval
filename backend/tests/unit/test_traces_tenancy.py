@@ -91,9 +91,11 @@ async def test_trace_isolation_between_actors(api_client):
     _, _, alice_trace = await _seed_owned_trace(factory, "alice", "alice-q")
     _, _, bob_trace = await _seed_owned_trace(factory, "bob", "bob-q")
 
-    with patch("app.core.middleware.settings") as ms, patch(
-        "app.core.security.settings"
-    ) as ss, patch("app.core.tenancy.settings") as ts:
+    with (
+        patch("app.core.middleware.settings") as ms,
+        patch("app.core.security.settings") as ss,
+        patch("app.core.tenancy.settings") as ts,
+    ):
         ms.AUTH_ENABLED = True
         ss.AUTH_ENABLED = True
         ss.API_KEYS = "alice-key:alice,bob-key:bob,admin-key:admin"
@@ -135,9 +137,11 @@ async def test_judge_and_review_access(api_client):
     _, _, alice_trace = await _seed_owned_trace(factory, "alice")
     _, _, bob_trace = await _seed_owned_trace(factory, "bob")
 
-    with patch("app.core.middleware.settings") as ms, patch(
-        "app.core.security.settings"
-    ) as ss, patch("app.core.tenancy.settings") as ts:
+    with (
+        patch("app.core.middleware.settings") as ms,
+        patch("app.core.security.settings") as ss,
+        patch("app.core.tenancy.settings") as ts,
+    ):
         ms.AUTH_ENABLED = True
         ss.AUTH_ENABLED = True
         ss.API_KEYS = "alice-key:alice,bob-key:bob"
@@ -194,9 +198,11 @@ async def test_report_isolation(api_client):
     alice_task, _, _ = await _seed_owned_trace(factory, "alice")
     bob_task, _, _ = await _seed_owned_trace(factory, "bob")
 
-    with patch("app.core.middleware.settings") as ms, patch(
-        "app.core.security.settings"
-    ) as ss, patch("app.core.tenancy.settings") as ts:
+    with (
+        patch("app.core.middleware.settings") as ms,
+        patch("app.core.security.settings") as ss,
+        patch("app.core.tenancy.settings") as ts,
+    ):
         ms.AUTH_ENABLED = True
         ss.AUTH_ENABLED = True
         ss.API_KEYS = "alice-key:alice,bob-key:bob"

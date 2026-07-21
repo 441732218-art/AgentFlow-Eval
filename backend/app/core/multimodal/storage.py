@@ -40,8 +40,7 @@ class ObjectStorage(ABC):
         """Delete object if present."""
 
     @abstractmethod
-    async def exists(self, key: str) -> bool:
-        ...
+    async def exists(self, key: str) -> bool: ...
 
     def make_key(self, filename: str, prefix: str = "uploads") -> str:
         safe = Path(filename).name.replace(" ", "_")
@@ -76,7 +75,11 @@ class LocalStorage(ObjectStorage):
         path = self._path(key)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
-        ct = content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        ct = (
+            content_type
+            or mimetypes.guess_type(filename)[0]
+            or "application/octet-stream"
+        )
         return StoredObject(
             key=key,
             backend=self.backend_name,
@@ -152,7 +155,11 @@ class S3Storage(ObjectStorage):
 
         key = self.make_key(filename, prefix=prefix)
         full = self._full_key(key)
-        ct = content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        ct = (
+            content_type
+            or mimetypes.guess_type(filename)[0]
+            or "application/octet-stream"
+        )
 
         def _upload() -> None:
             self._client.put_object(

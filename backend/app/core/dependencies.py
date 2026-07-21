@@ -22,17 +22,21 @@ _engine_kw: dict = {
 }
 _db_url = settings.DATABASE_URL or ""
 if "postgresql" in _db_url:
-    _engine_kw.update({
-        "pool_size": settings.DB_POOL_SIZE,
-        "max_overflow": settings.DB_MAX_OVERFLOW,
-        "pool_pre_ping": True,
-        "pool_recycle": 3600,
-    })
+    _engine_kw.update(
+        {
+            "pool_size": settings.DB_POOL_SIZE,
+            "max_overflow": settings.DB_MAX_OVERFLOW,
+            "pool_pre_ping": True,
+            "pool_recycle": 3600,
+        }
+    )
 elif "sqlite" in _db_url:
     # SQLite: avoid cross-thread issues; enable WAL via connect event below
-    _engine_kw.update({
-        "connect_args": {"check_same_thread": False},
-    })
+    _engine_kw.update(
+        {
+            "connect_args": {"check_same_thread": False},
+        }
+    )
 
 engine = create_async_engine(settings.DATABASE_URL, **_engine_kw)
 
@@ -52,6 +56,7 @@ if "sqlite" in _db_url:
             cursor.execute("PRAGMA busy_timeout=5000")
         finally:
             cursor.close()
+
 
 async_session_factory = async_sessionmaker(
     engine,

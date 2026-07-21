@@ -25,18 +25,18 @@ async def test_actor_anonymous_when_auth_off():
 
 @pytest.mark.asyncio
 async def test_actor_from_api_key():
-    with patch("app.core.middleware.settings") as ms, patch(
-        "app.core.security.settings"
-    ) as ss, patch("app.api.v1.endpoints.settings.settings") as es, patch(
-        "app.api.v1.endpoints.settings.is_admin", return_value=True
-    ), patch(
-        "app.api.v1.endpoints.settings.admin_actors", return_value={"admin"}
-    ), patch(
-        "app.api.v1.endpoints.settings.parse_api_keys",
-        return_value={"ops-secret": "admin"},
-    ), patch(
-        "app.api.v1.endpoints.settings.authenticate_api_key"
-    ) as auth:
+    with (
+        patch("app.core.middleware.settings") as ms,
+        patch("app.core.security.settings") as ss,
+        patch("app.api.v1.endpoints.settings.settings") as es,
+        patch("app.api.v1.endpoints.settings.is_admin", return_value=True),
+        patch("app.api.v1.endpoints.settings.admin_actors", return_value={"admin"}),
+        patch(
+            "app.api.v1.endpoints.settings.parse_api_keys",
+            return_value={"ops-secret": "admin"},
+        ),
+        patch("app.api.v1.endpoints.settings.authenticate_api_key") as auth,
+    ):
         ms.AUTH_ENABLED = True
         ss.AUTH_ENABLED = True
         ss.API_KEYS = "ops-secret:admin"

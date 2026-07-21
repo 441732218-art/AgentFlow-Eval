@@ -17,8 +17,13 @@ logger = logging.getLogger(__name__)
 
 def stripe_mode() -> str:
     mode = (getattr(settings, "STRIPE_MODE", None) or "mock").lower().strip()
-    if mode == "live" and not (getattr(settings, "STRIPE_SECRET_KEY", "") or "").strip():
-        logger.warning("STRIPE_MODE=live but STRIPE_SECRET_KEY empty — falling back to mock")
+    if (
+        mode == "live"
+        and not (getattr(settings, "STRIPE_SECRET_KEY", "") or "").strip()
+    ):
+        logger.warning(
+            "STRIPE_MODE=live but STRIPE_SECRET_KEY empty — falling back to mock"
+        )
         return "mock"
     return mode if mode in {"mock", "live"} else "mock"
 
@@ -132,9 +137,11 @@ def _create_live_session(
         "app": "agentflow-eval",
     }
 
-    success = success_url + (
-        "&" if "?" in success_url else "?"
-    ) + "session_id={CHECKOUT_SESSION_ID}"
+    success = (
+        success_url
+        + ("&" if "?" in success_url else "?")
+        + "session_id={CHECKOUT_SESSION_ID}"
+    )
 
     if price_id:
         session = stripe.checkout.Session.create(
@@ -198,15 +205,11 @@ def verify_webhook_signature(
         # Minimal HMAC fallback if stripe SDK missing
         try:
             # Stripe uses t=timestamp,v1=signature
-            parts = dict(
-                p.split("=", 1) for p in sig_header.split(",") if "=" in p
-            )
+            parts = dict(p.split("=", 1) for p in sig_header.split(",") if "=" in p)
             timestamp = parts.get("t", "")
             v1 = parts.get("v1", "")
             signed = f"{timestamp}.".encode() + payload
-            digest = hmac.new(
-                secret.encode(), signed, hashlib.sha256
-            ).hexdigest()
+            digest = hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
             return hmac.compare_digest(digest, v1)
         except Exception as exc:
             logger.warning("webhook signature verify failed: %s", exc)
@@ -237,11 +240,7 @@ def parse_checkout_completed_event(event: dict[str, Any]) -> dict[str, Any] | No
         or obj.get("actor")
         or "anonymous"
     )
-    plan_code = (
-        meta.get("plan_code")
-        or obj.get("plan_code")
-        or ""
-    ).lower().strip()
+    plan_code = (meta.get("plan_code") or obj.get("plan_code") or "").lower().strip()
     session_id = obj.get("id") or obj.get("session_id") or ""
     if not plan_code:
         return None

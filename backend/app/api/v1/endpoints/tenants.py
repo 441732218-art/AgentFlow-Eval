@@ -89,8 +89,10 @@ async def list_tenants(
     role = get_request_role(request)
     if role.value in {"system_admin", "admin"}:
         rows = (
-            await session.execute(select(Tenant).order_by(Tenant.created_at.desc()))
-        ).scalars().all()
+            (await session.execute(select(Tenant).order_by(Tenant.created_at.desc())))
+            .scalars()
+            .all()
+        )
     else:
         q = (
             select(Tenant)
@@ -302,13 +304,15 @@ async def list_members(
         raise NotFoundError("Tenant", tenant_id)
 
     rows = (
-        await session.execute(
-            select(TenantMember).where(TenantMember.tenant_id == tenant.id)
+        (
+            await session.execute(
+                select(TenantMember).where(TenantMember.tenant_id == tenant.id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return {
         "tenant_id": tenant.id,
-        "items": [
-            {"user_id": m.user_id, "role": m.role, "id": m.id} for m in rows
-        ],
+        "items": [{"user_id": m.user_id, "role": m.role, "id": m.id} for m in rows],
     }

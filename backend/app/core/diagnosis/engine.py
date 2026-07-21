@@ -186,13 +186,9 @@ def diagnose_from_traces(
                     "evidence": {
                         "error_samples": err_samples[:5],
                         "failed_traces": len(failed),
-                        "tools": list(
-                            {
-                                n
-                                for a in analyses
-                                for n in a["tool_names"]
-                            }
-                        )[:12],
+                        "tools": list({n for a in analyses for n in a["tool_names"]})[
+                            :12
+                        ],
                     },
                 }
             )
@@ -211,7 +207,8 @@ def diagnose_from_traces(
                     "max_growth_ratio": max(growths) if growths else 0,
                     "high_token_traces": len(high_tokens),
                     "avg_tokens": round(
-                        sum(t.total_tokens or 0 for t in traces) / max(len(traces), 1), 1
+                        sum(t.total_tokens or 0 for t in traces) / max(len(traces), 1),
+                        1,
                     ),
                     "token_curve": [
                         {"trace_id": t.id, "tokens": t.total_tokens or 0}
@@ -306,7 +303,9 @@ def diagnose_from_traces(
         {"source": "observe", "target": "judge"},
     ]
     if primary["issue"] == ISSUE_AGENT_LOOP:
-        topology_edges.append({"source": "observe", "target": "planner", "type": "loop"})
+        topology_edges.append(
+            {"source": "observe", "target": "planner", "type": "loop"}
+        )
 
     return {
         "task_id": task.id if task else None,
@@ -326,7 +325,9 @@ def diagnose_from_traces(
                 sum(t.response_time_ms or 0 for t in traces) / max(len(traces), 1), 1
             ),
             "total_tokens": sum(t.total_tokens or 0 for t in traces),
-            "total_cost": round(sum(float(getattr(t, "cost", 0) or 0) for t in traces), 6),
+            "total_cost": round(
+                sum(float(getattr(t, "cost", 0) or 0) for t in traces), 6
+            ),
         },
         "topology": {"nodes": topology_nodes, "edges": topology_edges},
         "token_curve": [
@@ -339,10 +340,7 @@ def diagnose_from_traces(
             for t in traces[:50]
         ],
         "prompt_versions": list(
-            {
-                getattr(t, "prompt_version", None) or "default"
-                for t in traces
-            }
+            {getattr(t, "prompt_version", None) or "default" for t in traces}
         ),
     }
 

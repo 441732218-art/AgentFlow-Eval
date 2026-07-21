@@ -194,7 +194,9 @@ def test_discover_and_bootstrap_modules():
 
 def test_bootstrap_disabled():
     mgr = reset_plugin_manager()
-    summary = mgr.bootstrap(enabled=False, modules=["app.plugins.examples.echo_tool:Plugin"])
+    summary = mgr.bootstrap(
+        enabled=False, modules=["app.plugins.examples.echo_tool:Plugin"]
+    )
     assert summary["enabled"] is False
     assert summary["loaded"] == []
 

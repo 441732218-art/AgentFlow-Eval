@@ -91,9 +91,7 @@ def validate_settings(
         result.errors.append("DEBUG must be false when ENV=prod (leaks stacktraces)")
 
     if settings.AUTH_ENABLED and not str(settings.API_KEYS or "").strip():
-        result.errors.append(
-            "AUTH_ENABLED=true requires a non-empty API_KEYS list"
-        )
+        result.errors.append("AUTH_ENABLED=true requires a non-empty API_KEYS list")
 
     # ---- Warnings (log only) ----
     if not settings.AUTH_ENABLED:

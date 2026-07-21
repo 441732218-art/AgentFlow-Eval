@@ -84,27 +84,35 @@ async def get_task_report(
                     dimension_scores[ms.metric_name] = []
                 dimension_scores[ms.metric_name].append(ms.score)
 
-            trace_details.append({
-                "trace_id": trace.id,
-                "status": trace.status.value,
-                "total_tokens": trace.total_tokens,
-                "response_time_ms": trace.response_time_ms,
-                "scores": scores_dict,
-                "created_at": trace.created_at.isoformat() if trace.created_at else None,
-            })
+            trace_details.append(
+                {
+                    "trace_id": trace.id,
+                    "status": trace.status.value,
+                    "total_tokens": trace.total_tokens,
+                    "response_time_ms": trace.response_time_ms,
+                    "scores": scores_dict,
+                    "created_at": trace.created_at.isoformat()
+                    if trace.created_at
+                    else None,
+                }
+            )
 
-        suite_details.append({
-            "suite_id": suite.id,
-            "user_query": suite.user_query,
-            "expected_output": suite.expected_output,
-            "expected_tools": suite.expected_tools,
-            "traces": trace_details,
-        })
+        suite_details.append(
+            {
+                "suite_id": suite.id,
+                "user_query": suite.user_query,
+                "expected_output": suite.expected_output,
+                "expected_tools": suite.expected_tools,
+                "traces": trace_details,
+            }
+        )
 
     # 计算各维度平均分
     avg_dimension_scores: dict[str, float] = {}
     for dim, scores in dimension_scores.items():
-        avg_dimension_scores[dim] = round(sum(scores) / len(scores), 1) if scores else 0.0
+        avg_dimension_scores[dim] = (
+            round(sum(scores) / len(scores), 1) if scores else 0.0
+        )
 
     # 总平均分
     all_scores = [s for scores in dimension_scores.values() for s in scores]
@@ -125,7 +133,9 @@ async def get_task_report(
             "failed_count": failed_count,
             "total_tokens": total_tokens,
             "total_time_ms": total_time_ms,
-            "avg_time_per_trace_ms": round(total_time_ms / total_traces, 1) if total_traces else 0,
+            "avg_time_per_trace_ms": round(total_time_ms / total_traces, 1)
+            if total_traces
+            else 0,
             "overall_score": overall_avg,
             "dimension_scores": avg_dimension_scores,
         },

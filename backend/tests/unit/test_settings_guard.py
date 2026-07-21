@@ -94,9 +94,7 @@ class TestValidateSettings:
 class TestEnforceProductionSettings:
     def test_enforce_raises_on_bad_prod(self) -> None:
         with pytest.raises(ProductionConfigError) as exc:
-            enforce_production_settings(
-                _settings(SECRET_KEY="change-me-in-production")
-            )
+            enforce_production_settings(_settings(SECRET_KEY="change-me-in-production"))
         assert exc.value.errors
 
     def test_enforce_noop_on_dev(self) -> None:

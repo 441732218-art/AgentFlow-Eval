@@ -12,7 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.benchmark.service import get_benchmark_service
 from app.core.dependencies import get_db
 from app.core.rbac import Permission, require_permission
-from app.core.tenant_context import current_tenant_id, extract_tenant_header, resolve_tenant_context
+from app.core.tenant_context import (
+    current_tenant_id,
+    extract_tenant_header,
+    resolve_tenant_context,
+)
 from app.utils.exceptions import AgentFlowError
 
 router = APIRouter()
@@ -90,7 +94,9 @@ async def list_benchmarks(
 
 
 @router.post("", status_code=201)
-@require_permission(Permission.BENCHMARK_CREATE, Permission.TASK_CREATE, require_all=False)
+@require_permission(
+    Permission.BENCHMARK_CREATE, Permission.TASK_CREATE, require_all=False
+)
 async def create_benchmark(
     body: BenchmarkCreate,
     request: Request,
@@ -152,7 +158,9 @@ async def get_benchmark(
 
 
 @router.post("/{benchmark_id}/import")
-@require_permission(Permission.BENCHMARK_CREATE, Permission.TASK_CREATE, require_all=False)
+@require_permission(
+    Permission.BENCHMARK_CREATE, Permission.TASK_CREATE, require_all=False
+)
 async def import_cases(
     benchmark_id: str,
     body: ImportBody,
@@ -174,7 +182,9 @@ async def import_cases(
 
 
 @router.post("/{benchmark_id}/import/file")
-@require_permission(Permission.BENCHMARK_CREATE, Permission.TASK_CREATE, require_all=False)
+@require_permission(
+    Permission.BENCHMARK_CREATE, Permission.TASK_CREATE, require_all=False
+)
 async def import_cases_file(
     benchmark_id: str,
     request: Request,

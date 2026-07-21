@@ -147,7 +147,9 @@ class TestMetricsEndpoint:
         with patch("app.core.middleware.settings") as s:
             s.AUTH_ENABLED = True
             transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 r = await client.get("/metrics")
         assert r.status_code == 200
 
@@ -157,7 +159,9 @@ class TestMetricsEndpoint:
 
         with patch.object(main_mod.settings, "METRICS_ENABLED", False):
             transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 r = await client.get("/metrics")
         assert r.status_code == 404
 

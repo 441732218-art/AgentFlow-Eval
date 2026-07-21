@@ -211,7 +211,9 @@ async def seed_database(async_session_factory, *, force: bool = False) -> None:
             )
             tokens = sum(int(s.get("tokens") or 0) for s in steps)
             # Stagger timestamps across recent days for dashboard series
-            created = now - timedelta(days=(len(SAMPLE_TEST_SUITES) - idx) % 6, hours=idx)
+            created = now - timedelta(
+                days=(len(SAMPLE_TEST_SUITES) - idx) % 6, hours=idx
+            )
 
             trace_id = str(uuid4())
             tr = Trace(
@@ -269,7 +271,11 @@ async def seed_database(async_session_factory, *, force: bool = False) -> None:
                     "agent.completed" if not failed else "agent.failed",
                     {"tokens": tokens, "latency_ms": tr.response_time_ms},
                 ),
-                ("info", "llm.request", {"tokens": tokens, "latency_ms": 200 + idx * 10}),
+                (
+                    "info",
+                    "llm.request",
+                    {"tokens": tokens, "latency_ms": 200 + idx * 10},
+                ),
             ]
             if failed:
                 events.append(
@@ -281,7 +287,11 @@ async def seed_database(async_session_factory, *, force: bool = False) -> None:
                 )
             else:
                 events.append(
-                    ("info", "tool.completed", {"tool": (suite_data.get("expected_tools") or ["none"])[0]})
+                    (
+                        "info",
+                        "tool.completed",
+                        {"tool": (suite_data.get("expected_tools") or ["none"])[0]},
+                    )
                 )
 
             for level, event, payload in events:
@@ -330,7 +340,9 @@ async def seed_database(async_session_factory, *, force: bool = False) -> None:
         print(f"  Task id   : {task_id}")
         print(f"  Traces    : {len(trace_ids)} (incl. 1 failed for Diagnosis)")
         print(f"  AgentLogs : {log_rows}")
-        print("Next: open /dashboard /diagnosis /monitoring — cards should be non-empty.")
+        print(
+            "Next: open /dashboard /diagnosis /monitoring — cards should be non-empty."
+        )
 
 
 def main() -> None:
@@ -350,7 +362,10 @@ def main() -> None:
         from app.core.dependencies import async_session_factory
     except Exception as exc:  # pragma: no cover
         print("Failed to import app dependencies:", exc, file=sys.stderr)
-        print("Run from backend/ with venv activated and .env configured.", file=sys.stderr)
+        print(
+            "Run from backend/ with venv activated and .env configured.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     asyncio.run(seed_database(async_session_factory, force=args.force))

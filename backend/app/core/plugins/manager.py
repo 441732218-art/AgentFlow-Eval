@@ -267,9 +267,9 @@ class PluginManager:
             return self.load(
                 rec.plugin_id,
                 entry=rec.entry if rec.source == "module" else None,
-                path=rec.path if rec.source == "path" else (
-                    rec.entry if rec.source == "path" else None
-                ),
+                path=rec.path
+                if rec.source == "path"
+                else (rec.entry if rec.source == "path" else None),
                 config=config,
                 activate=activate,
             )
@@ -312,7 +312,10 @@ class PluginManager:
         try:
             self.hooks.emit_sync(
                 HOOK_PLUGIN_LOADED,
-                {"plugin_id": plugin_id, "meta": rec.meta.to_dict() if rec.meta else {}},
+                {
+                    "plugin_id": plugin_id,
+                    "meta": rec.meta.to_dict() if rec.meta else {},
+                },
             )
         except Exception:
             pass
@@ -365,7 +368,9 @@ class PluginManager:
         entry, path, source, config = rec.entry, rec.path, rec.source, dict(rec.config)
         self.unload(plugin_id)
         if source == "path":
-            return self.load(plugin_id, path=path or entry, config=config, activate=True)
+            return self.load(
+                plugin_id, path=path or entry, config=config, activate=True
+            )
         return self.load(plugin_id, entry=entry, config=config, activate=True)
 
     # ------------------------------------------------------------------
@@ -422,7 +427,9 @@ class PluginManager:
             try:
                 rec = self.load(entry=d.entry, activate=auto_activate)
                 if rec.state == PluginState.ERROR:
-                    errors.append({"plugin_id": rec.plugin_id, "error": rec.error or "error"})
+                    errors.append(
+                        {"plugin_id": rec.plugin_id, "error": rec.error or "error"}
+                    )
                 else:
                     loaded.append(rec.plugin_id)
             except Exception as exc:

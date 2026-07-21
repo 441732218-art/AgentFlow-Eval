@@ -17,7 +17,9 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
-def _default_key(fn: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
+def _default_key(
+    fn: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> str:
     """Stable key from function name + JSON args (skip Request/session-like objs)."""
     skip_types = set()
     try:

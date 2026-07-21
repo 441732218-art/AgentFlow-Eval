@@ -28,17 +28,25 @@ class MediaAsset(PKMixin, TenantMixin, TimestampMixin, Base):
     )
 
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
-    content_type: Mapped[str] = mapped_column(String(128), nullable=False, default="application/octet-stream")
+    content_type: Mapped[str] = mapped_column(
+        String(128), nullable=False, default="application/octet-stream"
+    )
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     media_kind: Mapped[str] = mapped_column(String(32), nullable=False, default="other")
 
-    storage_backend: Mapped[str] = mapped_column(String(32), nullable=False, default="local")
+    storage_backend: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="local"
+    )
     storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
 
     extracted_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    features: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True, default=None)
-    extract_meta: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True, default=None)
+    features: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True, default=None
+    )
+    extract_meta: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True, default=None
+    )
 
     task_id: Mapped[str | None] = mapped_column(
         String(36),
@@ -50,10 +58,14 @@ class MediaAsset(PKMixin, TenantMixin, TimestampMixin, Base):
         ForeignKey("test_suites.id", ondelete="SET NULL"),
         nullable=True,
     )
-    created_by: Mapped[str] = mapped_column(String(100), nullable=False, default="anonymous")
+    created_by: Mapped[str] = mapped_column(
+        String(100), nullable=False, default="anonymous"
+    )
 
     task: Mapped[Task | None] = relationship()
     test_suite: Mapped[TestSuite | None] = relationship()
 
     def __repr__(self) -> str:
-        return f"<MediaAsset id={self.id} kind={self.media_kind!r} file={self.filename!r}>"
+        return (
+            f"<MediaAsset id={self.id} kind={self.media_kind!r} file={self.filename!r}>"
+        )

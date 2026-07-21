@@ -36,8 +36,7 @@ class CircuitOpenError(RuntimeError):
         self.name = name
         self.recovery_remaining = recovery_remaining
         super().__init__(
-            f"Circuit '{name}' is OPEN "
-            f"(retry in ~{recovery_remaining:.1f}s)"
+            f"Circuit '{name}' is OPEN (retry in ~{recovery_remaining:.1f}s)"
         )
 
 

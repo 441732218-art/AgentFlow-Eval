@@ -36,7 +36,9 @@ async def get_kpis(
         "kpis": data,
         "deploy": profile_status(),
         "viewer": actor,
-        "trace_id": getattr(request.state, "request_id", None) or get_trace_id() or None,
+        "trace_id": getattr(request.state, "request_id", None)
+        or get_trace_id()
+        or None,
     }
 
 
@@ -75,7 +77,9 @@ async def get_slow_tasks(
         "threshold_sec": float(
             getattr(settings, "SLOW_TASK_THRESHOLD_SEC", 30.0) or 30.0
         ),
-        "trace_id": getattr(request.state, "request_id", None) or get_trace_id() or None,
+        "trace_id": getattr(request.state, "request_id", None)
+        or get_trace_id()
+        or None,
     }
 
 

@@ -35,7 +35,9 @@ def _patch_client(response: _Resp):
     client.request = AsyncMock(return_value=response)
     client.__aenter__ = AsyncMock(return_value=client)
     client.__aexit__ = AsyncMock(return_value=None)
-    return patch("app.core.agent_runner.http_runner.httpx.AsyncClient", return_value=client)
+    return patch(
+        "app.core.agent_runner.http_runner.httpx.AsyncClient", return_value=client
+    )
 
 
 class TestHttpAgentRunner:
@@ -82,7 +84,9 @@ class TestHttpAgentRunner:
     @pytest.mark.asyncio
     async def test_http_error_status(self) -> None:
         runner = HttpAgentRunner("https://agent.example/run")
-        with _patch_client(_Resp(status_code=502, text="bad gateway", content_type="text/plain")):
+        with _patch_client(
+            _Resp(status_code=502, text="bad gateway", content_type="text/plain")
+        ):
             result = await runner.run("q")
         assert result["status"] == "failed"
         assert "502" in result["error_message"]
@@ -96,7 +100,9 @@ class TestHttpAgentRunner:
         client.request = AsyncMock(side_effect=httpx.TimeoutException("slow"))
         client.__aenter__ = AsyncMock(return_value=client)
         client.__aexit__ = AsyncMock(return_value=None)
-        with patch("app.core.agent_runner.http_runner.httpx.AsyncClient", return_value=client):
+        with patch(
+            "app.core.agent_runner.http_runner.httpx.AsyncClient", return_value=client
+        ):
             result = await runner.run("q")
         assert result["status"] == "failed"
         assert "timeout" in result["error_message"].lower()

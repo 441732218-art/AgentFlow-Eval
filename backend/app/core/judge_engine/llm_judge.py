@@ -71,14 +71,18 @@ class LLMJudge(BaseJudge):
             timeout_sec: Soft timeout for evaluate(); None reads settings.
             cache_size: LRU cache capacity; None reads settings / default 128.
         """
-        api_key = api_key if api_key is not None else os.environ.get("OPENAI_API_KEY", "")
+        api_key = (
+            api_key if api_key is not None else os.environ.get("OPENAI_API_KEY", "")
+        )
         self.has_api_key = bool(api_key)
         if self.has_api_key:
             # HTTP timeout enforced by resilience layer + client-level timeout
             try:
                 from app.config import settings as _s
 
-                client_timeout = float(getattr(_s, "LLM_CALL_TIMEOUT_SEC", 30.0) or 30.0)
+                client_timeout = float(
+                    getattr(_s, "LLM_CALL_TIMEOUT_SEC", 30.0) or 30.0
+                )
             except Exception:
                 client_timeout = 30.0
             self.client: AsyncOpenAI | None = AsyncOpenAI(
@@ -96,9 +100,13 @@ class LLMJudge(BaseJudge):
                 from app.config import settings as app_settings
 
                 if timeout_sec is None:
-                    timeout_sec = float(getattr(app_settings, "JUDGE_TIMEOUT_SEC", 60.0) or 0)
+                    timeout_sec = float(
+                        getattr(app_settings, "JUDGE_TIMEOUT_SEC", 60.0) or 0
+                    )
                 if cache_size is None:
-                    cache_size = int(getattr(app_settings, "JUDGE_CACHE_SIZE", 128) or 128)
+                    cache_size = int(
+                        getattr(app_settings, "JUDGE_CACHE_SIZE", 128) or 128
+                    )
             except Exception:
                 timeout_sec = timeout_sec if timeout_sec is not None else 60.0
                 cache_size = cache_size if cache_size is not None else 128
@@ -207,7 +215,9 @@ class LLMJudge(BaseJudge):
         tool_pct, tool_reason = calc_tool_accuracy(actual_tools, expected_tools)
         tool_score = round(tool_pct * 0.4, 1)
         extracted = self._extract_final_answer(steps)
-        answer_score, answer_reason = self._lexical_answer_score(extracted, expected_output)
+        answer_score, answer_reason = self._lexical_answer_score(
+            extracted, expected_output
+        )
         coh_score, coh_reason = self._heuristic_coherence_score(steps)
         step_analysis = self._analyze_steps(steps, expected_tools)
         pre_total = tool_score + answer_score + coh_score
@@ -327,7 +337,9 @@ class LLMJudge(BaseJudge):
         pre = self._pre_score(steps, expected_output, expected_tools)
         if self.has_api_key and self.client:
             try:
-                return await self._llm_refine(steps, expected_output, expected_tools, pre)
+                return await self._llm_refine(
+                    steps, expected_output, expected_tools, pre
+                )
             except Exception as exc:
                 logger.warning("LLM refine failed: %s", exc)
                 pre["mode"] = "rule_only"

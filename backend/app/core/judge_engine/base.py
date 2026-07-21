@@ -18,7 +18,7 @@ class JudgeResult:
 
 class BaseJudge(ABC):
     """打分引擎抽象基类。
-    
+
     所有打分引擎实现必须实现 evaluate 方法。
     """
 

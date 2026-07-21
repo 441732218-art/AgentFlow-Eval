@@ -102,7 +102,9 @@ class TestTimeoutAndEdges:
                 "token_cost": 0,
             }
 
-        with patch.object(j, "_do_evaluate", new=AsyncMock(side_effect=slow_do_evaluate)):
+        with patch.object(
+            j, "_do_evaluate", new=AsyncMock(side_effect=slow_do_evaluate)
+        ):
             result = await j.evaluate(
                 [{"action": "final_answer", "action_input": "x"}],
                 "x",

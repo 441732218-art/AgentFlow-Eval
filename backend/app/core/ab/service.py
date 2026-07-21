@@ -89,8 +89,7 @@ async def assign(
         )
 
     weights = [
-        VariantWeight(key=v.key, weight=float(v.weight or 0))
-        for v in exp.variants
+        VariantWeight(key=v.key, weight=float(v.weight or 0)) for v in exp.variants
     ]
     chosen = assign_variant(exp.key, unit_id, weights)
     bucket = stable_bucket(exp.key, unit_id)
@@ -271,9 +270,11 @@ async def analyze(
 
     # Guardrails
     min_n = int(exp.min_sample_size or 0)
-    enough = all(
-        (len(exposures.get(v.key, set())) >= min_n) for v in exp.variants
-    ) if exp.variants else False
+    enough = (
+        all((len(exposures.get(v.key, set())) >= min_n) for v in exp.variants)
+        if exp.variants
+        else False
+    )
 
     # Suggest winner: significant treatment with highest conversion (or metric)
     winner = None

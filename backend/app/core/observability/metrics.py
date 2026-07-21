@@ -680,7 +680,11 @@ def _record_from_decorator(
     status: str,
     payload: dict[str, Any],
 ) -> None:
-    cfg = payload.get("agent_config") if isinstance(payload.get("agent_config"), dict) else None
+    cfg = (
+        payload.get("agent_config")
+        if isinstance(payload.get("agent_config"), dict)
+        else None
+    )
     result_status = str(payload.get("status") or status)
     if metric == "evaluation":
         observe_evaluation(

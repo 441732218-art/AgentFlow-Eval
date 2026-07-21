@@ -1,4 +1,4 @@
-﻿# (c) 2026 AgentFlow-Eval
+# (c) 2026 AgentFlow-Eval
 """Tests for rate limiting."""
 
 import pytest

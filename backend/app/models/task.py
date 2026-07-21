@@ -25,6 +25,7 @@ class TaskStatus(str, enum.Enum):
                                 ▼
                            CANCELLED / TIMEOUT
     """
+
     CREATED = "created"
     QUEUED = "queued"
     RUNNING = "running"
@@ -42,7 +43,13 @@ class TaskStatus(str, enum.Enum):
         return {
             cls.CREATED: {cls.QUEUED, cls.CANCELLED},
             cls.QUEUED: {cls.RUNNING, cls.CANCELLED, cls.TIMEOUT},
-            cls.RUNNING: {cls.WAITING_TOOL, cls.JUDGING, cls.FAILED, cls.CANCELLED, cls.TIMEOUT},
+            cls.RUNNING: {
+                cls.WAITING_TOOL,
+                cls.JUDGING,
+                cls.FAILED,
+                cls.CANCELLED,
+                cls.TIMEOUT,
+            },
             cls.WAITING_TOOL: {cls.RUNNING, cls.FAILED, cls.CANCELLED, cls.TIMEOUT},
             cls.JUDGING: {cls.COMPLETED, cls.FAILED, cls.CANCELLED},
             cls.COMPLETED: set(),
@@ -80,10 +87,15 @@ class Task(PKMixin, TenantMixin, TimestampMixin, Base):
     )
 
     name: Mapped[str] = mapped_column(
-        String(255), nullable=False, comment="任务名称",
+        String(255),
+        nullable=False,
+        comment="任务名称",
     )
     description: Mapped[str] = mapped_column(
-        Text, nullable=False, default="", comment="任务描述",
+        Text,
+        nullable=False,
+        default="",
+        comment="任务描述",
     )
     status: Mapped[TaskStatus] = mapped_column(
         Enum(
@@ -98,24 +110,34 @@ class Task(PKMixin, TenantMixin, TimestampMixin, Base):
         comment="任务状态",
     )
     agent_config: Mapped[dict] = mapped_column(
-        JSON, nullable=False, default=dict, comment="Agent 配置参数（JSON 对象）",
+        JSON,
+        nullable=False,
+        default=dict,
+        comment="Agent 配置参数（JSON 对象）",
     )
     celery_task_id: Mapped[str | None] = mapped_column(
-        String(255), nullable=True, default=None,
+        String(255),
+        nullable=True,
+        default=None,
         comment="Celery 异步任务 ID，用于取消和状态追踪",
     )
     is_archived: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False,
+        Boolean,
+        nullable=False,
+        default=False,
         comment="是否已归档（软归档，列表默认隐藏）",
     )
     created_by: Mapped[str] = mapped_column(
-        String(100), nullable=False, default="anonymous",
+        String(100),
+        nullable=False,
+        default="anonymous",
         comment="创建者 actor（API Key 映射名），用于轻量多租户隔离",
     )
 
     # ---- 关系 ----
     test_suites: Mapped[list["TestSuite"]] = relationship(
-        back_populates="task", cascade="all, delete-orphan",
+        back_populates="task",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:

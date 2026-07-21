@@ -86,8 +86,7 @@ class PluginCapabilityRegistry:
 
     def list_judges(self) -> list[dict[str, Any]]:
         return [
-            {"key": k, "plugin_id": pid}
-            for k, (pid, _) in sorted(self._judges.items())
+            {"key": k, "plugin_id": pid} for k, (pid, _) in sorted(self._judges.items())
         ]
 
     # ---- tools ----

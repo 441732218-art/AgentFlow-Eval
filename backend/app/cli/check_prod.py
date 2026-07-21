@@ -67,9 +67,10 @@ def main(argv: list[str] | None = None) -> int:
             result.warnings.append(
                 "DATABASE_URL uses SQLite — prefer PostgreSQL for multi-user production"
             )
-        if getattr(settings, "BILLING_ENABLED", False) and getattr(
-            settings, "STRIPE_MODE", "mock"
-        ) == "mock":
+        if (
+            getattr(settings, "BILLING_ENABLED", False)
+            and getattr(settings, "STRIPE_MODE", "mock") == "mock"
+        ):
             result.warnings.append(
                 "BILLING_ENABLED with STRIPE_MODE=mock — no real charges; set live keys for SaaS billing"
             )

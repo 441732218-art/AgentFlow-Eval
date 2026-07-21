@@ -80,7 +80,9 @@ class UsageRecord(PKMixin, TenantMixin, Base):
     )
 
     actor: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    metric: Mapped[str] = mapped_column(String(32), nullable=False)  # token|task|judge|storage
+    metric: Mapped[str] = mapped_column(
+        String(32), nullable=False
+    )  # token|task|judge|storage
     quantity: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
     unit_cost: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     ref_type: Mapped[str | None] = mapped_column(String(64), nullable=True)

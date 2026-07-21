@@ -17,7 +17,11 @@ async def test_execute_passes_trace_id_kwarg():
     import os
 
     from httpx import ASGITransport, AsyncClient
-    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+    from sqlalchemy.ext.asyncio import (
+        AsyncSession,
+        async_sessionmaker,
+        create_async_engine,
+    )
 
     from app.core.dependencies import get_db
     from app.main import app

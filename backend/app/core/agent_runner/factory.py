@@ -64,10 +64,7 @@ def build_agent_runner(agent_config: dict[str, Any] | None = None) -> Any:
         from app.core.agent_runner.http_runner import HttpAgentRunner
 
         endpoint = (
-            cfg.get("endpoint_url")
-            or cfg.get("url")
-            or cfg.get("endpoint")
-            or ""
+            cfg.get("endpoint_url") or cfg.get("url") or cfg.get("endpoint") or ""
         )
         headers = cfg.get("headers") or {}
         if not isinstance(headers, dict):

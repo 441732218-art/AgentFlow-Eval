@@ -20,28 +20,50 @@ class AuditLog(PKMixin, TenantMixin, TimestampMixin, Base):
     )
 
     actor: Mapped[str] = mapped_column(
-        String(100), nullable=False, default="anonymous", comment="操作者标识",
+        String(100),
+        nullable=False,
+        default="anonymous",
+        comment="操作者标识",
     )
     action: Mapped[str] = mapped_column(
-        String(64), nullable=False, comment="动作，如 task.create / task.execute",
+        String(64),
+        nullable=False,
+        comment="动作，如 task.create / task.execute",
     )
     resource_type: Mapped[str] = mapped_column(
-        String(64), nullable=False, comment="资源类型",
+        String(64),
+        nullable=False,
+        comment="资源类型",
     )
     resource_id: Mapped[str | None] = mapped_column(
-        String(64), nullable=True, default=None, comment="资源 ID",
+        String(64),
+        nullable=True,
+        default=None,
+        comment="资源 ID",
     )
     detail: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True, default=None, comment="附加详情",
+        JSON,
+        nullable=True,
+        default=None,
+        comment="附加详情",
     )
     request_id: Mapped[str | None] = mapped_column(
-        String(64), nullable=True, default=None, comment="请求追踪 ID",
+        String(64),
+        nullable=True,
+        default=None,
+        comment="请求追踪 ID",
     )
     ip_address: Mapped[str | None] = mapped_column(
-        String(64), nullable=True, default=None, comment="客户端 IP",
+        String(64),
+        nullable=True,
+        default=None,
+        comment="客户端 IP",
     )
     note: Mapped[str] = mapped_column(
-        Text, nullable=False, default="", comment="备注",
+        Text,
+        nullable=False,
+        default="",
+        comment="备注",
     )
 
     def __repr__(self) -> str:

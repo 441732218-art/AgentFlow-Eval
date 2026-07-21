@@ -24,22 +24,40 @@ class AgentLog(PKMixin, TimestampMixin, Base):
     )
 
     level: Mapped[str] = mapped_column(
-        String(16), nullable=False, default="info", comment="info|warning|error|debug",
+        String(16),
+        nullable=False,
+        default="info",
+        comment="info|warning|error|debug",
     )
     event: Mapped[str] = mapped_column(
-        String(96), nullable=False, index=True, comment="dot-notation event name",
+        String(96),
+        nullable=False,
+        index=True,
+        comment="dot-notation event name",
     )
     service: Mapped[str] = mapped_column(
-        String(64), nullable=False, default="agentflow-api", comment="emitting service",
+        String(64),
+        nullable=False,
+        default="agentflow-api",
+        comment="emitting service",
     )
     trace_id: Mapped[str | None] = mapped_column(
-        String(64), nullable=True, default=None, comment="correlation / request id",
+        String(64),
+        nullable=True,
+        default=None,
+        comment="correlation / request id",
     )
     task_id: Mapped[str | None] = mapped_column(
-        String(64), nullable=True, default=None, comment="evaluation task id if any",
+        String(64),
+        nullable=True,
+        default=None,
+        comment="evaluation task id if any",
     )
     payload: Mapped[dict] = mapped_column(
-        JSON, nullable=False, default=dict, comment="full event fields (redacted)",
+        JSON,
+        nullable=False,
+        default=dict,
+        comment="full event fields (redacted)",
     )
 
     def __repr__(self) -> str:

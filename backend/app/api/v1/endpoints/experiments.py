@@ -227,7 +227,10 @@ async def create_experiment(
         resource_type="experiment",
         resource_id=exp.id,
         actor=actor,
-        detail={"variants": [v.label for v in body.variants], "suite_count": len(snapshot)},
+        detail={
+            "variants": [v.label for v in body.variants],
+            "suite_count": len(snapshot),
+        },
         request_id=_request_id(request),
         ip=_client_ip(request),
     )
@@ -264,7 +267,9 @@ async def list_experiments(
                 .offset((page - 1) * page_size)
                 .limit(page_size)
             )
-        ).scalars().all()
+        )
+        .scalars()
+        .all()
     )
 
     # Batch-load runs + task statuses for the page (avoid N+1)
@@ -279,7 +284,9 @@ async def list_experiments(
                         ExperimentRun.experiment_id.in_(exp_ids)
                     )
                 )
-            ).scalars().all()
+            )
+            .scalars()
+            .all()
         )
         for run in all_runs:
             runs_by_exp.setdefault(run.experiment_id, []).append(run)
@@ -288,8 +295,10 @@ async def list_experiments(
     status_map: dict[str, str] = {}
     if all_task_ids:
         tasks = (
-            await session.execute(select(Task).where(Task.id.in_(all_task_ids)))
-        ).scalars().all()
+            (await session.execute(select(Task).where(Task.id.in_(all_task_ids))))
+            .scalars()
+            .all()
+        )
         status_map = {t.id: t.status.value for t in tasks}
 
     items = [
@@ -297,7 +306,9 @@ async def list_experiments(
         for exp in rows
     ]
 
-    return ExperimentListResponse(items=items, total=total, page=page, page_size=page_size)
+    return ExperimentListResponse(
+        items=items, total=total, page=page, page_size=page_size
+    )
 
 
 @router.get("/{experiment_id}", response_model=ExperimentResponse)
@@ -311,16 +322,22 @@ async def get_experiment(
     actor = _actor(request)
     exp = await _get_experiment_or_404(session, experiment_id, actor)
     runs = (
-        await session.execute(
-            select(ExperimentRun).where(ExperimentRun.experiment_id == exp.id)
+        (
+            await session.execute(
+                select(ExperimentRun).where(ExperimentRun.experiment_id == exp.id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     task_ids = [r.task_id for r in runs]
     status_map: dict[str, str] = {}
     if task_ids:
         tasks = (
-            await session.execute(select(Task).where(Task.id.in_(task_ids)))
-        ).scalars().all()
+            (await session.execute(select(Task).where(Task.id.in_(task_ids))))
+            .scalars()
+            .all()
+        )
         status_map = {t.id: t.status.value for t in tasks}
     return _experiment_to_response(exp, list(runs), status_map)
 
@@ -336,10 +353,14 @@ async def compare_experiment(
     actor = _actor(request)
     exp = await _get_experiment_or_404(session, experiment_id, actor)
     runs = (
-        await session.execute(
-            select(ExperimentRun).where(ExperimentRun.experiment_id == exp.id)
+        (
+            await session.execute(
+                select(ExperimentRun).where(ExperimentRun.experiment_id == exp.id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     compare_items: list[RunCompareItem] = []
     raw_for_best: list[dict[str, Any]] = []
@@ -362,7 +383,9 @@ async def compare_experiment(
         for suite in suites:
             traces_payload = []
             for trace in suite.traces or []:
-                scores = {ms.metric_name: ms.score for ms in (trace.metric_scores or [])}
+                scores = {
+                    ms.metric_name: ms.score for ms in (trace.metric_scores or [])
+                }
                 # Also expose synthetic total as sum of dimensions for average_score
                 if scores:
                     scores = {**scores, "total": sum(scores.values())}

@@ -78,8 +78,18 @@ class TestPartitionAndStatus:
 class TestAggregate:
     def test_aggregate_scores(self) -> None:
         suites = [
-            {"trace_id": "a", "status": "success", "total_tokens": 10, "response_time_ms": 100},
-            {"trace_id": "b", "status": "success", "total_tokens": 20, "response_time_ms": 200},
+            {
+                "trace_id": "a",
+                "status": "success",
+                "total_tokens": 10,
+                "response_time_ms": 100,
+            },
+            {
+                "trace_id": "b",
+                "status": "success",
+                "total_tokens": 20,
+                "response_time_ms": 200,
+            },
         ]
         judges = [
             {

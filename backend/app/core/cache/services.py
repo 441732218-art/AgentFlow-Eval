@@ -30,7 +30,9 @@ def _task_dict(task: Task, suite_count: int = 0) -> dict[str, Any]:
         "id": task.id,
         "name": task.name,
         "description": task.description,
-        "status": task.status.value if hasattr(task.status, "value") else str(task.status),
+        "status": task.status.value
+        if hasattr(task.status, "value")
+        else str(task.status),
         "agent_config": task.agent_config or {},
         "celery_task_id": task.celery_task_id,
         "is_archived": bool(getattr(task, "is_archived", False)),
@@ -87,8 +89,10 @@ async def serialize_task_list(
     if status:
         query = query.where(Task.status == status)
         count_query = count_query.where(Task.status == status)
-    query = query.order_by(Task.created_at.desc()).offset((page - 1) * page_size).limit(
-        page_size
+    query = (
+        query.order_by(Task.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
     total = int((await session.execute(count_query)).scalar() or 0)
     tasks = list((await session.execute(query)).scalars().all())

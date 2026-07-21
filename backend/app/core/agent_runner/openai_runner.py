@@ -1,4 +1,4 @@
-﻿import json
+import json
 import logging
 import time
 from collections.abc import Callable
@@ -161,7 +161,11 @@ class OpenAIReActRunner(BaseAgentRunner):
             usage = getattr(response, "usage", None)
             in_tok = int(getattr(usage, "prompt_tokens", 0) or 0) if usage else 0
             out_tok = int(getattr(usage, "completion_tokens", 0) or 0) if usage else 0
-            tot = int(getattr(usage, "total_tokens", 0) or 0) if usage else (in_tok + out_tok)
+            tot = (
+                int(getattr(usage, "total_tokens", 0) or 0)
+                if usage
+                else (in_tok + out_tok)
+            )
             try:
                 from app.core.observability.aols import LogEvent, emit_llm, elapsed_ms
 
@@ -207,8 +211,12 @@ class OpenAIReActRunner(BaseAgentRunner):
         tool_defs, tool_map = self._parse_tools(tools or DEFAULT_TOOL_DEFS)
         openai_tools = [t.to_openai_tool() for t in tool_defs]
 
-        tool_descriptions = "\n".join(f"  - {t.name}: {t.description}" for t in tool_defs)
-        system_prompt = REACT_SYSTEM_PROMPT + tool_descriptions + "\n\n" + REACT_SINGLE_TURN_PROMPT
+        tool_descriptions = "\n".join(
+            f"  - {t.name}: {t.description}" for t in tool_defs
+        )
+        system_prompt = (
+            REACT_SYSTEM_PROMPT + tool_descriptions + "\n\n" + REACT_SINGLE_TURN_PROMPT
+        )
 
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
@@ -256,7 +264,7 @@ class OpenAIReActRunner(BaseAgentRunner):
                 choice = response.choices[0]
                 msg = choice.message
                 usage = response.usage
-                step.tokens = (usage.total_tokens if usage else 0)
+                step.tokens = usage.total_tokens if usage else 0
                 total_tokens += step.tokens
 
                 if msg.tool_calls:
@@ -270,22 +278,33 @@ class OpenAIReActRunner(BaseAgentRunner):
                         step.action = fn_name
                         step.action_input = json.dumps(fn_args, ensure_ascii=False)
                         step.thought = msg.content or ""
-                        step.observation = self._execute_tool(fn_name, fn_args, tool_map)
+                        step.observation = self._execute_tool(
+                            fn_name, fn_args, tool_map
+                        )
 
-                        messages.append({
-                            "role": "assistant",
-                            "content": msg.content or "",
-                            "tool_calls": [{
-                                "id": tc.id,
-                                "type": "function",
-                                "function": {"name": fn_name, "arguments": tc.function.arguments},
-                            }],
-                        })
-                        messages.append({
-                            "role": "tool",
-                            "tool_call_id": tc.id,
-                            "content": step.observation,
-                        })
+                        messages.append(
+                            {
+                                "role": "assistant",
+                                "content": msg.content or "",
+                                "tool_calls": [
+                                    {
+                                        "id": tc.id,
+                                        "type": "function",
+                                        "function": {
+                                            "name": fn_name,
+                                            "arguments": tc.function.arguments,
+                                        },
+                                    }
+                                ],
+                            }
+                        )
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tc.id,
+                                "content": step.observation,
+                            }
+                        )
                 else:
                     content = msg.content or ""
                     parsed = self._parse_step(content)
@@ -293,8 +312,13 @@ class OpenAIReActRunner(BaseAgentRunner):
                     step.action = parsed.get("action", "")
                     step.action_input = parsed.get("action_input", "")
 
-                    if step.action == "final_answer" or "final answer" in content.lower():
-                        final_answer = parsed.get("action_input") or parsed.get("thought", content)
+                    if (
+                        step.action == "final_answer"
+                        or "final answer" in content.lower()
+                    ):
+                        final_answer = parsed.get("action_input") or parsed.get(
+                            "thought", content
+                        )
                         messages.append({"role": "assistant", "content": content})
                         try:
                             from app.core.observability.aols.emit import (
@@ -323,7 +347,12 @@ class OpenAIReActRunner(BaseAgentRunner):
                             tool_map,
                         )
                         messages.append({"role": "assistant", "content": content})
-                        messages.append({"role": "user", "content": f"Observation: {step.observation}"})
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": f"Observation: {step.observation}",
+                            }
+                        )
                     else:
                         final_answer = content
                         messages.append({"role": "assistant", "content": content})
@@ -354,8 +383,7 @@ class OpenAIReActRunner(BaseAgentRunner):
                         and step.action.lower() in {"final_answer", "final answer"}
                     ),
                     has_tool=bool(
-                        step.action
-                        and step.action.lower() not in {"", "final_answer"}
+                        step.action and step.action.lower() not in {"", "final_answer"}
                     ),
                 )
                 emit_agent_step(
@@ -439,15 +467,23 @@ class OpenAIReActRunner(BaseAgentRunner):
             elif isinstance(t, dict):
                 fn_info = t.get("function", t)
                 if isinstance(fn_info, dict):
-                    defs.append(ToolDefinition(
-                        name=fn_info.get("name", t.get("name", "unknown")),
-                        description=fn_info.get("description", t.get("description", "")),
-                        parameters=fn_info.get("parameters", {}).get("properties", fn_info.get("parameters", {})),
-                        fn=t.get("fn") or fn_info.get("fn"),
-                    ))
+                    defs.append(
+                        ToolDefinition(
+                            name=fn_info.get("name", t.get("name", "unknown")),
+                            description=fn_info.get(
+                                "description", t.get("description", "")
+                            ),
+                            parameters=fn_info.get("parameters", {}).get(
+                                "properties", fn_info.get("parameters", {})
+                            ),
+                            fn=t.get("fn") or fn_info.get("fn"),
+                        )
+                    )
         return defs, {d.name: d for d in defs}
 
-    def _execute_tool(self, name: str, args: dict[str, Any], tool_map: dict[str, ToolDefinition]) -> str:
+    def _execute_tool(
+        self, name: str, args: dict[str, Any], tool_map: dict[str, ToolDefinition]
+    ) -> str:
         """Execute tools via sandbox (timeout + truncation + allowlist)."""
         tool = tool_map.get(name)
         custom_fn = tool.fn if tool and tool.fn else DEFAULT_TOOL_FUNCTIONS.get(name)
@@ -458,17 +494,22 @@ class OpenAIReActRunner(BaseAgentRunner):
         result: dict[str, str] = {}
         lines = text.strip().split("\n")
         prefixes = [
-            ("Thought:", "thought"), ("Thought：", "thought"),
-            ("Action:", "action"), ("Action：", "action"),
-            ("Action Input:", "action_input"), ("Action Input：", "action_input"),
-            ("Observation:", "observation"), ("Observation：", "observation"),
-            ("Final Answer:", "final_answer"), ("Final Answer：", "final_answer"),
+            ("Thought:", "thought"),
+            ("Thought：", "thought"),
+            ("Action:", "action"),
+            ("Action：", "action"),
+            ("Action Input:", "action_input"),
+            ("Action Input：", "action_input"),
+            ("Observation:", "observation"),
+            ("Observation：", "observation"),
+            ("Final Answer:", "final_answer"),
+            ("Final Answer：", "final_answer"),
         ]
         for line in lines:
             s = line.strip()
             for prefix, key in prefixes:
                 if s.lower().startswith(prefix.lower()):
-                    value = s[len(prefix):].strip()
+                    value = s[len(prefix) :].strip()
                     if value:
                         result[key] = value
         return result
@@ -507,7 +548,12 @@ class OpenAIRunner(BaseAgentRunner):
             response = await self.client.chat.completions.create(
                 model=model,
                 messages=[
-                    {"role": "system", "content": REACT_SYSTEM_PROMPT + "\n" + REACT_SINGLE_TURN_PROMPT},
+                    {
+                        "role": "system",
+                        "content": REACT_SYSTEM_PROMPT
+                        + "\n"
+                        + REACT_SINGLE_TURN_PROMPT,
+                    },
                     {"role": "user", "content": user_query},
                 ],
                 temperature=temperature,
@@ -515,13 +561,24 @@ class OpenAIRunner(BaseAgentRunner):
             )
             elapsed_ms = int((time.monotonic() - start_time) * 1000)
             content = response.choices[0].message.content or ""
-            total_tokens = (response.usage.total_tokens if response.usage else 0)
+            total_tokens = response.usage.total_tokens if response.usage else 0
             steps = self._parse_react_steps(content)
-            return AgentResult(steps=steps, total_tokens=total_tokens, response_time_ms=elapsed_ms, status="success")
+            return AgentResult(
+                steps=steps,
+                total_tokens=total_tokens,
+                response_time_ms=elapsed_ms,
+                status="success",
+            )
         except Exception as exc:
             elapsed_ms = int((time.monotonic() - start_time) * 1000)
             logger.exception("Agent execution failed: %s", exc)
-            return AgentResult(steps=[{"role": "error", "content": str(exc)}], total_tokens=0, response_time_ms=elapsed_ms, status="failed", error_message=str(exc))
+            return AgentResult(
+                steps=[{"role": "error", "content": str(exc)}],
+                total_tokens=0,
+                response_time_ms=elapsed_ms,
+                status="failed",
+                error_message=str(exc),
+            )
 
     @staticmethod
     def _parse_react_steps(content: str) -> list[dict[str, Any]]:
@@ -530,11 +587,16 @@ class OpenAIRunner(BaseAgentRunner):
         current_step: dict[str, Any] = {}
         step_role: str | None = None
         prefixes = [
-            ("Thought:", "thought"), ("Thought：", "thought"),
-            ("Action:", "action"), ("Action：", "action"),
-            ("Action Input:", "action_input"), ("Action Input：", "action_input"),
-            ("Observation:", "observation"), ("Observation：", "observation"),
-            ("Final Answer:", "final_answer"), ("Final Answer：", "final_answer"),
+            ("Thought:", "thought"),
+            ("Thought：", "thought"),
+            ("Action:", "action"),
+            ("Action：", "action"),
+            ("Action Input:", "action_input"),
+            ("Action Input：", "action_input"),
+            ("Observation:", "observation"),
+            ("Observation：", "observation"),
+            ("Final Answer:", "final_answer"),
+            ("Final Answer：", "final_answer"),
         ]
         for line in lines:
             s = line.strip()
@@ -542,11 +604,16 @@ class OpenAIRunner(BaseAgentRunner):
             for prefix, ptype in prefixes:
                 if s.lower().startswith(prefix.lower()):
                     if current_step and step_role:
-                        current_step["content"] = current_step.get("content", "").strip()
+                        current_step["content"] = current_step.get(
+                            "content", ""
+                        ).strip()
                         steps.append(current_step)
-                    current_step = {"role": "tool" if ptype == "observation" else "assistant", "type": ptype}
+                    current_step = {
+                        "role": "tool" if ptype == "observation" else "assistant",
+                        "type": ptype,
+                    }
                     step_role = ptype
-                    value = s[len(prefix):].strip()
+                    value = s[len(prefix) :].strip()
                     if ptype in ("thought", "final_answer", "observation"):
                         current_step["content"] = value
                     elif ptype == "action":
@@ -562,5 +629,11 @@ class OpenAIRunner(BaseAgentRunner):
             current_step["content"] = current_step.get("content", "").strip()
             steps.append(current_step)
         if not steps:
-            steps.append({"role": "assistant", "type": "final_answer", "content": content.strip()})
+            steps.append(
+                {
+                    "role": "assistant",
+                    "type": "final_answer",
+                    "content": content.strip(),
+                }
+            )
         return steps

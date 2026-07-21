@@ -21,7 +21,9 @@ class MemoryOnlyCacheAdapter:
         return await self._l1.get(key)
 
     async def set(self, key: str, value: Any, ttl: int | None = None) -> None:
-        await self._l1.set(key, value, int(ttl if ttl is not None else self._default_ttl))
+        await self._l1.set(
+            key, value, int(ttl if ttl is not None else self._default_ttl)
+        )
 
     async def delete(self, key: str) -> None:
         await self._l1.delete(key)

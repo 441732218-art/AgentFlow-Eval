@@ -193,9 +193,7 @@ async def log_statistics(
         or 0
     )
     agent_den = failed_agents + completed_agents
-    agent_failure_rate = (
-        round(failed_agents / agent_den, 4) if agent_den else None
-    )
+    agent_failure_rate = round(failed_agents / agent_den, 4) if agent_den else None
 
     # By event top
     by_event_rows = (

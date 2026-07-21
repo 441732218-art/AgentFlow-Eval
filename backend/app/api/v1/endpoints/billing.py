@@ -249,7 +249,9 @@ async def mock_confirm_checkout(
     svc = get_billing_service()
     await svc.ensure_default_plans(session)
     try:
-        sub = await svc.subscribe(session, actor=parsed["actor"], plan_code=parsed["plan_code"])
+        sub = await svc.subscribe(
+            session, actor=parsed["actor"], plan_code=parsed["plan_code"]
+        )
         sub.external_ref = parsed.get("external_ref") or body.session_id
     except Exception as exc:
         raise AgentFlowError(f"activate failed: {exc}", status_code=400) from exc
@@ -306,7 +308,9 @@ async def _handle_stripe_webhook(
         await session.commit()
     except Exception as exc:
         await session.rollback()
-        raise AgentFlowError(f"webhook activate failed: {exc}", status_code=400) from exc
+        raise AgentFlowError(
+            f"webhook activate failed: {exc}", status_code=400
+        ) from exc
 
     try:
         from app.core.audit import write_audit

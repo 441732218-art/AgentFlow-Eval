@@ -259,7 +259,10 @@ def rbac_enforced() -> bool:
 
     Requires both AUTH and RBAC flags so local Eager mode stays frictionless.
     """
-    return bool(getattr(settings, "AUTH_ENABLED", False) and getattr(settings, "RBAC_ENABLED", True))
+    return bool(
+        getattr(settings, "AUTH_ENABLED", False)
+        and getattr(settings, "RBAC_ENABLED", True)
+    )
 
 
 def default_role() -> Role:
@@ -322,7 +325,11 @@ def has_permission(
     except ValueError:
         return False
     try:
-        p = permission if isinstance(permission, Permission) else Permission(str(permission))
+        p = (
+            permission
+            if isinstance(permission, Permission)
+            else Permission(str(permission))
+        )
     except ValueError:
         return False
     return p in permissions_for(r)
@@ -477,14 +484,17 @@ def _check_permissions_on_request(
             "Missing one of required permissions",
             detail={
                 "required_any": [
-                    p.value if isinstance(p, Permission) else str(p) for p in permissions
+                    p.value if isinstance(p, Permission) else str(p)
+                    for p in permissions
                 ],
                 "role": role.value,
             },
         )
 
 
-def _preserve_fastapi_signature(wrapper: Callable[..., Any], fn: Callable[..., Any]) -> None:
+def _preserve_fastapi_signature(
+    wrapper: Callable[..., Any], fn: Callable[..., Any]
+) -> None:
     """Copy resolved type hints onto the wrapper so FastAPI can introspect it.
 
     With ``from __future__ import annotations``, string annotations must be
@@ -548,9 +558,7 @@ def require_permission(
         @functools.wraps(fn)
         def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             request = _extract_request(args, kwargs)
-            _check_permissions_on_request(
-                request, permissions, require_all=require_all
-            )
+            _check_permissions_on_request(request, permissions, require_all=require_all)
             return fn(*args, **kwargs)
 
         _preserve_fastapi_signature(sync_wrapper, fn)

@@ -94,8 +94,12 @@ class TestRolePermissionMatrix:
         assert "user" in create_roles or "member" in create_roles
 
     def test_has_any(self) -> None:
-        assert has_any_permission(Role.GUEST, [Permission.TASK_CREATE, Permission.TASK_READ])
-        assert not has_any_permission(Role.GUEST, [Permission.TASK_CREATE, Permission.AUDIT_READ])
+        assert has_any_permission(
+            Role.GUEST, [Permission.TASK_CREATE, Permission.TASK_READ]
+        )
+        assert not has_any_permission(
+            Role.GUEST, [Permission.TASK_CREATE, Permission.AUDIT_READ]
+        )
 
 
 class TestEnsurePermission:
@@ -192,7 +196,9 @@ class TestRequirePermissionDecorator:
             return {"ok": True}
 
         req = MagicMock(spec=Request)
-        req.state = SimpleNamespace(actor="a", auth=AuthIdentity("1", "a", "x***", Role.USER))
+        req.state = SimpleNamespace(
+            actor="a", auth=AuthIdentity("1", "a", "x***", Role.USER)
+        )
         with patch("app.core.rbac.rbac_enforced", return_value=True):
             out = await handler(req)
         assert out["ok"] is True
@@ -228,9 +234,11 @@ class TestApiIntegration:
     @pytest.mark.asyncio
     async def test_guest_cannot_create_task(self) -> None:
         transport = ASGITransport(app=app)
-        with patch("app.core.middleware.settings") as ms, patch(
-            "app.core.security.settings"
-        ) as ss, patch("app.core.rbac.settings") as rs:
+        with (
+            patch("app.core.middleware.settings") as ms,
+            patch("app.core.security.settings") as ss,
+            patch("app.core.rbac.settings") as rs,
+        ):
             for s in (ms, ss, rs):
                 s.AUTH_ENABLED = True
                 s.RBAC_ENABLED = True
@@ -249,9 +257,11 @@ class TestApiIntegration:
     @pytest.mark.asyncio
     async def test_user_can_list_tools(self) -> None:
         transport = ASGITransport(app=app)
-        with patch("app.core.middleware.settings") as ms, patch(
-            "app.core.security.settings"
-        ) as ss, patch("app.core.rbac.settings") as rs:
+        with (
+            patch("app.core.middleware.settings") as ms,
+            patch("app.core.security.settings") as ss,
+            patch("app.core.rbac.settings") as rs,
+        ):
             for s in (ms, ss, rs):
                 s.AUTH_ENABLED = True
                 s.RBAC_ENABLED = True
@@ -266,9 +276,11 @@ class TestApiIntegration:
     @pytest.mark.asyncio
     async def test_guest_cannot_probe_tool(self) -> None:
         transport = ASGITransport(app=app)
-        with patch("app.core.middleware.settings") as ms, patch(
-            "app.core.security.settings"
-        ) as ss, patch("app.core.rbac.settings") as rs:
+        with (
+            patch("app.core.middleware.settings") as ms,
+            patch("app.core.security.settings") as ss,
+            patch("app.core.rbac.settings") as rs,
+        ):
             for s in (ms, ss, rs):
                 s.AUTH_ENABLED = True
                 s.RBAC_ENABLED = True

@@ -62,7 +62,9 @@ class CeleryTaskQueue:
         kwargs = dict(kwargs or {})
         task = _resolve_task(name)
         if countdown and countdown > 0:
-            async_result = task.apply_async(args=args, kwargs=kwargs, countdown=countdown)
+            async_result = task.apply_async(
+                args=args, kwargs=kwargs, countdown=countdown
+            )
         else:
             async_result = task.delay(*args, **kwargs)
         tid = getattr(async_result, "id", None) or str(uuid.uuid4())
@@ -78,8 +80,6 @@ class CeleryTaskQueue:
         try:
             from app.core.celery_app.celery import celery_app
 
-            celery_app.control.revoke(
-                task_id, terminate=terminate, signal="SIGTERM"
-            )
+            celery_app.control.revoke(task_id, terminate=terminate, signal="SIGTERM")
         except Exception as exc:
             logger.warning("Celery revoke failed for %s: %s", task_id, exc)

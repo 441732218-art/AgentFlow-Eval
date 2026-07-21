@@ -1,4 +1,4 @@
-﻿# (c) 2026 AgentFlow-Eval
+# (c) 2026 AgentFlow-Eval
 """Tests for LLMJudge scoring engine."""
 
 import pytest
@@ -16,10 +16,22 @@ class TestLLMJudge:
     @pytest.fixture
     def sample_steps(self):
         return [
-            {"iteration": 0, "thought": "Search weather", "action": "web_search",
-             "action_input": '{"query": "Beijing"}', "observation": "Sunny 25C", "tokens": 50},
-            {"iteration": 1, "thought": "Done", "action": "final_answer",
-             "action_input": "The weather is sunny 25C.", "observation": "", "tokens": 30},
+            {
+                "iteration": 0,
+                "thought": "Search weather",
+                "action": "web_search",
+                "action_input": '{"query": "Beijing"}',
+                "observation": "Sunny 25C",
+                "tokens": 50,
+            },
+            {
+                "iteration": 1,
+                "thought": "Done",
+                "action": "final_answer",
+                "action_input": "The weather is sunny 25C.",
+                "observation": "",
+                "tokens": 30,
+            },
         ]
 
     @pytest.mark.asyncio

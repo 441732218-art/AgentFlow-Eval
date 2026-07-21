@@ -40,7 +40,9 @@ def _build_topology(
     model_hint: str | None = None,
 ) -> dict[str, Any]:
     """Horizontal ReAct pipeline topology for ReactFlow cockpit."""
-    tool_status = "error" if failed > max(completed, 1) else ("warn" if failed else "ok")
+    tool_status = (
+        "error" if failed > max(completed, 1) else ("warn" if failed else "ok")
+    )
     planner_status = "ok" if running or completed else "idle"
     if running:
         planner_status = "ok"
@@ -183,8 +185,7 @@ async def dashboard_overview(
     )
     completed = int(stats.get("completed_tasks") or by.get("completed") or 0)
     failed = int(
-        stats.get("failed_tasks")
-        or (by.get("failed", 0) + by.get("timeout", 0))
+        stats.get("failed_tasks") or (by.get("failed", 0) + by.get("timeout", 0))
     )
     total = int(stats.get("tasks_total") or 0)
     terminal = completed + failed

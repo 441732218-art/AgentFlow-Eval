@@ -28,6 +28,7 @@ setup_logging()
 try:
     from slowapi import Limiter, _rate_limit_exceeded_handler
     from slowapi.util import get_remote_address
+
     HAS_SLOWAPI = True
 except ImportError:
     HAS_SLOWAPI = False
@@ -189,9 +190,7 @@ async def lifespan(app: FastAPI):
                 if signature_check_enabled() and modules:
                     modules, rejected = filter_signed_modules(modules)
                     if rejected:
-                        log.warning(
-                            "Plugin signature rejections: %s", rejected
-                        )
+                        log.warning("Plugin signature rejections: %s", rejected)
             except Exception as sig_exc:
                 log.warning("Plugin signature check skipped: %s", sig_exc)
             summary = mgr.bootstrap(
@@ -240,6 +239,7 @@ async def lifespan(app: FastAPI):
 
     await engine.dispose()
     from app.core.dependencies import close_redis
+
     await close_redis()
 
 
@@ -254,7 +254,9 @@ app = FastAPI(
 
 # ---- Rate limiting ----
 if HAS_SLOWAPI and settings.RATE_LIMIT_ENABLED:
-    limiter = Limiter(key_func=get_remote_address, default_limits=[settings.RATE_LIMIT_DEFAULT])
+    limiter = Limiter(
+        key_func=get_remote_address, default_limits=[settings.RATE_LIMIT_DEFAULT]
+    )
     app.state.limiter = limiter
     app.add_exception_handler(429, _rate_limit_exceeded_handler)
 
@@ -289,7 +291,9 @@ app.include_router(v1_router)
 
 # ---- Exception handlers ----
 @app.exception_handler(AgentFlowError)
-async def agentflow_error_handler(request: Request, exc: AgentFlowError) -> JSONResponse:
+async def agentflow_error_handler(
+    request: Request, exc: AgentFlowError
+) -> JSONResponse:
     rid = getattr(request.state, "request_id", None)
     error_id = getattr(request.state, "error_id", None)
     if not error_id and exc.status_code >= 500:

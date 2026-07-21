@@ -132,9 +132,8 @@ def _norm_ppf(p: float) -> float:
     phigh = 1 - plow
     if p < plow:
         q = math.sqrt(-2 * math.log(p))
-        return (
-            (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
-            / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+        return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / (
+            (((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1
         )
     if p > phigh:
         q = math.sqrt(-2 * math.log(1 - p))
@@ -145,7 +144,8 @@ def _norm_ppf(p: float) -> float:
     q = p - 0.5
     r = q * q
     return (
-        (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q
+        (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5])
+        * q
         / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
     )
 
@@ -191,9 +191,7 @@ def two_proportion_z_test(
     p_value = 2 * (1 - _norm_cdf(abs(z)))
 
     # Unpooled SE for CI on difference
-    se_unpooled = math.sqrt(
-        max(p1 * (1 - p1) / n1 + p2 * (1 - p2) / n2, 1e-18)
-    )
+    se_unpooled = math.sqrt(max(p1 * (1 - p1) / n1 + p2 * (1 - p2) / n2, 1e-18))
     z_crit = _norm_ppf(1 - alpha / 2)
     ci_low = abs_lift - z_crit * se_unpooled
     ci_high = abs_lift + z_crit * se_unpooled

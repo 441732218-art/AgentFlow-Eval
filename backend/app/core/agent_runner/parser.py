@@ -17,4 +17,5 @@ def parse_steps_from_response(response: str) -> list[dict[str, Any]]:
         结构化的步骤列表。
     """
     from app.core.agent_runner.openai_runner import OpenAIRunner
+
     return OpenAIRunner._parse_react_steps(response)

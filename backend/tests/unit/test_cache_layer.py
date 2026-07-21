@@ -94,7 +94,9 @@ class TestKeysAndInvalidation:
     def test_key_builders(self):
         assert task_detail_key("t1").startswith("af:task:detail:")
         assert "list_ver" in task_list_version_key("alice")
-        k = task_list_key("alice", 1, page=1, page_size=20, status=None, include_archived=False)
+        k = task_list_key(
+            "alice", 1, page=1, page_size=20, status=None, include_archived=False
+        )
         assert "alice" in k
         assert CacheTTL.TASK_DETAIL == 300
         assert CacheTTL.TASK_LIST == 30

@@ -141,7 +141,9 @@ async def list_slow_tasks_db(limit: int = 50) -> list[dict[str, Any]]:
                         "actor": r.actor,
                         "extra": r.extra or {},
                         "at": r.created_at.timestamp() if r.created_at else None,
-                        "created_at": r.created_at.isoformat() if r.created_at else None,
+                        "created_at": r.created_at.isoformat()
+                        if r.created_at
+                        else None,
                         "source": "db",
                     }
                 )

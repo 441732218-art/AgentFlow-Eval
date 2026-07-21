@@ -15,6 +15,12 @@ from app.schemas.trace import (
 )
 
 __all__ = [
-    "TaskCreate", "TaskResponse", "TaskListResponse", "TaskStatusUpdate",
-    "TraceResponse", "TraceListResponse", "MetricScoreResponse", "JudgeResultResponse",
+    "TaskCreate",
+    "TaskResponse",
+    "TaskListResponse",
+    "TaskStatusUpdate",
+    "TraceResponse",
+    "TraceListResponse",
+    "MetricScoreResponse",
+    "JudgeResultResponse",
 ]

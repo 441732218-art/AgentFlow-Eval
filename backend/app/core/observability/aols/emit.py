@@ -281,7 +281,9 @@ def emit_tool(
     error_message: str | None = None,
     **extra: Any,
 ) -> None:
-    level = "error" if event in (LogEvent.TOOL_FAILED, LogEvent.TOOL_TIMEOUT) else "info"
+    level = (
+        "error" if event in (LogEvent.TOOL_FAILED, LogEvent.TOOL_TIMEOUT) else "info"
+    )
     # Redact tool I/O for safety; truncate
     safe_in = redact_value(input_data, max_str=400) if input_data is not None else None
     safe_out = None

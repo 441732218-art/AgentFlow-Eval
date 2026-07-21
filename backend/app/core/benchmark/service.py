@@ -111,9 +111,7 @@ class BenchmarkService:
         await session.flush()
         return created
 
-    def parse_import_payload(
-        self, *, content: str, fmt: str
-    ) -> list[dict[str, Any]]:
+    def parse_import_payload(self, *, content: str, fmt: str) -> list[dict[str, Any]]:
         fmt = (fmt or "json").lower().strip()
         if fmt == "json":
             data = json.loads(content)
@@ -128,9 +126,7 @@ class BenchmarkService:
             for row in reader:
                 tools = row.get("expected_tools") or ""
                 tool_list = (
-                    [t.strip() for t in tools.split("|") if t.strip()]
-                    if tools
-                    else []
+                    [t.strip() for t in tools.split("|") if t.strip()] if tools else []
                 )
                 rows.append(
                     {
@@ -282,9 +278,7 @@ class BenchmarkService:
         await session.flush()
         return run
 
-    async def finalize_run(
-        self, session: AsyncSession, run_id: str
-    ) -> BenchmarkRun:
+    async def finalize_run(self, session: AsyncSession, run_id: str) -> BenchmarkRun:
         """Materialize BenchmarkResult rows from Task traces + metric_scores."""
         r = await session.execute(
             select(BenchmarkRun)
@@ -303,10 +297,14 @@ class BenchmarkService:
         await session.flush()
 
         suites = (
-            await session.execute(
-                select(TestSuite).where(TestSuite.task_id == run.task_id)
+            (
+                await session.execute(
+                    select(TestSuite).where(TestSuite.task_id == run.task_id)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         total_tokens = 0
         total_cost = 0.0
@@ -317,20 +315,28 @@ class BenchmarkService:
 
         for suite in suites:
             traces = (
-                await session.execute(
-                    select(Trace)
-                    .where(Trace.test_suite_id == suite.id)
-                    .order_by(Trace.created_at.desc())
+                (
+                    await session.execute(
+                        select(Trace)
+                        .where(Trace.test_suite_id == suite.id)
+                        .order_by(Trace.created_at.desc())
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             if not traces:
                 continue
             tr = traces[0]
             ms_rows = (
-                await session.execute(
-                    select(MetricScore).where(MetricScore.trace_id == tr.id)
+                (
+                    await session.execute(
+                        select(MetricScore).where(MetricScore.trace_id == tr.id)
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             by_name = {m.metric_name: m.score for m in ms_rows}
             accuracy = by_name.get("accuracy") or by_name.get("exact_match")
             quality = by_name.get("quality") or by_name.get("relevance")
@@ -412,12 +418,16 @@ class BenchmarkService:
     ) -> list[dict[str, Any]]:
         """Aggregate completed runs by label for leaderboard."""
         runs = (
-            await session.execute(
-                select(BenchmarkRun)
-                .where(BenchmarkRun.benchmark_id == benchmark_id)
-                .order_by(BenchmarkRun.created_at.desc())
+            (
+                await session.execute(
+                    select(BenchmarkRun)
+                    .where(BenchmarkRun.benchmark_id == benchmark_id)
+                    .order_by(BenchmarkRun.created_at.desc())
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         # Finalize unfinished runs that have completed tasks (best-effort)
         for run in runs:
@@ -428,10 +438,16 @@ class BenchmarkService:
                     pass
 
         runs = (
-            await session.execute(
-                select(BenchmarkRun).where(BenchmarkRun.benchmark_id == benchmark_id)
+            (
+                await session.execute(
+                    select(BenchmarkRun).where(
+                        BenchmarkRun.benchmark_id == benchmark_id
+                    )
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         by_label: dict[str, list[BenchmarkRun]] = {}
         for run in runs:
@@ -465,9 +481,7 @@ class BenchmarkService:
                     "runs_count": len(group),
                     "updated_at": best.finished_at.isoformat()
                     if best.finished_at
-                    else (
-                        best.created_at.isoformat() if best.created_at else None
-                    ),
+                    else (best.created_at.isoformat() if best.created_at else None),
                 }
             )
 

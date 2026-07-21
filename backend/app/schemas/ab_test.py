@@ -112,7 +112,9 @@ class ABTrackRequest(BaseModel):
 
 class ABSampleSizeRequest(BaseModel):
     baseline_rate: float = Field(..., ge=0, le=1)
-    mde: float = Field(..., gt=0, le=1, description="Absolute minimum detectable effect")
+    mde: float = Field(
+        ..., gt=0, le=1, description="Absolute minimum detectable effect"
+    )
     alpha: float = Field(default=0.05, gt=0, lt=1)
     power: float = Field(default=0.8, gt=0, lt=1)
 

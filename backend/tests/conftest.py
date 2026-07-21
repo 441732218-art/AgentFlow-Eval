@@ -14,13 +14,16 @@ from app.models.base import Base
 TEST_DB_URL = "sqlite+aiosqlite:///./test_e2e.db"
 ENGINE = create_async_engine(TEST_DB_URL, echo=False)
 
+
 @pytest_asyncio.fixture(scope="class")
 async def db_session():
     async with ENGINE.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     session = async_sessionmaker(ENGINE, class_=AsyncSession)()
+
     async def _override():
         yield session
+
     app.dependency_overrides[get_db] = _override
     yield session
     app.dependency_overrides.clear()
@@ -32,11 +35,13 @@ async def db_session():
     except OSError:
         pass
 
+
 @pytest_asyncio.fixture
 async def client(db_session):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
 
 @pytest.fixture(scope="session")
 def event_loop():

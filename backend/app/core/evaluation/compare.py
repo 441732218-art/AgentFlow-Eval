@@ -70,12 +70,17 @@ def pick_best_label(runs: list[dict[str, Any]]) -> str | None:
         return None
     ranked = sorted(
         runs,
-        key=lambda r: (-float(r.get("average_score") or 0.0), str(r.get("label") or "")),
+        key=lambda r: (
+            -float(r.get("average_score") or 0.0),
+            str(r.get("label") or ""),
+        ),
     )
     return str(ranked[0].get("label") or "") or None
 
 
-def deltas_vs_best(runs: list[dict[str, Any]], best_label: str | None) -> dict[str, float]:
+def deltas_vs_best(
+    runs: list[dict[str, Any]], best_label: str | None
+) -> dict[str, float]:
     """Map label -> average_score - best_score."""
     if not runs or not best_label:
         return {}

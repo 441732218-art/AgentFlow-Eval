@@ -6,7 +6,6 @@ from httpx import AsyncClient
 
 
 class TestEndToEnd:
-
     # Health check
     @pytest.mark.asyncio
     async def test_01_health_check(self, client: AsyncClient):
@@ -57,11 +56,25 @@ class TestEndToEnd:
         task_id = getattr(pytest, "task_id", None)
         assert task_id is not None
         suites = [
-            {"user_query": "Weather in Beijing?", "expected_output": "Sunny, 25C", "expected_tools": ["get_weather"]},
-            {"user_query": "Calculate 15*37", "expected_output": "555", "expected_tools": ["calculator"]},
-            {"user_query": "Book flight to Shanghai", "expected_output": "Booked", "expected_tools": ["flight_search"]},
+            {
+                "user_query": "Weather in Beijing?",
+                "expected_output": "Sunny, 25C",
+                "expected_tools": ["get_weather"],
+            },
+            {
+                "user_query": "Calculate 15*37",
+                "expected_output": "555",
+                "expected_tools": ["calculator"],
+            },
+            {
+                "user_query": "Book flight to Shanghai",
+                "expected_output": "Booked",
+                "expected_tools": ["flight_search"],
+            },
         ]
-        resp = await client.post("/api/v1/tasks/" + task_id + "/test-suites", json=suites)
+        resp = await client.post(
+            "/api/v1/tasks/" + task_id + "/test-suites", json=suites
+        )
         assert resp.status_code == 201, resp.text
         data = resp.json()
         assert data["created"] == 3

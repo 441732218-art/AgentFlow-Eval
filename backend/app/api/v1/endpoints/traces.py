@@ -82,9 +82,11 @@ async def list_traces(
         query = query.where(Trace.test_suite_id == test_suite_id)
         count_query = count_query.where(Trace.test_suite_id == test_suite_id)
 
-    query = query.order_by(Trace.created_at.desc()).offset(
-        (page - 1) * page_size
-    ).limit(page_size)
+    query = (
+        query.order_by(Trace.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
 
     total_result = await session.execute(count_query)
     total = total_result.scalar() or 0
@@ -161,10 +163,26 @@ async def judge_trace(
         expected_output=suite.expected_output,
         expected_tools=suite.expected_tools,
     )
-    scores = judge_result.get("scores", {}) if isinstance(judge_result, dict) else judge_result.scores
-    total = judge_result.get("total", 0.0) if isinstance(judge_result, dict) else judge_result.total
-    reason = judge_result.get("reason", "") if isinstance(judge_result, dict) else judge_result.reason
-    token_cost = judge_result.get("token_cost", 0) if isinstance(judge_result, dict) else judge_result.token_cost
+    scores = (
+        judge_result.get("scores", {})
+        if isinstance(judge_result, dict)
+        else judge_result.scores
+    )
+    total = (
+        judge_result.get("total", 0.0)
+        if isinstance(judge_result, dict)
+        else judge_result.total
+    )
+    reason = (
+        judge_result.get("reason", "")
+        if isinstance(judge_result, dict)
+        else judge_result.reason
+    )
+    token_cost = (
+        judge_result.get("token_cost", 0)
+        if isinstance(judge_result, dict)
+        else judge_result.token_cost
+    )
 
     for metric_name, score in scores.items():
         ms = MetricScore(

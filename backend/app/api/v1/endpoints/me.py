@@ -59,9 +59,7 @@ async def get_me(request: Request) -> dict[str, Any]:
         "rbac_enforced": rbac_enforced(),
         "auth_enabled": bool(getattr(settings, "AUTH_ENABLED", False)),
         "billing_enabled": bool(getattr(settings, "BILLING_ENABLED", False)),
-        "multi_tenant_enabled": bool(
-            getattr(settings, "MULTI_TENANT_ENABLED", False)
-        ),
+        "multi_tenant_enabled": bool(getattr(settings, "MULTI_TENANT_ENABLED", False)),
         "tenant": tenant_info,
         "deploy": status,
         "request_id": getattr(request.state, "request_id", None),

@@ -53,8 +53,12 @@ def extract_pdf(data: bytes, filename: str = "document.pdf") -> ExtractResult:
         features["page_count"] = n
         meta = getattr(reader, "metadata", None) or {}
         if meta:
-            metadata["pdf_title"] = str(getattr(meta, "title", None) or meta.get("/Title") or "")
-            metadata["pdf_author"] = str(getattr(meta, "author", None) or meta.get("/Author") or "")
+            metadata["pdf_title"] = str(
+                getattr(meta, "title", None) or meta.get("/Title") or ""
+            )
+            metadata["pdf_author"] = str(
+                getattr(meta, "author", None) or meta.get("/Author") or ""
+            )
 
         for i, page in enumerate(reader.pages):
             try:

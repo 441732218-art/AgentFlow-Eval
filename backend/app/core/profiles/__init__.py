@@ -196,7 +196,9 @@ def apply_profile_from_settings() -> dict[str, Any]:
             tq = "eager"
 
     billing = bool(getattr(settings, "BILLING_ENABLED", False))
-    return apply_profile(str(profile), task_queue_backend=tq or None, billing_enabled=billing)
+    return apply_profile(
+        str(profile), task_queue_backend=tq or None, billing_enabled=billing
+    )
 
 
 def profile_status() -> dict[str, Any]:

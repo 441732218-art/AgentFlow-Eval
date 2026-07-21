@@ -25,29 +25,33 @@ async def list_tools(request: Request) -> dict[str, Any]:
     """List sandboxed built-in and plugin tools available to agents."""
     items = []
     for name, meta in sorted(BUILTIN_TOOLS.items()):
-        items.append({
-            "name": name,
-            "description": meta["description"],
-            "parameters": meta["parameters"],
-            "required": meta.get("required") or [],
-            "sandbox": True,
-            "network": False,
-            "source": "builtin",
-        })
+        items.append(
+            {
+                "name": name,
+                "description": meta["description"],
+                "parameters": meta["parameters"],
+                "required": meta.get("required") or [],
+                "sandbox": True,
+                "network": False,
+                "source": "builtin",
+            }
+        )
     try:
         from app.core.plugins.registry import get_capability_registry
 
         for t in get_capability_registry().list_tools():
-            items.append({
-                "name": t["name"],
-                "description": t.get("description") or "",
-                "parameters": t.get("parameters") or {},
-                "required": t.get("required") or [],
-                "sandbox": True,
-                "network": bool(t.get("network")),
-                "source": "plugin",
-                "plugin_id": t.get("plugin_id"),
-            })
+            items.append(
+                {
+                    "name": t["name"],
+                    "description": t.get("description") or "",
+                    "parameters": t.get("parameters") or {},
+                    "required": t.get("required") or [],
+                    "sandbox": True,
+                    "network": bool(t.get("network")),
+                    "source": "plugin",
+                    "plugin_id": t.get("plugin_id"),
+                }
+            )
     except Exception:
         pass
     return {"items": items, "total": len(items)}

@@ -36,7 +36,9 @@ def _png() -> bytes:
 async def api_client(tmp_path, monkeypatch):
     monkeypatch.setenv("STORAGE_BACKEND", "local")
     monkeypatch.setattr("app.config.settings.STORAGE_BACKEND", "local")
-    monkeypatch.setattr("app.config.settings.LOCAL_STORAGE_PATH", str(tmp_path / "uploads"))
+    monkeypatch.setattr(
+        "app.config.settings.LOCAL_STORAGE_PATH", str(tmp_path / "uploads")
+    )
     monkeypatch.setattr("app.config.settings.AUTH_ENABLED", False)
     monkeypatch.setattr("app.config.settings.RBAC_ENABLED", False)
 
@@ -83,7 +85,9 @@ async def test_formats(api_client):
 
 @pytest.mark.asyncio
 async def test_upload_text_and_evaluate(api_client):
-    files = {"file": ("notes.txt", b"AgentFlow multimodal evaluation scores", "text/plain")}
+    files = {
+        "file": ("notes.txt", b"AgentFlow multimodal evaluation scores", "text/plain")
+    }
     data = {"extract": "true"}
     r = await api_client.post("/api/v1/media/upload", files=files, data=data)
     assert r.status_code == 201, r.text
@@ -93,7 +97,11 @@ async def test_upload_text_and_evaluate(api_client):
 
     ev = await api_client.post(
         f"/api/v1/media/{asset['id']}/evaluate",
-        json={"query": "scores", "expected_text": "evaluation scores", "use_vision_llm": False},
+        json={
+            "query": "scores",
+            "expected_text": "evaluation scores",
+            "use_vision_llm": False,
+        },
     )
     assert ev.status_code == 200, ev.text
     body = ev.json()

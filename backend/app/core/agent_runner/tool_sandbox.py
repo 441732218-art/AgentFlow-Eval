@@ -53,7 +53,9 @@ def tool_calculator(expression: str = "", **kwargs: Any) -> str:
         if isinstance(node, ast.Expression):
             return _eval(node.body)
         if isinstance(node, ast.Constant):
-            if isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
+            if isinstance(node.value, (int, float)) and not isinstance(
+                node.value, bool
+            ):
                 return float(node.value)
             raise ValueError(f"Unsupported constant: {node.value!r}")
         if isinstance(node, ast.BinOp):
@@ -143,7 +145,10 @@ BUILTIN_TOOLS: dict[str, dict[str, Any]] = {
     "calculator": {
         "description": "Perform safe arithmetic calculations.",
         "parameters": {
-            "expression": {"type": "string", "description": "Math expression, e.g. (1+2)*3"},
+            "expression": {
+                "type": "string",
+                "description": "Math expression, e.g. (1+2)*3",
+            },
         },
         "required": ["expression"],
         "fn": tool_calculator,
@@ -159,7 +164,10 @@ BUILTIN_TOOLS: dict[str, dict[str, Any]] = {
     "current_datetime": {
         "description": "Get the current UTC datetime in ISO format.",
         "parameters": {
-            "timezone_name": {"type": "string", "description": "Ignored; always UTC in sandbox"},
+            "timezone_name": {
+                "type": "string",
+                "description": "Ignored; always UTC in sandbox",
+            },
         },
         "required": [],
         "fn": tool_current_datetime,
@@ -211,43 +219,50 @@ def get_openai_tool_defs(names: list[str] | None = None) -> list[dict[str, Any]]
     for name in selected:
         meta = BUILTIN_TOOLS.get(name)
         if meta:
-            out.append({
-                "type": "function",
-                "function": {
-                    "name": name,
-                    "description": meta["description"],
-                    "parameters": {
-                        "type": "object",
-                        "properties": meta["parameters"],
-                        "required": meta.get("required") or [],
+            out.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "description": meta["description"],
+                        "parameters": {
+                            "type": "object",
+                            "properties": meta["parameters"],
+                            "required": meta.get("required") or [],
+                        },
                     },
-                },
-            })
+                }
+            )
             continue
         pmeta = plugin_tools.get(name)
         if pmeta:
-            out.append({
+            out.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "description": pmeta.get("description")
+                        or f"Plugin tool: {name}",
+                        "parameters": {
+                            "type": "object",
+                            "properties": pmeta.get("parameters") or {},
+                            "required": pmeta.get("required") or [],
+                        },
+                    },
+                }
+            )
+            continue
+        # Unknown expected tool: still expose a stub definition for the model
+        out.append(
+            {
                 "type": "function",
                 "function": {
                     "name": name,
-                    "description": pmeta.get("description") or f"Plugin tool: {name}",
-                    "parameters": {
-                        "type": "object",
-                        "properties": pmeta.get("parameters") or {},
-                        "required": pmeta.get("required") or [],
-                    },
+                    "description": f"Tool: {name}",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
                 },
-            })
-            continue
-        # Unknown expected tool: still expose a stub definition for the model
-        out.append({
-            "type": "function",
-            "function": {
-                "name": name,
-                "description": f"Tool: {name}",
-                "parameters": {"type": "object", "properties": {}, "required": []},
-            },
-        })
+            }
+        )
     return out
 
 

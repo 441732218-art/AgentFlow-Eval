@@ -1,4 +1,4 @@
-﻿# (c) 2026 AgentFlow-Eval
+# (c) 2026 AgentFlow-Eval
 """Custom exception hierarchy and unified error response format."""
 
 from __future__ import annotations
@@ -8,7 +8,13 @@ from datetime import datetime, timezone
 
 class AgentFlowError(Exception):
     """Base exception for all application errors."""
-    def __init__(self, message: str = "Internal error", status_code: int = 500, detail: Any = None):
+
+    def __init__(
+        self,
+        message: str = "Internal error",
+        status_code: int = 500,
+        detail: Any = None,
+    ):
         self.message = message
         self.status_code = status_code
         self.detail = detail
@@ -17,37 +23,47 @@ class AgentFlowError(Exception):
 
 class NotFoundError(AgentFlowError):
     """Resource not found (HTTP 404)."""
+
     def __init__(self, resource: str = "Resource", resource_id: str = ""):
-        msg = f"{resource} not found: {resource_id}" if resource_id else f"{resource} not found"
+        msg = (
+            f"{resource} not found: {resource_id}"
+            if resource_id
+            else f"{resource} not found"
+        )
         super().__init__(message=msg, status_code=404)
 
 
 class ValidationError(AgentFlowError):
     """Request validation failed (HTTP 422)."""
+
     def __init__(self, message: str = "Validation failed", detail: Any = None):
         super().__init__(message=message, status_code=422, detail=detail)
 
 
 class BusinessError(AgentFlowError):
     """Business logic error (HTTP 400)."""
+
     def __init__(self, message: str = "Business error", detail: Any = None):
         super().__init__(message=message, status_code=400, detail=detail)
 
 
 class TaskStateError(AgentFlowError):
     """Task state conflict (HTTP 409)."""
+
     def __init__(self, message: str = "Task state error"):
         super().__init__(message=message, status_code=409)
 
 
 class ExternalServiceError(AgentFlowError):
     """External service unavailable (HTTP 503)."""
+
     def __init__(self, message: str = "External service error", detail: Any = None):
         super().__init__(message=message, status_code=503, detail=detail)
 
 
 class RateLimitError(AgentFlowError):
     """Rate limit exceeded (HTTP 429)."""
+
     def __init__(self, message: str = "Too many requests", detail: Any = None):
         super().__init__(message=message, status_code=429, detail=detail)
 

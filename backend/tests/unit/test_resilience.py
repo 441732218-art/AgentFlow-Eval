@@ -44,8 +44,13 @@ class TestRetry:
                 raise ConnectionError("transient")
             return "ok"
 
-        with patch("app.core.resilience.retry._load_retry_settings", return_value=(3, 0.01, 0.05)):
-            result = await retry_async(flaky, name="test", max_attempts=3, min_wait=0.01, max_wait=0.05)
+        with patch(
+            "app.core.resilience.retry._load_retry_settings",
+            return_value=(3, 0.01, 0.05),
+        ):
+            result = await retry_async(
+                flaky, name="test", max_attempts=3, min_wait=0.01, max_wait=0.05
+            )
         assert result == "ok"
         assert calls["n"] == 3
 
@@ -72,7 +77,10 @@ class TestRetry:
                 raise OSError("x")
             return 42
 
-        assert retry_sync(flaky, name="t", max_attempts=3, min_wait=0.01, max_wait=0.02) == 42
+        assert (
+            retry_sync(flaky, name="t", max_attempts=3, min_wait=0.01, max_wait=0.02)
+            == 42
+        )
         assert calls["n"] == 2
 
 

@@ -61,7 +61,11 @@ async def test_create_list_compare_experiment(api_client):
     # base task with suites
     r = await client.post(
         "/api/v1/tasks",
-        json={"name": "base", "description": "", "agent_config": {"model": "gpt-4o-mini"}},
+        json={
+            "name": "base",
+            "description": "",
+            "agent_config": {"model": "gpt-4o-mini"},
+        },
     )
     assert r.status_code == 201
     base_id = r.json()["id"]

@@ -69,9 +69,7 @@ async def test_subscribe_and_usage(session):
 @pytest.mark.asyncio
 async def test_quota_exceeded_when_billing_on(session, monkeypatch):
     monkeypatch.setattr("app.config.settings.BILLING_ENABLED", True)
-    monkeypatch.setattr(
-        "app.core.billing.service.billing_enabled", lambda: True
-    )
+    monkeypatch.setattr("app.core.billing.service.billing_enabled", lambda: True)
     svc = get_billing_service()
     await svc.ensure_default_plans(session)
     await svc.subscribe(session, actor="carol", plan_code="free")

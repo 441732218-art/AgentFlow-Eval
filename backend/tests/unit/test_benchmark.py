@@ -90,8 +90,14 @@ async def test_create_import_run_leaderboard(session, monkeypatch):
     from sqlalchemy import select
 
     suites = (
-        await session.execute(select(TestSuite).where(TestSuite.task_id == run.task_id))
-    ).scalars().all()
+        (
+            await session.execute(
+                select(TestSuite).where(TestSuite.task_id == run.task_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
     assert len(suites) >= 2
     for suite in suites:
         tr = Trace(

@@ -14,7 +14,11 @@ from app.core.resilience.circuit_breaker import (
     get_breaker,
 )
 from app.core.resilience.retry import DEFAULT_RETRY_EXCEPTIONS, retry_async, retry_sync
-from app.core.resilience.timeout import TimeoutExceededError, with_timeout, with_timeout_sync
+from app.core.resilience.timeout import (
+    TimeoutExceededError,
+    with_timeout,
+    with_timeout_sync,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +52,9 @@ def default_llm_policy(name: str = "llm") -> ResiliencePolicy:
             min_wait=float(getattr(settings, "LLM_RETRY_MIN_WAIT_SEC", 1.0) or 1.0),
             max_wait=float(getattr(settings, "LLM_RETRY_MAX_WAIT_SEC", 10.0) or 10.0),
             timeout_sec=float(getattr(settings, "LLM_CALL_TIMEOUT_SEC", 30.0) or 30.0),
-            failure_threshold=int(getattr(settings, "CIRCUIT_FAILURE_THRESHOLD", 5) or 5),
+            failure_threshold=int(
+                getattr(settings, "CIRCUIT_FAILURE_THRESHOLD", 5) or 5
+            ),
             recovery_timeout=float(
                 getattr(settings, "CIRCUIT_RECOVERY_TIMEOUT_SEC", 60.0) or 60.0
             ),
@@ -130,7 +136,11 @@ async def protected_call_async(
     except Exception as exc:
         logger.warning("Protected call '%s' failed: %s", pol.name, exc)
         if fallback is not None:
-            reason = "timeout" if isinstance(exc, (TimeoutError, TimeoutExceededError)) else "error"
+            reason = (
+                "timeout"
+                if isinstance(exc, (TimeoutError, TimeoutExceededError))
+                else "error"
+            )
             _record_fallback(pol.name, reason)
             return await _invoke_fallback_async(fallback, *args, **kwargs)
         raise
@@ -187,7 +197,11 @@ def protected_call(
     except Exception as exc:
         logger.warning("Protected call '%s' failed: %s", pol.name, exc)
         if fallback is not None:
-            reason = "timeout" if isinstance(exc, (TimeoutError, TimeoutExceededError)) else "error"
+            reason = (
+                "timeout"
+                if isinstance(exc, (TimeoutError, TimeoutExceededError))
+                else "error"
+            )
             _record_fallback(pol.name, reason)
             return fallback(*args, **kwargs)
         raise

@@ -140,10 +140,7 @@ def aggregate_pipeline_results(
 
     avg_score = round(total_score / score_count, 1) if score_count else 0.0
     avg_dim_scores = (
-        {
-            dim: round(sum(vals) / len(vals), 1)
-            for dim, vals in dimension_scores.items()
-        }
+        {dim: round(sum(vals) / len(vals), 1) for dim, vals in dimension_scores.items()}
         if dimension_scores
         else {}
     )
@@ -162,7 +159,9 @@ def aggregate_pipeline_results(
     }
 
 
-def empty_pipeline_result(task_id: str, message: str = "No test suites found.") -> dict[str, Any]:
+def empty_pipeline_result(
+    task_id: str, message: str = "No test suites found."
+) -> dict[str, Any]:
     """Build a completed empty-suite pipeline payload.
 
     Args:

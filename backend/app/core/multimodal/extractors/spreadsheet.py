@@ -50,7 +50,9 @@ def extract_spreadsheet(data: bytes, filename: str = "data.xlsx") -> ExtractResu
             features["sheet_count"] = len(df)
             total_rows = 0
             for name, frame in df.items():
-                rows = [list(frame.columns.astype(str))] + frame.astype(str).values.tolist()
+                rows = [list(frame.columns.astype(str))] + frame.astype(
+                    str
+                ).values.tolist()
                 tables.append(_table_from_rows(str(name), rows))
                 text_parts.append(_rows_to_markdown(str(name), rows))
                 total_rows += max(0, len(rows) - 1)

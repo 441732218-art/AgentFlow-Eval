@@ -54,12 +54,7 @@ def bind_from_mapping(data: dict[str, Any] | None) -> str:
     """Restore trace id from task kwargs / event payload (force overwrite)."""
     if not data:
         return ensure_trace_id()
-    tid = (
-        data.get("_trace_id")
-        or data.get("trace_id")
-        or data.get("request_id")
-        or ""
-    )
+    tid = data.get("_trace_id") or data.get("trace_id") or data.get("request_id") or ""
     if tid:
         set_trace_id(str(tid))
         return str(tid)

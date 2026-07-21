@@ -67,9 +67,7 @@ async def db_engine(monkeypatch):
         await conn.run_sync(Base.metadata.create_all)
 
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    monkeypatch.setattr(
-        "app.core.dependencies.async_session_factory", factory
-    )
+    monkeypatch.setattr("app.core.dependencies.async_session_factory", factory)
     yield factory
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)

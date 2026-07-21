@@ -75,7 +75,12 @@ async def get_current_actor(request: Request) -> Any:
     return ActorInfoResponse(
         current_actor=actor,
         role=role.value if isinstance(role, Role) else str(role),
-        permissions=sorted(p.value for p in permissions_for(role if isinstance(role, Role) else resolve_role_for_actor(actor))),
+        permissions=sorted(
+            p.value
+            for p in permissions_for(
+                role if isinstance(role, Role) else resolve_role_for_actor(actor)
+            )
+        ),
         is_admin=is_admin(actor) or (isinstance(role, Role) and role == Role.ADMIN),
         auth_enabled=bool(settings.AUTH_ENABLED),
         rbac_enabled=rbac_on,

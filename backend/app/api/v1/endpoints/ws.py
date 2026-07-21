@@ -26,7 +26,9 @@ async def activities_ws(websocket: WebSocket) -> None:
     """
     await manager.connect(websocket)
     try:
-        await websocket.send_json({"type": "hello", "clients": manager.count, "mode": "ws"})
+        await websocket.send_json(
+            {"type": "hello", "clients": manager.count, "mode": "ws"}
+        )
         while True:
             try:
                 data = await asyncio.wait_for(websocket.receive_text(), timeout=45.0)

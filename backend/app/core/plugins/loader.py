@@ -138,7 +138,9 @@ def load_module_from_path(path: Path, module_name: str | None = None) -> Any:
     return module
 
 
-def instantiate_from_path(path: Path, config: dict[str, Any] | None = None) -> BasePlugin:
+def instantiate_from_path(
+    path: Path, config: dict[str, Any] | None = None
+) -> BasePlugin:
     """Load plugin from a filesystem path."""
     path = Path(path)
     manifest: dict[str, Any] = {}
@@ -203,7 +205,9 @@ def discover_directory(directory: str | Path) -> list[DiscoveredPlugin]:
         manifest: dict[str, Any] = {}
         if (child / "plugin.json").exists():
             try:
-                manifest = json.loads((child / "plugin.json").read_text(encoding="utf-8"))
+                manifest = json.loads(
+                    (child / "plugin.json").read_text(encoding="utf-8")
+                )
             except Exception as exc:
                 found.append(
                     DiscoveredPlugin(
@@ -278,8 +282,19 @@ def meta_from_manifest(data: dict[str, Any], fallback_name: str) -> PluginMeta:
         description=str(data.get("description") or ""),
         author=str(data.get("author") or ""),
         provides=list(provides),
-        extra={k: v for k, v in data.items() if k not in {
-            "name", "version", "type", "plugin_type", "description",
-            "author", "provides", "entry",
-        }},
+        extra={
+            k: v
+            for k, v in data.items()
+            if k
+            not in {
+                "name",
+                "version",
+                "type",
+                "plugin_type",
+                "description",
+                "author",
+                "provides",
+                "entry",
+            }
+        },
     )

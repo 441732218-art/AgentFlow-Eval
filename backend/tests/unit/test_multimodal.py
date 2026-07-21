@@ -144,7 +144,9 @@ class TestEvaluator:
         from app.core.multimodal.evaluator import vision_llm_score
         from app.core.multimodal.types import ExtractResult
 
-        ex = ExtractResult(kind=MediaKind.IMAGE, text="red square", features={"width": 10})
+        ex = ExtractResult(
+            kind=MediaKind.IMAGE, text="red square", features={"width": 10}
+        )
         with patch("app.config.settings") as s:
             s.OPENAI_API_KEY = ""
             s.OPENAI_BASE_URL = ""
