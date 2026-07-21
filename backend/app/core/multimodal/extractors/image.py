@@ -119,13 +119,16 @@ def _try_clip_embedding(data: bytes) -> list[float] | None:
         except ImportError:
             pass
 
-        # transformers CLIP
+        # transformers CLIP — revision pinned for supply-chain integrity (Bandit B615 / CWE-494)
         try:
             from transformers import CLIPModel, CLIPProcessor  # type: ignore
             import torch
 
-            model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-            processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+            # HF model card tip (openai/clip-vit-base-patch32) as of 2024-02-29
+            _clip_id = "openai/clip-vit-base-patch32"
+            _clip_rev = "3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268"
+            model = CLIPModel.from_pretrained(_clip_id, revision=_clip_rev)
+            processor = CLIPProcessor.from_pretrained(_clip_id, revision=_clip_rev)
             image = Image.open(io.BytesIO(data)).convert("RGB")
             inputs = processor(images=image, return_tensors="pt")
             with torch.no_grad():

@@ -1,0 +1,20 @@
+# Bandit configuration for AgentFlow-Eval backend CI gate
+# Docs: https://bandit.readthedocs.io/
+# CI: bandit -c .bandit -r app/ -f txt
+
+# Severity/confidence floors match historical gate intent (medium+ / any confidence)
+# while excluding noisy paths. True HIGH findings still fail the gate.
+skips: []
+
+exclude_dirs:
+  - tests
+  - .venv
+  - venv
+  - __pycache__
+
+# Tests that are known false-positives in intentional sandbox code can be listed
+# per-line with `# nosec Bxxx` and a short reason — prefer that over global skips.
+
+assert_used:
+  skips:
+    - "*/tests/*"

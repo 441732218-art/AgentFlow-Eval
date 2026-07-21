@@ -54,9 +54,11 @@ jobs:
       - name: Ruff
         working-directory: ./backend
         run: ruff check app/ tests/
-      - name: Bandit (high severity gate)
+      - name: Bandit (medium+ severity gate)
         working-directory: ./backend
-        run: bandit -r app/ -ll -i -x '*/tests/*' -f txt
+        # -ll = medium and higher; -i = any confidence; config: backend/.bandit
+        # True HIGH issues fail here; MEDIUM (e.g. unpinned HF models) also fail until fixed.
+        run: bandit -c .bandit -r app/ -ll -i -f txt
       - name: pip-audit (advisory)
         working-directory: ./backend
         continue-on-error: true

@@ -54,7 +54,7 @@
 
 ```bash
 # Bandit
-cd backend && bandit -r app/ -ll
+cd backend && bandit -c .bandit -r app/ -ll -i -f txt
 
 # pip-audit
 pip-audit -r requirements.txt

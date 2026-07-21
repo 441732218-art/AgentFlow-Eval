@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Bandit B615**: pin Hugging Face CLIP `revision` in multimodal image extractor (supply-chain)
+- **CI**: single Docker pipeline (`docker-build.yml`); remove redundant `build.yml` and Release-time image matrix
+
+### Docs
+- Release notes `docs/releases/v1.0.0.md`; soft-copyright module/screenshot lists aligned to v1.0.0
+- Offline re-export guide `docs/离线交付包重导说明.md`
+
+## [1.0.0] — 2026-07-21
+
 ### Added
 
 - **跨端打包与自适应交付**

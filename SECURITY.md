@@ -47,7 +47,8 @@ Include: impact, reproduction steps, whether an exploit is known, and contact in
 
 ```bash
 cd backend
-bandit -r app/ -ll
+# From backend/ (uses .bandit config; -ll = medium+, fails CI on findings)
+bandit -c .bandit -r app/ -ll -i -f txt
 pip-audit -r requirements.txt
 # after image build:
 trivy image agentflow-backend:local

@@ -77,10 +77,11 @@ jobs:
         continue-on-error: true
         run: mypy app/ --ignore-missing-imports
 
-      - name: Security scan (bandit)
+      - name: Security scan (bandit, advisory in CI)
         working-directory: ./backend
         continue-on-error: true
-        run: bandit -r app/ -f json -o bandit-report.json || true
+        # Blocking gate lives in test.yml / release.yml; keep CI non-blocking for report artifact
+        run: bandit -c .bandit -r app/ -ll -i -f json -o bandit-report.json || true
 
       - name: Run unit tests with coverage
         working-directory: ./backend

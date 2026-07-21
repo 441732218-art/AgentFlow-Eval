@@ -110,10 +110,13 @@ alembic upgrade head
 
 | Workflow | Trigger |
 |----------|---------|
-| `.github/workflows/test.yml` | PR/push — ruff, bandit, pytest cov≥40% |
-| `.github/workflows/docker-build.yml` | main/tags — build, push GHCR, Trivy |
-| `.github/workflows/release.yml` | tags `v1.*` — test + images + GitHub Release |
+| `.github/workflows/test.yml` | PR/push — ruff, bandit (medium+), pytest cov≥40% |
+| `.github/workflows/docker-build.yml` | **唯一**镜像流水线：PR 仅构建；main/tags 构建+推送 GHCR+Trivy |
+| `.github/workflows/release.yml` | tags `v1.*` — 测试门禁 + GitHub Release Notes（**不再**重复构建镜像） |
+| `.github/workflows/build-windows.yml` / `desktop-macos.yml` | 桌面安装包 → Release Assets |
 | `.github/workflows/deploy.yml` | manual SSH deploy (secrets) |
+
+> 已删除冗余的 `build.yml`，避免与 `docker-build.yml` 双推镜像导致分钟浪费与偶发失败。
 
 ---
 
