@@ -155,9 +155,22 @@ async def judge_trace(
     if not suite:
         raise NotFoundError("测试用例", trace.test_suite_id)
 
-    from app.core.judge_engine.llm_judge import LLMJudge
+    from app.core.celery_app.tasks import build_llm_judge
+    from app.core.judge_engine.scorecard import extract_judge_config_from_agent_config
+    from app.models.task import Task
 
-    judge = LLMJudge()
+    judge_cfg: dict = {}
+    try:
+        task_r = await session.execute(select(Task).where(Task.id == suite.task_id))
+        parent_task = task_r.scalar_one_or_none()
+        if parent_task is not None:
+            judge_cfg = extract_judge_config_from_agent_config(
+                getattr(parent_task, "agent_config", None) or {}
+            )
+    except Exception:
+        judge_cfg = {}
+
+    judge = build_llm_judge(judge_cfg)
     judge_result = await judge.evaluate(
         trace_steps=trace.steps,
         expected_output=suite.expected_output,

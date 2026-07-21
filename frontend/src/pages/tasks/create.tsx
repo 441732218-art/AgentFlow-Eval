@@ -41,6 +41,7 @@ import { useCallback, useMemo, useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useI18nStore } from "@/i18n";
 import { agentsHttpApi } from "@/api/endpoints/agentsHttp";
+import { DEFAULT_SCORECARD } from "@/api/endpoints/judges";
 
 const { TextArea } = Input;
 const { Text, Paragraph } = Typography;
@@ -93,6 +94,7 @@ export default function CreateTaskPage() {
       timeout_sec: 60,
       headers_json: "",
       verify_ssl: true,
+      scorecard_json: JSON.stringify(DEFAULT_SCORECARD, null, 2),
     },
   });
 
@@ -129,6 +131,7 @@ export default function CreateTaskPage() {
       timeout_sec: 60,
       headers_json: "",
       verify_ssl: true,
+      scorecard_json: JSON.stringify(DEFAULT_SCORECARD, null, 2),
     });
   }, [reset]);
 
@@ -500,6 +503,48 @@ export default function CreateTaskPage() {
                 )}
               </>
             )}
+          </Card>
+
+          <Card
+            className="af-glass"
+            style={{ marginTop: 16 }}
+            title="Judge 评分卡（可选）"
+          >
+            <Paragraph type="secondary" style={{ fontSize: 12 }}>
+              默认 40/40/20 三维评分。可编辑 dimensions 的 weight（会归一到 100）与 description。
+              写入 <Text code>agent_config.scorecard</Text>，评测流水线会真正使用这些权重。
+            </Paragraph>
+            <Controller
+              name="scorecard_json"
+              control={control}
+              render={({ field }) => (
+                <TextArea
+                  {...field}
+                  value={field.value ?? ""}
+                  rows={10}
+                  status={errors.scorecard_json ? "error" : undefined}
+                  style={{ fontFamily: "ui-monospace, monospace", fontSize: 12 }}
+                />
+              )}
+            />
+            {errors.scorecard_json && (
+              <Text type="danger" style={{ fontSize: 12 }}>
+                {errors.scorecard_json.message}
+              </Text>
+            )}
+            <Button
+              size="small"
+              style={{ marginTop: 8 }}
+              onClick={() =>
+                setValue(
+                  "scorecard_json",
+                  JSON.stringify(DEFAULT_SCORECARD, null, 2),
+                  { shouldValidate: true }
+                )
+              }
+            >
+              恢复默认评分卡
+            </Button>
           </Card>
 
           <div className="af-form-actions af-no-print">

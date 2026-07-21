@@ -4,6 +4,12 @@
 from app.core.judge_engine.base import BaseJudge, JudgeResult
 from app.core.judge_engine.llm_judge import LLMJudge
 from app.core.judge_engine.metrics import calc_tool_accuracy, extract_answer_text
+from app.core.judge_engine.scorecard import (
+    DIMENSION_WEIGHTS,
+    Scorecard,
+    default_scorecard,
+    parse_scorecard,
+)
 
 __all__ = [
     "BaseJudge",
@@ -11,4 +17,8 @@ __all__ = [
     "LLMJudge",
     "calc_tool_accuracy",
     "extract_answer_text",
+    "Scorecard",
+    "default_scorecard",
+    "parse_scorecard",
+    "DIMENSION_WEIGHTS",
 ]

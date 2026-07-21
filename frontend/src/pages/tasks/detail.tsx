@@ -458,7 +458,27 @@ export default function TaskDetailPage() {
             </Card>
           </Col>
           <Col xs={24} lg={8}>
-            <ScoreCard metricScores={selectedTrace.metric_scores || []} />
+            <ScoreCard
+              metricScores={selectedTrace.metric_scores || []}
+              scorecardName={
+                (task.agent_config as { scorecard?: { name?: string } })?.scorecard
+                  ?.name
+              }
+              dimensions={
+                (
+                  task.agent_config as {
+                    scorecard?: {
+                      dimensions?: {
+                        key: string;
+                        label?: string;
+                        weight?: number;
+                        description?: string;
+                      }[];
+                    };
+                  }
+                )?.scorecard?.dimensions
+              }
+            />
             {traceView === "flow" && (
               <Card
                 className="af-glass"

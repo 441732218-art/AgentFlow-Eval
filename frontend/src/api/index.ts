@@ -23,4 +23,6 @@ export type {
   ExperimentCompareResponse,
   RunCompareItem,
 } from "./endpoints/experiments";
+export { judgesApi, DEFAULT_SCORECARD } from "./endpoints/judges";
+export type { Scorecard, ScoreDimension } from "./endpoints/judges";
 export { apiClient } from "./client";

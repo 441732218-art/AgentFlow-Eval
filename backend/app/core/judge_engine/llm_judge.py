@@ -22,19 +22,21 @@ from openai import AsyncOpenAI
 
 from app.core.judge_engine.base import BaseJudge
 from app.core.judge_engine.metrics import calc_tool_accuracy, extract_answer_text
+from app.core.judge_engine.scorecard import (
+    DIMENSION_WEIGHTS,
+    Scorecard,
+    default_scorecard,
+    parse_scorecard,
+)
 from app.core.resilience import default_llm_policy, protected_call_async
 
 logger = logging.getLogger(__name__)
 
-DIMENSION_WEIGHTS = {
-    "tool_accuracy": 40.0,
-    "answer_correctness": 40.0,
-    "reasoning_coherence": 20.0,
-}
+# Re-export for callers that imported DIMENSION_WEIGHTS from this module
+__all_weights__ = DIMENSION_WEIGHTS
 
-SYSTEM_PROMPT = """You are a rigorous AI Agent evaluation expert. Score across 3 dimensions.
-1. Tool call accuracy (0-40) 2. Answer correctness (0-40) 3. Reasoning coherence (0-20)
-Output ONLY valid JSON with fields: scores, total, reason."""
+# Fallback prompt when scorecard missing (should not happen)
+SYSTEM_PROMPT = default_scorecard().to_system_prompt()
 
 # CJK unified ideographs (rough range for Chinese/Japanese/Korean tokens)
 _CJK_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+")
@@ -61,6 +63,7 @@ class LLMJudge(BaseJudge):
         model: str = "gpt-4o-mini",
         timeout_sec: float | None = None,
         cache_size: int | None = None,
+        scorecard: Scorecard | dict[str, Any] | None = None,
     ) -> None:
         """Initialize the judge.
 
@@ -70,6 +73,7 @@ class LLMJudge(BaseJudge):
             model: Chat model name for refinement.
             timeout_sec: Soft timeout for evaluate(); None reads settings.
             cache_size: LRU cache capacity; None reads settings / default 128.
+            scorecard: Optional Scorecard or dict; defaults to 40/40/20 card.
         """
         api_key = (
             api_key if api_key is not None else os.environ.get("OPENAI_API_KEY", "")
@@ -93,6 +97,9 @@ class LLMJudge(BaseJudge):
         else:
             self.client = None
         self.model = model
+        self.scorecard: Scorecard = (
+            parse_scorecard(scorecard) if scorecard is not None else default_scorecard()
+        )
 
         # Lazy settings import so unit tests can construct without full env
         if timeout_sec is None or cache_size is None:
@@ -135,7 +142,7 @@ class LLMJudge(BaseJudge):
         tools = list(expected_tools or [])
         expected = expected_output or ""
 
-        cache_key = self._make_cache_key(steps, expected, tools)
+        cache_key = self._make_cache_key(steps, expected, tools, self.scorecard)
         if self.cache_size > 0 and cache_key in self._cache:
             # Move to end (most recently used)
             self._cache.move_to_end(cache_key)
@@ -192,12 +199,15 @@ class LLMJudge(BaseJudge):
         trace_steps: list[dict[str, Any]],
         expected_output: str,
         expected_tools: list[str],
+        scorecard: Scorecard | None = None,
     ) -> str:
+        sc = scorecard or default_scorecard()
         raw = json.dumps(
             {
                 "steps": trace_steps,
                 "output": expected_output,
                 "tools": sorted(expected_tools),
+                "scorecard": sc.model_dump(),
             },
             sort_keys=True,
             ensure_ascii=False,
@@ -211,47 +221,66 @@ class LLMJudge(BaseJudge):
         expected_output: str,
         expected_tools: list[str],
     ) -> dict[str, Any]:
+        """Rule-based pre-score using scorecard dimension weights and methods."""
         actual_tools = self._extract_tool_names(steps)
-        tool_pct, tool_reason = calc_tool_accuracy(actual_tools, expected_tools)
-        tool_score = round(tool_pct * 0.4, 1)
         extracted = self._extract_final_answer(steps)
-        answer_score, answer_reason = self._lexical_answer_score(
-            extracted, expected_output
-        )
-        coh_score, coh_reason = self._heuristic_coherence_score(steps)
         step_analysis = self._analyze_steps(steps, expected_tools)
-        pre_total = tool_score + answer_score + coh_score
-        return {
-            "scores": {
-                "tool_accuracy": tool_score,
-                "answer_correctness": answer_score,
-                "reasoning_coherence": coh_score,
-            },
-            "total": pre_total,
-            "reason": (
-                f"[Rule-based] Tool: {tool_reason} | "
-                f"Answer: {answer_reason} | Coherence: {coh_reason}"
-            ),
-            "token_cost": 0,
-            "details": {
-                "tool_accuracy": {
-                    "score": tool_score,
+
+        scores: dict[str, float] = {}
+        details: dict[str, Any] = {}
+        reason_parts: list[str] = []
+
+        for dim in self.scorecard.dimensions:
+            w = float(dim.weight)
+            method = dim.method
+            if method == "rule_tool":
+                tool_pct, tool_reason = calc_tool_accuracy(actual_tools, expected_tools)
+                # tool_pct is 0-100 → scale to weight points
+                score = round(tool_pct / 100.0 * w, 1)
+                scores[dim.key] = score
+                details[dim.key] = {
+                    "score": score,
+                    "max": w,
                     "reason": tool_reason,
                     "expected": expected_tools,
                     "actual": actual_tools,
-                },
-                "answer_correctness": {
+                }
+                reason_parts.append(f"{dim.key}: {tool_reason}")
+            elif method in ("lexical", "llm_or_lexical"):
+                answer_score, answer_reason = self._lexical_answer_score(
+                    extracted, expected_output, max_score=w
+                )
+                scores[dim.key] = answer_score
+                details[dim.key] = {
                     "score": answer_score,
+                    "max": w,
                     "reason": answer_reason,
                     "extracted_answer": extracted,
-                },
-                "reasoning_coherence": {
+                }
+                reason_parts.append(f"{dim.key}: {answer_reason}")
+            else:
+                # llm_only — heuristic pre-score on same 0..weight scale
+                coh_score, coh_reason = self._heuristic_coherence_score(
+                    steps, max_score=w
+                )
+                scores[dim.key] = coh_score
+                details[dim.key] = {
                     "score": coh_score,
+                    "max": w,
                     "reason": coh_reason,
                     "iteration_count": len(steps),
-                },
-            },
+                }
+                reason_parts.append(f"{dim.key}: {coh_reason}")
+
+        pre_total = round(sum(scores.values()), 1)
+        return {
+            "scores": scores,
+            "total": pre_total,
+            "reason": "[Rule-based] " + " | ".join(reason_parts),
+            "token_cost": 0,
+            "details": details,
             "step_analysis": step_analysis,
+            "scorecard_name": self.scorecard.name,
         }
 
     async def _llm_refine(
@@ -270,13 +299,14 @@ class LLMJudge(BaseJudge):
 
         prompt = self._build_prompt(steps, expected_output, expected_tools, pre_score)
         policy = default_llm_policy(name=f"llm_judge:{self.model}")
+        system_prompt = self.scorecard.to_system_prompt()
 
         async def _call_llm() -> Any:
             assert self.client is not None
             return await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.1,
@@ -316,16 +346,25 @@ class LLMJudge(BaseJudge):
             result["degraded"] = True
             return result
 
-        scores = data.get("scores", {})
-        for dim in ("tool_accuracy", "answer_correctness", "reasoning_coherence"):
-            scores.setdefault(dim, pre_score["scores"].get(dim, 0.0))
+        scores = dict(data.get("scores") or {})
+        for dim in self.scorecard.dimensions:
+            scores.setdefault(dim.key, pre_score["scores"].get(dim.key, 0.0))
+            # Clamp to [0, weight]
+            try:
+                scores[dim.key] = max(
+                    0.0, min(float(dim.weight), float(scores[dim.key]))
+                )
+            except (TypeError, ValueError):
+                scores[dim.key] = float(pre_score["scores"].get(dim.key, 0.0))
         result = dict(pre_score)
         result["scores"] = scores
-        result["total"] = float(data.get("total", pre_score["total"]))
+        computed_total = round(sum(float(v) for v in scores.values()), 1)
+        result["total"] = float(data.get("total", computed_total) or computed_total)
         result["reason"] = f"[LLM] {data.get('reason', pre_score['reason'])}"
         result["token_cost"] = token_cost
         result["mode"] = "hybrid"
         result["degraded"] = False
+        result["scorecard_name"] = self.scorecard.name
         return result
 
     async def _do_evaluate(
@@ -335,7 +374,12 @@ class LLMJudge(BaseJudge):
         expected_tools: list[str],
     ) -> dict[str, Any]:
         pre = self._pre_score(steps, expected_output, expected_tools)
-        if self.has_api_key and self.client:
+        use_llm = (
+            self.has_api_key
+            and self.client
+            and bool(getattr(self.scorecard, "llm_refine", True))
+        )
+        if use_llm:
             try:
                 return await self._llm_refine(
                     steps, expected_output, expected_tools, pre
@@ -398,22 +442,28 @@ class LLMJudge(BaseJudge):
         cls,
         extracted: str,
         expected: str,
+        *,
+        max_score: float = 40.0,
     ) -> tuple[float, str]:
         """Score answer correctness via token overlap with CJK support.
 
         Uses word/CJK-token Jaccard-style recall against expected tokens.
         When CJK content dominates and token recall is low, falls back to
         character bigram overlap so pure Chinese answers are not zeroed.
+
+        Args:
+            max_score: Dimension weight (points); default 40 preserves legacy scale.
         """
+        max_score = float(max_score) if max_score > 0 else 40.0
         if not expected:
-            return 40.0, "No expected output; full score."
+            return max_score, "No expected output; full score."
         if not extracted:
             return 0.0, "No answer found."
 
         ex_tokens = set(cls.tokenize(expected))
         ac_tokens = set(cls.tokenize(extracted))
         if not ex_tokens:
-            return 40.0, "No words; full score."
+            return max_score, "No words; full score."
 
         recall = len(ex_tokens & ac_tokens) / len(ex_tokens)
 
@@ -426,7 +476,7 @@ class LLMJudge(BaseJudge):
                 bigram_recall = len(bg_ex & bg_ac) / len(bg_ex)
                 recall = max(recall, bigram_recall)
 
-        score = round(min(1.0, recall) * 40.0, 1)
+        score = round(min(1.0, recall) * max_score, 1)
         if recall > 0.8:
             desc = "High"
         elif recall > 0.5:
@@ -438,22 +488,29 @@ class LLMJudge(BaseJudge):
         return score, f"{desc} word overlap."
 
     @staticmethod
-    def _heuristic_coherence_score(steps: list[dict[str, Any]]) -> tuple[float, str]:
+    def _heuristic_coherence_score(
+        steps: list[dict[str, Any]],
+        *,
+        max_score: float = 20.0,
+    ) -> tuple[float, str]:
+        """Heuristic coherence score scaled to ``max_score`` (legacy default 20)."""
+        max_score = float(max_score) if max_score > 0 else 20.0
+        scale = max_score / 20.0  # deductions calibrated on 20-point scale
         if not steps:
-            return 20.0, "No steps; default full score."
+            return max_score, "No steps; default full score."
         ded, reasons = 0.0, []
         seen: set[str] = set()
         for s in steps:
             t = (s.get("thought") or s.get("content") or "").strip().lower()
             if t and t in seen and len(t) > 5:
-                ded += 4.0
+                ded += 4.0 * scale
                 reasons.append(f"Repetition: {t[:40]}")
             elif t:
                 seen.add(t)
         if len(steps) > 8:
-            ded += min((len(steps) - 8) * 2, 6)
+            ded += min((len(steps) - 8) * 2, 6) * scale
             reasons.append(f"High iteration count ({len(steps)}).")
-        score = round(max(0.0, 20.0 - ded), 1)
+        score = round(max(0.0, max_score - ded), 1)
         reason = "; ".join(reasons) if reasons else "No issues."
         return score, reason
 

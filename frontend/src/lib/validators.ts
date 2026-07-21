@@ -17,8 +17,29 @@ export const taskCreateSchema = z
     timeout_sec: z.number().min(1).max(300).optional().default(60),
     headers_json: z.string().optional().default(""),
     verify_ssl: z.boolean().optional().default(true),
+    /** JSON string of scorecard; empty = backend default 40/40/20 */
+    scorecard_json: z.string().optional().default(""),
   })
   .superRefine((data, ctx) => {
+    if (data.scorecard_json?.trim()) {
+      try {
+        const sc = JSON.parse(data.scorecard_json);
+        if (!sc || typeof sc !== "object" || !Array.isArray(sc.dimensions)) {
+          throw new Error("need dimensions");
+        }
+        const sum = sc.dimensions.reduce(
+          (s: number, d: { weight?: number }) => s + Number(d.weight || 0),
+          0
+        );
+        if (sum <= 0) throw new Error("weights");
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "评分卡 JSON 无效，需包含 dimensions 数组",
+          path: ["scorecard_json"],
+        });
+      }
+    }
     if (data.runner === "http") {
       const url = (data.endpoint_url || "").trim();
       if (!url) {
@@ -56,6 +77,14 @@ export type TaskCreateInput = z.infer<typeof taskCreateSchema>;
 /** Build backend agent_config from create-task form values. */
 export function buildAgentConfigFromForm(data: TaskCreateInput): Record<string, unknown> {
   const runner = data.runner || "openai";
+  let scorecard: Record<string, unknown> | undefined;
+  if (data.scorecard_json?.trim()) {
+    try {
+      scorecard = JSON.parse(data.scorecard_json) as Record<string, unknown>;
+    } catch {
+      scorecard = undefined;
+    }
+  }
   if (runner === "http") {
     let headers: Record<string, string> = {};
     if (data.headers_json?.trim()) {
@@ -65,7 +94,7 @@ export function buildAgentConfigFromForm(data: TaskCreateInput): Record<string, 
         headers = {};
       }
     }
-    return {
+    const cfg: Record<string, unknown> = {
       runner: "http",
       endpoint_url: (data.endpoint_url || "").trim(),
       timeout_sec: data.timeout_sec ?? 60,
@@ -73,13 +102,17 @@ export function buildAgentConfigFromForm(data: TaskCreateInput): Record<string, 
       method: "POST",
       verify_ssl: data.verify_ssl ?? true,
     };
+    if (scorecard) cfg.scorecard = scorecard;
+    return cfg;
   }
-  return {
+  const cfg: Record<string, unknown> = {
     runner: "openai",
     model: data.model || "gpt-4o",
     temperature: data.temperature ?? 0,
     max_tokens: data.max_tokens ?? 4096,
   };
+  if (scorecard) cfg.scorecard = scorecard;
+  return cfg;
 }
 
 export const testSuiteSchema = z.object({

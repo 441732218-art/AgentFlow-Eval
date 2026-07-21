@@ -78,11 +78,21 @@ def build_agent_runner(agent_config: dict[str, Any] | None = None):
 def build_llm_judge(judge_config: dict | None = None):
     """Factory for judges — plugin keys or default LLMJudge (patchable in tests).
 
-    ``judge_config`` may include ``{"type": "length"}`` / ``{"judge": "length"}``
-    to select a plugin-registered judge. Default remains LLMJudge.
+    ``judge_config`` may include:
+      - ``{"type": "length"}`` / ``{"judge": "length"}`` for plugin judges
+      - ``{"scorecard": {...}}`` for configurable dimensions/weights (Phase 3)
     """
     cfg = dict(judge_config or {})
-    judge_type = str(cfg.get("type") or cfg.get("judge") or "llm").lower().strip()
+    judge_type = "llm"
+    if isinstance(cfg.get("type"), str) and cfg["type"].strip():
+        judge_type = cfg["type"].lower().strip()
+    elif isinstance(cfg.get("judge"), str) and cfg["judge"].strip():
+        judge_type = cfg["judge"].lower().strip()
+    elif isinstance(cfg.get("judge"), dict) and isinstance(
+        cfg["judge"].get("type"), str
+    ):
+        judge_type = str(cfg["judge"]["type"]).lower().strip()
+
     if judge_type not in {"", "llm", "llm_judge", "default"}:
         try:
             from app.core.plugins.registry import get_capability_registry
@@ -93,8 +103,15 @@ def build_llm_judge(judge_config: dict | None = None):
         except Exception:
             pass
     from app.core.judge_engine.llm_judge import LLMJudge
+    from app.core.judge_engine.scorecard import parse_scorecard
 
-    return LLMJudge()
+    scorecard_data = cfg.get("scorecard")
+    if scorecard_data is None and isinstance(cfg.get("judge"), dict):
+        scorecard_data = cfg["judge"].get("scorecard")
+    scorecard = parse_scorecard(scorecard_data) if scorecard_data else parse_scorecard(
+        None
+    )
+    return LLMJudge(scorecard=scorecard)
 
 
 def _run_async(async_factory):
@@ -425,11 +442,31 @@ def run_judge_evaluation(
 
             from app.core.plugins.base import HOOK_POST_JUDGE, HOOK_PRE_JUDGE
             from app.core.plugins.hooks import get_hook_registry
+            from app.core.judge_engine.scorecard import (
+                extract_judge_config_from_agent_config,
+            )
 
             hooks = get_hook_registry()
-            # Optional judge type from agent_config stored on related task is not
-            # always available here; default LLMJudge / plugin via env later.
-            judge = build_llm_judge()
+            # Phase 3: load scorecard / judge type from parent Task.agent_config
+            judge_cfg: dict = {}
+            try:
+                suite_r2 = await session.execute(
+                    select(TestSuite).where(TestSuite.id == trace.test_suite_id)
+                )
+                suite2 = suite_r2.scalar_one_or_none()
+                if suite2 is not None:
+                    task_r2 = await session.execute(
+                        select(Task).where(Task.id == suite2.task_id)
+                    )
+                    parent2 = task_r2.scalar_one_or_none()
+                    if parent2 is not None:
+                        judge_cfg = extract_judge_config_from_agent_config(
+                            getattr(parent2, "agent_config", None) or {}
+                        )
+            except Exception:
+                judge_cfg = {}
+
+            judge = build_llm_judge(judge_cfg)
             await hooks.emit(
                 HOOK_PRE_JUDGE,
                 {
@@ -437,6 +474,7 @@ def run_judge_evaluation(
                     "expected_output": expected_output,
                     "expected_tools": expected_tools or [],
                     "actor": actor_name,
+                    "judge_config_keys": list(judge_cfg.keys()),
                 },
             )
             judge_result = await judge.evaluate(
