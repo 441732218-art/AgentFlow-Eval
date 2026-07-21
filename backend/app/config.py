@@ -101,6 +101,14 @@ class Settings(BaseSettings):
     # ---- Tool sandbox ----
     TOOL_TIMEOUT_SEC: float = 3.0
 
+    # ---- HTTP Agent (Phase 1) ----
+    # When False (default), block private/loopback/link-local targets (SSRF guard).
+    # Set True only for controlled lab tests against local mock agents.
+    HTTP_AGENT_ALLOW_PRIVATE_IP: bool = False
+    HTTP_AGENT_DEFAULT_TIMEOUT_SEC: float = 60.0
+    # When True, resolve hostnames and reject private A/AAAA (DNS rebinding defense)
+    HTTP_AGENT_SSRF_RESOLVE_DNS: bool = True
+
     # ---- Request Limits ----
     MAX_REQUEST_SIZE: int = 10 * 1024 * 1024  # 10 MB
 

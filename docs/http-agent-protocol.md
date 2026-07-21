@@ -114,11 +114,42 @@ result = await runner.run(
 - `BaseAgentRunner` / `ensure_pipeline_result` → `agent_runner/base.py`
 - Celery `run_single_test_suite` → 单路径调用，无 TypeError 双分支
 
+## Probe API（Phase 1）
+
+| Method | Path | 说明 |
+|--------|------|------|
+| `GET` | `/api/v1/agents/http/contract` | 协议摘要 |
+| `POST` | `/api/v1/agents/http/probe` | 探测外部 Agent（SSRF + 可达性 + normalize） |
+
+Probe 请求体示例：
+
+```json
+{
+  "endpoint_url": "https://agent.example.com/v1/invoke",
+  "timeout_sec": 10,
+  "headers": {},
+  "query": "ping"
+}
+```
+
+## SSRF 防护
+
+默认禁止：
+
+- `file://` / `gopher://` / 非 http(s) scheme  
+- `localhost` / `127.0.0.1` / `::1`  
+- 私网：`10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`  
+- 链路本地 / 云 metadata（如 `169.254.169.254`）  
+
+开发/测试可设环境变量：`HTTP_AGENT_ALLOW_PRIVATE_IP=true`（**勿在生产开启**）。
+
+实现：`backend/app/core/agent_runner/ssrf.py`（`HttpAgentRunner` 与 Probe 共用）。
+
 ## 本地自检
 
 ```bash
 cd backend
-pytest tests/unit/test_agent_protocol.py tests/unit/test_http_runner.py -q
+pytest tests/unit/test_agent_protocol.py tests/unit/test_http_runner.py tests/unit/test_ssrf.py tests/unit/test_agents_http_probe.py -q
 ```
 
 ## 版本

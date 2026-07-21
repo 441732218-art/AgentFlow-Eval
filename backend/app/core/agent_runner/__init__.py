@@ -20,6 +20,7 @@ from app.core.agent_runner.protocol import (
     build_http_request_payload,
     coerce_http_response,
 )
+from app.core.agent_runner.ssrf import SsrfBlockedError, validate_http_agent_url
 
 __all__ = [
     "BaseAgentRunner",
@@ -35,4 +36,6 @@ __all__ = [
     "PROTOCOL_VERSION",
     "build_http_request_payload",
     "coerce_http_response",
+    "SsrfBlockedError",
+    "validate_http_agent_url",
 ]

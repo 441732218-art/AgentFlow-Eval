@@ -5,6 +5,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     ab,
+    agents_http,
     audit,
     benchmarks,
     billing,
@@ -43,6 +44,7 @@ router.include_router(traces.router, prefix="/traces", tags=["执行轨迹"])
 router.include_router(reports.router, prefix="/reports", tags=["评测报告"])
 router.include_router(audit.router, prefix="/audit", tags=["审计日志"])
 router.include_router(tools.router, prefix="/tools", tags=["工具沙箱"])
+router.include_router(agents_http.router, prefix="/agents/http", tags=["HTTP Agent"])
 router.include_router(plugins.router, prefix="/plugins", tags=["插件系统"])
 router.include_router(settings.router, prefix="/settings", tags=["系统设置"])
 router.include_router(ws.router, tags=["实时推送"])

@@ -21,6 +21,7 @@ from app.core.agent_runner.protocol import (
     extract_tool_names,
     failed_http_result,
 )
+from app.core.agent_runner.ssrf import SsrfBlockedError, validate_http_agent_url
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +45,29 @@ class HttpAgentRunner(BaseAgentRunner):
     ) -> None:
         if not endpoint_url or not str(endpoint_url).strip():
             raise ValueError("endpoint_url is required for HttpAgentRunner")
-        self.endpoint_url = str(endpoint_url).strip()
+        # SSRF check at construction (fail fast in factory / create path)
+        allow_private = self._allow_private_from_settings()
+        try:
+            self.endpoint_url = validate_http_agent_url(
+                str(endpoint_url).strip(),
+                allow_private=allow_private,
+            )
+        except SsrfBlockedError as exc:
+            raise ValueError(str(exc)) from exc
         self.timeout_sec = float(timeout_sec)
         self.headers = dict(headers or {})
         self.method = (method or "POST").upper()
         self.context = dict(context or {})
         self.verify_ssl = verify_ssl
+
+    @staticmethod
+    def _allow_private_from_settings() -> bool:
+        try:
+            from app.config import settings
+
+            return bool(getattr(settings, "HTTP_AGENT_ALLOW_PRIVATE_IP", False))
+        except Exception:
+            return False
 
     async def run(
         self,
@@ -69,6 +87,20 @@ class HttpAgentRunner(BaseAgentRunner):
             Dict with steps, final_answer, status, total_tokens, response_time_ms.
         """
         start = time.monotonic()
+        # Re-validate at run time (DNS may change / config override)
+        try:
+            self.endpoint_url = validate_http_agent_url(
+                self.endpoint_url,
+                allow_private=self._allow_private_from_settings(),
+            )
+        except SsrfBlockedError as exc:
+            return failed_http_result(
+                query=query,
+                error=str(exc),
+                elapsed_ms=0,
+                endpoint=self.endpoint_url,
+            )
+
         cfg = dict(agent_config or {})
         context = dict(self.context)
         extra_ctx = cfg.get("context")
