@@ -31,6 +31,7 @@
 | **外部 Agent 接入** | `HttpAgentRunner` + Probe + SSRF 防护；统一 `run(query, tools, agent_config)` 契约 |
 | **多变体对比** | Experiment：同一套用例、多种配置，并排看平均分 / 维度 / Token / 耗时 |
 | **可配置评分卡** | Scorecard 定义维度与权重（默认 40/40/20），真正进入 Judge 规则与 LLM 路径 |
+| **持续评测** | Benchmark 固定基准 + 手动回归试跑 + 与基线对比（提升/持平/下降） |
 | **可观测闭环** | Trace DAG、故障诊断、AOLS 日志、Dashboard KPI |
 | **可交付** | Docker / Lite、Web·PWA、Electron 桌面、离线包脚本 |
 
@@ -57,7 +58,15 @@
 - 自定义写入 `Task.agent_config.scorecard`，规则路径与 LLM refine **均按权重计分**  
 - 默认卡与校验：`GET /api/v1/judges/scorecards/default`
 
-### 4. 评测主链路（不变）
+### 4. Continuous Evaluation（持续评测）
+
+- **Benchmark**：固定用例集 + 版本 + 可选默认 Scorecard（可从 Task 克隆）  
+- **手动回归试跑**：指定 `agent_config`（模型 / runner），复用 Evaluation Engine → 生成 `BenchmarkRun`  
+- **退化检测**：与上一跑或指定基线对比平均分、维度分、成功率/覆盖 → `improved` / `stable` / `regressed`  
+- UI：侧栏 **持续评测** → 列表 / 详情 / 历史试跑 / 对比  
+- API：`POST /benchmarks/{id}/run` · `GET …/runs` · `POST …/compare` · 见 [docs/benchmarks.md](docs/benchmarks.md)
+
+### 5. 评测主链路（不变）
 
 任务管理 · CSV/JSON 用例 · 异步/Eager 执行 · Trace · 报告 · 审计 · RBAC
 
@@ -68,19 +77,19 @@
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  Frontend · Vite + Ant Design                                  │
-│  驾驶舱 · 任务 · Trace · 对比实验 · 报告 · 设置                    │
+│  驾驶舱 · 任务 · Trace · 对比实验 · 持续评测 · 报告 · 设置          │
 └────────────────────────────┬─────────────────────────────────┘
                              │  REST / WS  /api/v1
 ┌────────────────────────────▼─────────────────────────────────┐
 │  FastAPI                                                       │
-│  tasks · experiments · agents/http · judges · traces · …       │
+│  tasks · experiments · benchmarks · agents/http · judges · …   │
 └───────┬──────────────────────────────┬───────────────────────┘
         │                              │
    Runner 工厂                    Postgres / SQLite
    openai | http | plugin               │
         │                         Redis + Celery（可选）
         ▼
-   Trace → Scorecard Judge → MetricScore → Experiment Compare
+   Trace → Scorecard Judge → MetricScore → Experiment / Benchmark Compare
 ```
 
 ---
@@ -120,8 +129,9 @@ docker compose --env-file backend/.env.docker exec backend python -m app.core.se
 
 1. **驾驶舱** `/dashboard` — 非空 KPI / 活动  
 2. **对比实验** `/experiments` — 查看 demo 多变体对比（Best / 维度分）  
-3. **任务** — 打开「客服 Agent 综合评测（Demo）」看 Trace 与评分卡  
-4. **创建任务** — 切换 HTTP Runner 或编辑评分卡 JSON  
+3. **持续评测** `/benchmarks` — 建基准 → 触发试跑 → 与基线对比退化  
+4. **任务** — 打开「客服 Agent 综合评测（Demo）」看 Trace 与评分卡  
+5. **创建任务** — 切换 HTTP Runner 或编辑评分卡 JSON  
 
 ---
 

@@ -108,7 +108,7 @@ export const NAV_ITEMS: Array<{
     key: "/benchmarks",
     icon: <BarChartOutlined />,
     labelKey: "nav.benchmarks",
-    label: "Benchmark",
+    label: "持续评测",
     permission: "benchmark:read",
     group: "evaluate",
   },

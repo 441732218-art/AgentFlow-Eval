@@ -43,12 +43,23 @@ class BenchmarkCreate(BaseModel):
     description: str = ""
     tags: list[str] = Field(default_factory=list)
     cases: list[dict[str, Any]] = Field(default_factory=list)
+    version: str = Field(default="1.0", max_length=64)
+    scorecard: dict[str, Any] | None = Field(
+        default=None, description="Optional Scorecard JSON (Phase 3)"
+    )
+    source_task_id: str | None = Field(
+        default=None, description="If set, clone suites from this Task as cases"
+    )
 
 
 class BenchmarkRunBody(BaseModel):
     label: str = "default"
     agent_config: dict[str, Any] = Field(
-        default_factory=lambda: {"model": "gpt-4o-mini", "temperature": 0}
+        default_factory=lambda: {
+            "runner": "openai",
+            "model": "gpt-4o-mini",
+            "temperature": 0,
+        }
     )
     enqueue: bool = True
 
@@ -58,7 +69,21 @@ class ImportBody(BaseModel):
     content: str = Field(..., min_length=1)
 
 
+class CompareRunsBody(BaseModel):
+    """Compare current run against a baseline (defaults to previous completed run)."""
+
+    current_run_id: str
+    baseline_run_id: str | None = Field(
+        default=None,
+        description="If omitted, use the previous completed run before current",
+    )
+    score_stable_eps: float = Field(
+        default=1.0, ge=0, description="|Δscore| below this → stable"
+    )
+
+
 def _bm_dict(bm, *, case_count: int | None = None) -> dict[str, Any]:
+    meta = dict(bm.meta or {})
     return {
         "id": bm.id,
         "name": bm.name,
@@ -67,10 +92,29 @@ def _bm_dict(bm, *, case_count: int | None = None) -> dict[str, Any]:
         "created_by": bm.created_by,
         "tags": bm.tags or [],
         "tenant_id": bm.tenant_id,
+        "version": meta.get("version") or "1.0",
+        "scorecard": meta.get("scorecard"),
+        "source_task_id": meta.get("source_task_id"),
         "case_count": case_count
         if case_count is not None
         else (len(bm.cases) if getattr(bm, "cases", None) is not None else None),
         "created_at": bm.created_at.isoformat() if bm.created_at else None,
+    }
+
+
+def _run_dict(run) -> dict[str, Any]:
+    return {
+        "id": run.id,
+        "benchmark_id": run.benchmark_id,
+        "task_id": run.task_id,
+        "label": run.label,
+        "status": run.status,
+        "agent_config": run.agent_config or {},
+        "summary": run.summary or {},
+        "created_by": run.created_by,
+        "created_at": run.created_at.isoformat() if run.created_at else None,
+        "started_at": run.started_at.isoformat() if run.started_at else None,
+        "finished_at": run.finished_at.isoformat() if run.finished_at else None,
     }
 
 
@@ -104,15 +148,33 @@ async def create_benchmark(
 ) -> dict[str, Any]:
     tenant_id = await _bind_tenant(request, session)
     svc = get_benchmark_service()
-    bm = await svc.create_benchmark(
-        session,
-        name=body.name,
-        description=body.description,
-        created_by=_actor(request),
-        tenant_id=tenant_id,
-        tags=body.tags,
-        cases=body.cases,
-    )
+    if body.source_task_id:
+        bm = await svc.create_from_task(
+            session,
+            task_id=body.source_task_id,
+            name=body.name,
+            description=body.description,
+            version=body.version,
+            created_by=_actor(request),
+            tenant_id=tenant_id,
+            scorecard=body.scorecard,
+        )
+        if body.cases:
+            await svc.add_cases(
+                session, bm, body.cases, tenant_id=tenant_id
+            )
+    else:
+        bm = await svc.create_benchmark(
+            session,
+            name=body.name,
+            description=body.description,
+            created_by=_actor(request),
+            tenant_id=tenant_id,
+            tags=body.tags,
+            cases=body.cases,
+            version=body.version,
+            scorecard=body.scorecard,
+        )
     await session.commit()
     full = await svc.get_benchmark(session, bm.id, with_cases=True)
     return {
@@ -235,16 +297,26 @@ async def run_benchmark(
     except AgentFlowError:
         raise
     await session.commit()
+    return {"run": _run_dict(run)}
+
+
+@router.get("/{benchmark_id}/runs")
+@require_permission(Permission.BENCHMARK_READ, Permission.TASK_READ, require_all=False)
+async def list_runs(
+    benchmark_id: str,
+    request: Request,
+    limit: int = Query(50, ge=1, le=200),
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """History of regression evaluation runs for continuous evaluation."""
+    await _bind_tenant(request, session)
+    svc = get_benchmark_service()
+    runs = await svc.list_runs(session, benchmark_id, limit=limit)
+    await session.commit()
     return {
-        "run": {
-            "id": run.id,
-            "benchmark_id": run.benchmark_id,
-            "task_id": run.task_id,
-            "label": run.label,
-            "status": run.status,
-            "agent_config": run.agent_config,
-            "summary": run.summary,
-        }
+        "benchmark_id": benchmark_id,
+        "items": [_run_dict(r) for r in runs],
+        "total": len(runs),
     }
 
 
@@ -262,7 +334,55 @@ async def finalize_run(
     if run.benchmark_id != benchmark_id:
         raise AgentFlowError("Run does not belong to benchmark", status_code=400)
     await session.commit()
-    return {"run": {"id": run.id, "status": run.status, "summary": run.summary}}
+    return {"run": _run_dict(run)}
+
+
+@router.post("/{benchmark_id}/compare")
+@require_permission(Permission.BENCHMARK_READ, Permission.TASK_READ, require_all=False)
+async def compare_runs(
+    benchmark_id: str,
+    body: CompareRunsBody,
+    request: Request,
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Compare two runs (or current vs previous) for regression detection."""
+    await _bind_tenant(request, session)
+    svc = get_benchmark_service()
+    await svc.get_benchmark(session, benchmark_id, with_cases=False)
+
+    current = await svc.get_run(session, body.current_run_id)
+    if current.benchmark_id != benchmark_id:
+        raise AgentFlowError("current_run_id not in this benchmark", status_code=400)
+
+    if body.baseline_run_id:
+        baseline = await svc.get_run(session, body.baseline_run_id)
+        if baseline.benchmark_id != benchmark_id:
+            raise AgentFlowError(
+                "baseline_run_id not in this benchmark", status_code=400
+            )
+    else:
+        # Previous completed run before current (by created_at)
+        history = await svc.list_runs(session, benchmark_id, limit=100)
+        baseline = None
+        for r in history:
+            if r.id == current.id:
+                continue
+            if r.created_at and current.created_at and r.created_at >= current.created_at:
+                continue
+            if r.status == "completed" or (r.summary or {}).get("score") is not None:
+                baseline = r
+                break
+        if baseline is None:
+            raise AgentFlowError(
+                "No baseline run found — provide baseline_run_id or complete a prior run",
+                status_code=400,
+            )
+
+    result = svc.compare_runs(
+        current, baseline, score_stable_eps=body.score_stable_eps
+    )
+    await session.commit()
+    return {"benchmark_id": benchmark_id, **result}
 
 
 @router.get("/{benchmark_id}/leaderboard")
@@ -282,5 +402,14 @@ async def leaderboard(
         "benchmark_id": benchmark_id,
         "items": board,
         "total": len(board),
-        "metrics": ["accuracy", "quality", "latency_ms", "cost", "tokens", "score"],
+        "metrics": [
+            "score",
+            "success_rate",
+            "score_coverage",
+            "accuracy",
+            "quality",
+            "latency_ms",
+            "cost",
+            "tokens",
+        ],
     }

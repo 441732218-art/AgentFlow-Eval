@@ -45,7 +45,17 @@ class BenchmarkService:
         tenant_id: str | None = None,
         tags: list[str] | None = None,
         cases: list[dict[str, Any]] | None = None,
+        version: str = "1.0",
+        scorecard: dict[str, Any] | None = None,
+        source_task_id: str | None = None,
     ) -> Benchmark:
+        meta: dict[str, Any] = {
+            "version": (version or "1.0").strip()[:64],
+        }
+        if scorecard and isinstance(scorecard, dict):
+            meta["scorecard"] = scorecard
+        if source_task_id:
+            meta["source_task_id"] = source_task_id
         bm = Benchmark(
             id=str(uuid4()),
             name=name.strip(),
@@ -54,7 +64,7 @@ class BenchmarkService:
             created_by=created_by,
             tenant_id=tenant_id,
             tags=list(tags or []),
-            meta={},
+            meta=meta,
         )
         session.add(bm)
         await session.flush()
@@ -66,6 +76,63 @@ class BenchmarkService:
                 tenant_id=tenant_id,
             )
         return bm
+
+    async def create_from_task(
+        self,
+        session: AsyncSession,
+        *,
+        task_id: str,
+        name: str | None = None,
+        description: str = "",
+        version: str = "1.0",
+        created_by: str = "anonymous",
+        tenant_id: str | None = None,
+        scorecard: dict[str, Any] | None = None,
+    ) -> Benchmark:
+        """Build a Benchmark from an existing Task's test suites + optional scorecard."""
+        task = (
+            await session.execute(select(Task).where(Task.id == task_id))
+        ).scalar_one_or_none()
+        if task is None:
+            raise NotFoundError("Task", task_id)
+        suites = (
+            (
+                await session.execute(
+                    select(TestSuite).where(TestSuite.task_id == task_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not suites:
+            raise AgentFlowError(
+                "Task has no test suites — add cases first", status_code=400
+            )
+        cases = [
+            {
+                "name": f"suite-{i + 1}",
+                "user_query": s.user_query,
+                "expected_output": s.expected_output or "",
+                "expected_tools": list(s.expected_tools or []),
+            }
+            for i, s in enumerate(suites)
+        ]
+        ac = dict(task.agent_config or {})
+        sc = scorecard
+        if sc is None and isinstance(ac.get("scorecard"), dict):
+            sc = ac["scorecard"]
+        return await self.create_benchmark(
+            session,
+            name=(name or f"Bench · {task.name}")[:255],
+            description=description
+            or f"From task {task_id}: {task.description or ''}"[:2000],
+            created_by=created_by,
+            tenant_id=tenant_id or getattr(task, "tenant_id", None),
+            cases=cases,
+            version=version,
+            scorecard=sc,
+            source_task_id=task_id,
+        )
 
     async def add_cases(
         self,
@@ -197,10 +264,17 @@ class BenchmarkService:
             )
 
         cfg = dict(agent_config or {"model": "gpt-4o-mini", "temperature": 0})
+        # Bind benchmark scorecard into agent_config for Judge (Phase 3/4)
+        meta = dict(bm.meta or {})
+        if isinstance(meta.get("scorecard"), dict) and "scorecard" not in cfg:
+            cfg["scorecard"] = meta["scorecard"]
+        if "runner" not in cfg and "endpoint_url" not in cfg:
+            cfg.setdefault("runner", "openai")
+
         task = Task(
             id=str(uuid4()),
             name=f"[benchmark] {bm.name} / {label}"[:255],
-            description=f"Benchmark run for {bm.id}",
+            description=f"Benchmark run for {bm.id} v{meta.get('version', '1.0')}",
             agent_config=cfg,
             status=TaskStatus.CREATED,
             created_by=actor,
@@ -237,7 +311,10 @@ class BenchmarkService:
             created_by=actor,
             tenant_id=tenant_id or bm.tenant_id,
             started_at=_now(),
-            summary={"case_count": len(bm.cases)},
+            summary={
+                "case_count": len(bm.cases),
+                "benchmark_version": meta.get("version") or "1.0",
+            },
         )
         session.add(run)
         await session.flush()
@@ -312,6 +389,9 @@ class BenchmarkService:
         accuracies: list[float] = []
         qualities: list[float] = []
         scores: list[float] = []
+        dim_buckets: dict[str, list[float]] = {}
+        success_count = 0
+        scored_count = 0
 
         for suite in suites:
             traces = (
@@ -337,12 +417,12 @@ class BenchmarkService:
                 .scalars()
                 .all()
             )
-            by_name = {m.metric_name: m.score for m in ms_rows}
-            accuracy = by_name.get("accuracy") or by_name.get("exact_match")
-            quality = by_name.get("quality") or by_name.get("relevance")
-            overall = None
-            if ms_rows:
-                overall = sum(m.score for m in ms_rows) / len(ms_rows)
+            by_name = {m.metric_name: float(m.score) for m in ms_rows}
+            # Prefer scorecard dimensions; fall back to legacy accuracy/quality keys
+            accuracy = by_name.get("tool_accuracy") or by_name.get("accuracy")
+            quality = by_name.get("answer_correctness") or by_name.get("quality")
+            # Total points (scorecard-style sum), not mean of heterogeneous metrics
+            overall = sum(by_name.values()) if by_name else None
             rt = getattr(tr, "response_time_ms", None)
             latency = float(rt) if rt is not None else None
             tokens = int(getattr(tr, "total_tokens", None) or 0)
@@ -351,6 +431,11 @@ class BenchmarkService:
             meta = suite.extra_metadata or {}
             if isinstance(meta, dict):
                 case_id = meta.get("benchmark_case_id")
+
+            success = str(getattr(tr, "status", "") or "").lower() in {
+                "success",
+                "completed",
+            }
 
             br = BenchmarkResult(
                 id=str(uuid4()),
@@ -363,7 +448,10 @@ class BenchmarkService:
                 cost=cost,
                 tokens=tokens,
                 score=float(overall) if overall is not None else None,
-                detail={"metrics": by_name},
+                detail={
+                    "metrics": by_name,
+                    "success": success,
+                },
                 tenant_id=run.tenant_id,
             )
             session.add(br)
@@ -377,19 +465,32 @@ class BenchmarkService:
                 qualities.append(br.quality)
             if br.score is not None:
                 scores.append(br.score)
+            for k, v in by_name.items():
+                dim_buckets.setdefault(k, []).append(float(v))
+            if success:
+                success_count += 1
+            if by_name:
+                scored_count += 1
 
         def _avg(xs: list[float]) -> float | None:
             return round(sum(xs) / len(xs), 4) if xs else None
 
+        dim_avgs = {k: _avg(v) for k, v in dim_buckets.items()}
+        n_suites = len(suites) or 1
         run.summary = {
             "case_count": len(suites),
             "result_count": len(scores) or len(accuracies),
+            "scored_traces": scored_count,
+            "success_count": success_count,
+            "success_rate": round(success_count / n_suites, 4) if suites else 0.0,
+            "score_coverage": round(scored_count / n_suites, 4) if suites else 0.0,
             "accuracy": _avg(accuracies),
             "quality": _avg(qualities),
             "latency_ms": _avg(latencies),
             "cost": round(total_cost, 6),
             "tokens": total_tokens,
             "score": _avg(scores),
+            "dimension_scores": dim_avgs,
         }
         task = (
             await session.execute(select(Task).where(Task.id == run.task_id))
@@ -412,6 +513,180 @@ class BenchmarkService:
             run.status = "running"
         await session.flush()
         return run
+
+    async def list_runs(
+        self,
+        session: AsyncSession,
+        benchmark_id: str,
+        *,
+        limit: int = 50,
+    ) -> list[BenchmarkRun]:
+        """List evaluation runs for a benchmark (newest first). Auto-finalize pending."""
+        await self.get_benchmark(session, benchmark_id, with_cases=False)
+        runs = (
+            (
+                await session.execute(
+                    select(BenchmarkRun)
+                    .where(BenchmarkRun.benchmark_id == benchmark_id)
+                    .order_by(BenchmarkRun.created_at.desc())
+                    .limit(min(limit, 200))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for run in runs:
+            if run.status in {"queued", "running", "pending"} and run.task_id:
+                try:
+                    await self.finalize_run(session, run.id)
+                except Exception:
+                    pass
+        # re-load after finalize
+        runs = (
+            (
+                await session.execute(
+                    select(BenchmarkRun)
+                    .where(BenchmarkRun.benchmark_id == benchmark_id)
+                    .order_by(BenchmarkRun.created_at.desc())
+                    .limit(min(limit, 200))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return list(runs)
+
+    async def get_run(
+        self, session: AsyncSession, run_id: str
+    ) -> BenchmarkRun:
+        r = await session.execute(
+            select(BenchmarkRun).where(BenchmarkRun.id == run_id)
+        )
+        run = r.scalar_one_or_none()
+        if run is None:
+            raise NotFoundError("BenchmarkRun", run_id)
+        if run.status in {"queued", "running", "pending"} and run.task_id:
+            try:
+                await self.finalize_run(session, run.id)
+            except Exception:
+                pass
+            r2 = await session.execute(
+                select(BenchmarkRun).where(BenchmarkRun.id == run_id)
+            )
+            run = r2.scalar_one()
+        return run
+
+    def compare_runs(
+        self,
+        current: BenchmarkRun,
+        baseline: BenchmarkRun,
+        *,
+        score_stable_eps: float = 1.0,
+    ) -> dict[str, Any]:
+        """Compute regression / improvement between two runs (summary-based)."""
+        cur = dict(current.summary or {})
+        base = dict(baseline.summary or {})
+
+        def _f(d: dict, key: str) -> float | None:
+            v = d.get(key)
+            if v is None:
+                return None
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                return None
+
+        score_c = _f(cur, "score")
+        score_b = _f(base, "score")
+        score_delta = None
+        if score_c is not None and score_b is not None:
+            score_delta = round(score_c - score_b, 4)
+
+        dim_c = dict(cur.get("dimension_scores") or {})
+        dim_b = dict(base.get("dimension_scores") or {})
+        dim_keys = sorted(set(dim_c) | set(dim_b))
+        dimension_deltas: dict[str, float | None] = {}
+        for k in dim_keys:
+            a, b = dim_c.get(k), dim_b.get(k)
+            if a is None or b is None:
+                dimension_deltas[k] = None
+            else:
+                dimension_deltas[k] = round(float(a) - float(b), 4)
+
+        cov_c = _f(cur, "score_coverage")
+        cov_b = _f(base, "score_coverage")
+        rate_c = _f(cur, "success_rate")
+        rate_b = _f(base, "success_rate")
+
+        # Verdict on average score
+        if score_delta is None:
+            verdict = "unknown"
+            headline = "缺少可比较的总分，请先 finalize 完成试跑"
+        elif abs(score_delta) < score_stable_eps:
+            verdict = "stable"
+            headline = f"整体持平（Δscore={score_delta:+.2f}）"
+        elif score_delta > 0:
+            verdict = "improved"
+            headline = f"整体提升（Δscore={score_delta:+.2f}）"
+        else:
+            verdict = "regressed"
+            headline = f"整体下降（Δscore={score_delta:+.2f}）"
+
+        # Highlight largest absolute dimension changes
+        highlights: list[dict[str, Any]] = []
+        for k, d in dimension_deltas.items():
+            if d is None:
+                continue
+            highlights.append({"dimension": k, "delta": d})
+        highlights.sort(key=lambda x: abs(float(x["delta"])), reverse=True)
+        top_changes = highlights[:5]
+
+        if top_changes and verdict in {"improved", "regressed", "stable"}:
+            worst = min(top_changes, key=lambda x: float(x["delta"]))
+            best = max(top_changes, key=lambda x: float(x["delta"]))
+            if float(worst["delta"]) < -0.5:
+                headline += f"；主要退化：{worst['dimension']} ({worst['delta']:+.2f})"
+            elif float(best["delta"]) > 0.5:
+                headline += f"；主要提升：{best['dimension']} ({best['delta']:+.2f})"
+
+        return {
+            "verdict": verdict,
+            "headline": headline,
+            "score_delta": score_delta,
+            "current": {
+                "run_id": current.id,
+                "label": current.label,
+                "task_id": current.task_id,
+                "status": current.status,
+                "summary": cur,
+                "created_at": current.created_at.isoformat()
+                if current.created_at
+                else None,
+            },
+            "baseline": {
+                "run_id": baseline.id,
+                "label": baseline.label,
+                "task_id": baseline.task_id,
+                "status": baseline.status,
+                "summary": base,
+                "created_at": baseline.created_at.isoformat()
+                if baseline.created_at
+                else None,
+            },
+            "dimension_deltas": dimension_deltas,
+            "success_rate_delta": (
+                round(rate_c - rate_b, 4)
+                if rate_c is not None and rate_b is not None
+                else None
+            ),
+            "score_coverage_delta": (
+                round(cov_c - cov_b, 4)
+                if cov_c is not None and cov_b is not None
+                else None
+            ),
+            "top_changes": top_changes,
+            "thresholds": {"score_stable_eps": score_stable_eps},
+        }
 
     async def leaderboard(
         self, session: AsyncSession, benchmark_id: str

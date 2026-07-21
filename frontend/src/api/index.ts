@@ -15,6 +15,7 @@ export type {
   BenchmarkCase,
   BenchmarkRun,
   LeaderboardRow,
+  RunComparison,
 } from "./endpoints/benchmarks";
 export { experimentsApi } from "./endpoints/experiments";
 export type {

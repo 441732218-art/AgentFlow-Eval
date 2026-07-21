@@ -1,4 +1,4 @@
-/* (c) 2026 AgentFlow-Eval */
+/* (c) 2026 AgentFlow-Eval — Continuous Evaluation (Phase 4) */
 import { apiClient } from "../client";
 
 export type BenchmarkCase = {
@@ -17,6 +17,9 @@ export type Benchmark = {
   status?: string;
   created_by?: string;
   tags?: string[];
+  version?: string;
+  scorecard?: Record<string, unknown> | null;
+  source_task_id?: string | null;
   case_count?: number | null;
   cases?: BenchmarkCase[];
   created_at?: string | null;
@@ -29,7 +32,23 @@ export type BenchmarkRun = {
   label: string;
   status: string;
   agent_config?: Record<string, unknown>;
-  summary?: Record<string, unknown>;
+  summary?: {
+    score?: number | null;
+    accuracy?: number | null;
+    quality?: number | null;
+    success_rate?: number | null;
+    score_coverage?: number | null;
+    dimension_scores?: Record<string, number | null>;
+    case_count?: number;
+    latency_ms?: number | null;
+    tokens?: number | null;
+    cost?: number | null;
+    [key: string]: unknown;
+  };
+  created_by?: string;
+  created_at?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
 };
 
 export type LeaderboardRow = {
@@ -48,6 +67,35 @@ export type LeaderboardRow = {
   runs_count?: number;
 };
 
+/** Continuous eval: current vs baseline comparison payload */
+export type RunComparison = {
+  benchmark_id: string;
+  verdict: "improved" | "stable" | "regressed" | "unknown";
+  headline: string;
+  score_delta: number | null;
+  success_rate_delta: number | null;
+  score_coverage_delta: number | null;
+  dimension_deltas: Record<string, number | null>;
+  top_changes: Array<{ dimension: string; delta: number }>;
+  current: {
+    run_id: string;
+    label: string;
+    task_id?: string | null;
+    status: string;
+    summary: Record<string, unknown>;
+    created_at?: string | null;
+  };
+  baseline: {
+    run_id: string;
+    label: string;
+    task_id?: string | null;
+    status: string;
+    summary: Record<string, unknown>;
+    created_at?: string | null;
+  };
+  thresholds?: { score_stable_eps?: number };
+};
+
 export const benchmarksApi = {
   list: () =>
     apiClient
@@ -62,6 +110,9 @@ export const benchmarksApi = {
     description?: string;
     tags?: string[];
     cases?: BenchmarkCase[];
+    version?: string;
+    scorecard?: Record<string, unknown>;
+    source_task_id?: string;
   }) =>
     apiClient.post<Benchmark>("/benchmarks", body).then((r) => r.data),
 
@@ -80,6 +131,31 @@ export const benchmarksApi = {
   ) =>
     apiClient
       .post<{ run: BenchmarkRun }>(`/benchmarks/${id}/run`, body || {})
+      .then((r) => r.data),
+
+  listRuns: (id: string, limit = 50) =>
+    apiClient
+      .get<{ items: BenchmarkRun[]; total: number; benchmark_id: string }>(
+        `/benchmarks/${id}/runs`,
+        { params: { limit } }
+      )
+      .then((r) => r.data),
+
+  finalizeRun: (id: string, runId: string) =>
+    apiClient
+      .post<{ run: BenchmarkRun }>(`/benchmarks/${id}/runs/${runId}/finalize`)
+      .then((r) => r.data),
+
+  compare: (
+    id: string,
+    body: {
+      current_run_id: string;
+      baseline_run_id?: string | null;
+      score_stable_eps?: number;
+    }
+  ) =>
+    apiClient
+      .post<RunComparison>(`/benchmarks/${id}/compare`, body)
       .then((r) => r.data),
 
   leaderboard: (id: string) =>
