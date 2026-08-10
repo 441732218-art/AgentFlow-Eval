@@ -1,7 +1,5 @@
-﻿{
-  "build": {
-    "rootDirectory": "backend"
-  },
+{
+  "$schema": "https://railway.com/railway.schema.json",
   "deploy": {
     "numReplicas": 1,
     "restartPolicyType": "ON_FAILURE",
