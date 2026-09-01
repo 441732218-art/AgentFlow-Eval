@@ -1,4 +1,4 @@
-# (c) 2026 AgentFlow-Eval
+# AgentFlow-Eval Agent自动化评测工作台 V1.0
 """Application configuration using pydantic-settings with environment modes."""
 
 from __future__ import annotations
@@ -208,6 +208,9 @@ class Settings(BaseSettings):
     PLUGIN_SIGNING_SECRET: str = ""
     # "module.path:hexdigest,other:hexdigest"
     PLUGIN_SIGNATURES: str = ""
+
+    # ---- Agent Runtime v2 (additive; default off — v1 evaluation unchanged) ----
+    ENABLE_RUNTIME_V2: bool = False
 
     @property
     def plugin_dir_list(self) -> list[str]:

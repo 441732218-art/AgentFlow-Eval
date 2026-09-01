@@ -1,4 +1,4 @@
-# (c) 2026 AgentFlow-Eval
+# AgentFlow-Eval Agent自动化评测工作台 V1.0
 """路由注册总入口 —— 聚合所有 v1 版本的路由并注册到主路由器。"""
 
 from fastapi import APIRouter
@@ -19,6 +19,7 @@ from app.api.v1.endpoints import (
     observability,
     plugins,
     reports,
+    runtime,
     settings,
     tasks,
     tenants,
@@ -50,3 +51,4 @@ router.include_router(judges.router, prefix="/judges", tags=["Judge 评分卡"])
 router.include_router(plugins.router, prefix="/plugins", tags=["插件系统"])
 router.include_router(settings.router, prefix="/settings", tags=["系统设置"])
 router.include_router(ws.router, tags=["实时推送"])
+router.include_router(runtime.router, prefix="/runtime", tags=["Agent Runtime"])
