@@ -13,6 +13,9 @@ class RuntimeEventType:
 
     EXECUTION_STARTED = "execution.started"
     EXECUTION_COMPLETED = "execution.completed"
+    AGENT_STARTED = "agent.started"
+    AGENT_COMPLETED = "agent.completed"
+    AGENT_FAILED = "agent.failed"
     TOOL_STARTED = "tool.started"
     TOOL_COMPLETED = "tool.completed"
     TOOL_FAILED = "tool.failed"
