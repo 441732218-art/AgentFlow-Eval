@@ -6,7 +6,12 @@ from __future__ import annotations
 from typing import Any
 
 from app.runtime.context import RuntimeContext
-from app.runtime.executor.context_fields import get_tool_arguments, get_tool_definition
+from app.runtime.executor.context_fields import (
+    ensure_execution_context,
+    get_execution_context,
+    get_tool_arguments,
+    get_tool_definition,
+)
 from app.runtime.tools.engine import ToolExecutionEngine
 
 
@@ -28,8 +33,12 @@ def execute_tool_via_engine(
             "ToolExecutionEngine is required when context includes tool_definition"
         )
 
+    ensure_execution_context(context)
+    execution_context = get_execution_context(context)
+
     result = tool_execution_engine.execute(
         tool_definition,
         get_tool_arguments(context),
+        context=execution_context,
     )
     return result.output

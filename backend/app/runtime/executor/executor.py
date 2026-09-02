@@ -73,6 +73,10 @@ class AgentExecutor:
             else:
                 execution_id = context.execution_id
 
+            from app.runtime.executor.context_fields import ensure_execution_context
+
+            ensure_execution_context(context)
+
             output = self.pipeline.run(context, task)
 
             return ExecutionResult(

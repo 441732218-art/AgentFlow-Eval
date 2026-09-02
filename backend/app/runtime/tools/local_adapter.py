@@ -25,8 +25,11 @@ class LocalToolExecutorAdapter(ToolExecutorAdapter):
         self,
         tool_definition: ToolDefinition,
         arguments: dict[str, Any],
+        *,
+        execution_context: Any | None = None,
     ) -> Any:
         """Resolve handler by ``tool_definition.name`` and invoke ``handler(**arguments)``."""
+        _ = execution_context
         handler = self.handler_registry.get(tool_definition.name)
         if handler is None:
             raise MissingLocalHandlerError(tool_definition.name)

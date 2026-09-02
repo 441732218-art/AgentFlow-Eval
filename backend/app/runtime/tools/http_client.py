@@ -57,11 +57,21 @@ class HttpRemoteToolClient(RemoteToolClient):
     def send(self, request: ToolProviderRequest) -> ToolProviderResponse:
         endpoint = self._resolve_endpoint(request)
         headers = self._build_headers(request)
-        payload = {
+        request_metadata = dict(request.metadata)
+        execution_context = request_metadata.pop("execution_context", None)
+        body_metadata = {
+            key: value
+            for key, value in request_metadata.items()
+            if key not in {"auth", "execution_context"}
+        }
+        payload: dict[str, Any] = {
             "name": request.tool_name,
             "arguments": dict(request.arguments),
-            "metadata": dict(request.metadata),
         }
+        if body_metadata:
+            payload["metadata"] = body_metadata
+        if execution_context:
+            payload["context"] = dict(execution_context)
 
         try:
             response = self._post(endpoint, payload, headers)

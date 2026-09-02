@@ -19,5 +19,7 @@ class ToolExecutorAdapter(ABC):
         self,
         tool_definition: ToolDefinition,
         arguments: dict[str, Any],
+        *,
+        execution_context: Any | None = None,
     ) -> Any:
         """Execute a tool capability with the supplied arguments."""

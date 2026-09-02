@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.runtime.tools.adapter import ToolExecutorAdapter
 from app.runtime.tools.auth import ToolProviderAuth
@@ -19,6 +19,9 @@ from app.runtime.tools.policy import RemoteExecutionPolicy
 from app.runtime.tools.provider import ToolProviderRequest, ToolProviderResponse
 from app.runtime.tools.remote_client import RemoteToolClient
 from app.runtime.tools.validation import validate_arguments
+
+if TYPE_CHECKING:
+    from app.runtime.executor.execution_context import ExecutionContext
 
 
 class RemoteToolExecutorAdapter(ToolExecutorAdapter):
@@ -38,15 +41,20 @@ class RemoteToolExecutorAdapter(ToolExecutorAdapter):
         self,
         tool_definition: ToolDefinition,
         arguments: dict[str, Any],
+        *,
+        execution_context: ExecutionContext | None = None,
     ) -> Any:
         normalized_arguments = dict(arguments)
         validate_arguments(tool_definition.input_schema, normalized_arguments)
 
         auth = ToolProviderAuth.from_metadata(tool_definition.metadata)
+        request_metadata = self._build_request_metadata(tool_definition.metadata, auth)
+        if execution_context is not None:
+            request_metadata["execution_context"] = execution_context.to_remote_payload()
         request = ToolProviderRequest(
             tool_name=tool_definition.name,
             arguments=normalized_arguments,
-            metadata=self._build_request_metadata(tool_definition.metadata, auth),
+            metadata=request_metadata,
         )
 
         last_error: ToolExecutionError | None = None

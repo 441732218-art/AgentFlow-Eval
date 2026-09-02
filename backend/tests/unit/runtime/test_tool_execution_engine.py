@@ -6,6 +6,12 @@ from typing import Any
 
 import pytest
 
+from app.runtime.executor.context_fields import (
+    TENANT_ID_METADATA_KEY,
+    USER_ID_METADATA_KEY,
+    attach_execution_context,
+)
+from app.runtime.executor.execution_context import ExecutionContext
 from app.runtime.tools.adapter import ToolExecutorAdapter
 from app.runtime.tools.definition import ToolDefinition
 from app.runtime.tools.engine import ToolExecutionEngine, ToolExecutionResult
@@ -23,14 +29,18 @@ class StubAdapter(ToolExecutorAdapter):
     executor_type = "local"
 
     def __init__(self) -> None:
-        self.calls: list[tuple[ToolDefinition, dict[str, Any]]] = []
+        self.calls: list[
+            tuple[ToolDefinition, dict[str, Any], ExecutionContext | None]
+        ] = []
 
     def execute(
         self,
         tool_definition: ToolDefinition,
         arguments: dict[str, Any],
+        *,
+        execution_context: ExecutionContext | None = None,
     ) -> Any:
-        self.calls.append((tool_definition, arguments))
+        self.calls.append((tool_definition, arguments, execution_context))
         return {"tool": tool_definition.name, "args": arguments}
 
 
@@ -43,7 +53,10 @@ class RemoteStubAdapter(ToolExecutorAdapter):
         self,
         tool_definition: ToolDefinition,
         arguments: dict[str, Any],
+        *,
+        execution_context: ExecutionContext | None = None,
     ) -> Any:
+        _ = execution_context
         return {"status": "remote_stub", "tool": tool_definition.name}
 
 
@@ -121,9 +134,29 @@ def test_engine_executes_through_adapter() -> None:
     assert result.executor_type == "local"
     assert result.output == {"tool": "test.tool", "args": {"query": "hello"}}
     assert len(adapter.calls) == 1
-    called_definition, called_args = adapter.calls[0]
+    called_definition, called_args, _ = adapter.calls[0]
     assert called_definition.name == "test.tool"
     assert called_args == {"query": "hello"}
+
+
+def test_engine_forwards_execution_context_to_adapter() -> None:
+    registry = ToolExecutorRegistry()
+    adapter = StubAdapter()
+    registry.register(adapter)
+    engine = ToolExecutionEngine(adapter_registry=registry)
+    definition = _definition()
+    execution_context = ExecutionContext(
+        execution_id="exec-ctx-1",
+        agent_id="agent-1",
+        tenant_id="tenant-a",
+        user_id="user-1",
+    )
+
+    engine.execute(definition, {"query": "hello"}, context=execution_context)
+
+    assert len(adapter.calls) == 1
+    _, _, forwarded = adapter.calls[0]
+    assert forwarded == execution_context
 
 
 def test_engine_contains_no_business_logic() -> None:

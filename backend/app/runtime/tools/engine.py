@@ -4,13 +4,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.runtime.tools.definition import ToolDefinition
 from app.runtime.tools.executor_registry import (
     ToolExecutorRegistry,
     UnknownExecutorTypeError,
 )
+
+if TYPE_CHECKING:
+    from app.runtime.executor.execution_context import ExecutionContext
 
 
 @dataclass
@@ -32,6 +35,8 @@ class ToolExecutionEngine:
         self,
         tool_definition: ToolDefinition,
         arguments: dict[str, Any] | None = None,
+        *,
+        context: ExecutionContext | None = None,
     ) -> ToolExecutionResult:
         """Execute a tool definition via the matching executor adapter.
 
@@ -49,7 +54,11 @@ class ToolExecutionEngine:
         if adapter is None:
             raise UnknownExecutorTypeError(executor_type)
 
-        output = adapter.execute(tool_definition, dict(arguments or {}))
+        output = adapter.execute(
+            tool_definition,
+            dict(arguments or {}),
+            execution_context=context,
+        )
         return ToolExecutionResult(
             tool_name=tool_definition.name,
             executor_type=executor_type,
