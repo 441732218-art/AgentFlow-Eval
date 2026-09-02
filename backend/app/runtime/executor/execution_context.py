@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from app.runtime.audit.store import AuditEventStore
     from app.runtime.events.publisher import RuntimeEventPublisher
+    from app.runtime.governance.lifecycle import RuntimeGovernanceLifecycle
     from app.runtime.observability.collector import ObservationCollector
     from app.runtime.policy.engine import PolicyEngine
 
@@ -28,6 +29,7 @@ class ExecutionContext:
     event_publisher: RuntimeEventPublisher | None = None
     audit_store: AuditEventStore | None = None
     policy_engine: PolicyEngine | None = None
+    governance_lifecycle: RuntimeGovernanceLifecycle | None = None
 
     def to_remote_payload(self) -> dict[str, str]:
         """Build a trace-safe context payload for remote tool HTTP requests."""

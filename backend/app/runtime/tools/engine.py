@@ -7,6 +7,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from app.runtime.governance.middleware import use_governance_lifecycle
 from app.runtime.observability.events import RuntimeEventType
 from app.runtime.observability.recording import build_runtime_event, record_runtime_event
 from app.runtime.policy.models import PolicyDecision, PolicyDeniedError
@@ -61,6 +62,16 @@ class ToolExecutionEngine:
         adapter = self.adapter_registry.get(executor_type)
         if adapter is None:
             raise UnknownExecutorTypeError(executor_type)
+
+        if use_governance_lifecycle(context):
+            assert context is not None
+            return context.governance_lifecycle.run_tool_execution(
+                context=context,
+                tool_definition=tool_definition,
+                arguments=dict(arguments or {}),
+                adapter=adapter,
+                executor_type=executor_type,
+            )
 
         decision = self._evaluate_policy(context, tool_definition)
         if not decision.allowed:

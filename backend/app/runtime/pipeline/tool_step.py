@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from app.runtime.context import RuntimeContext
@@ -12,7 +13,11 @@ from app.runtime.executor.context_fields import (
     get_tool_arguments,
     get_tool_definition,
 )
+from app.runtime.governance.middleware import use_governance_lifecycle
+from app.runtime.observability.events import RuntimeEventType
+from app.runtime.observability.recording import build_runtime_event, record_runtime_event
 from app.runtime.tools.engine import ToolExecutionEngine
+from app.runtime.tools.invocation_event import ToolInvocationEvent
 
 
 class ToolExecutionEngineRequiredError(RuntimeError):
@@ -36,9 +41,75 @@ def execute_tool_via_engine(
     ensure_execution_context(context)
     execution_context = get_execution_context(context)
 
-    result = tool_execution_engine.execute(
-        tool_definition,
-        get_tool_arguments(context),
-        context=execution_context,
+    if use_governance_lifecycle(execution_context):
+        result = tool_execution_engine.execute(
+            tool_definition,
+            get_tool_arguments(context),
+            context=execution_context,
+        )
+        return result.output
+
+    tool_name = tool_definition.name
+    start_time = time.monotonic()
+    record_runtime_event(
+        execution_context,
+        build_runtime_event(
+            execution_context,
+            RuntimeEventType.TOOL_STARTED,
+            tool_name=tool_name,
+            metadata={"executor_type": tool_definition.executor_type},
+        ),
+    )
+
+    try:
+        result = tool_execution_engine.execute(
+            tool_definition,
+            get_tool_arguments(context),
+            context=execution_context,
+        )
+    except Exception as exc:
+        end_time = time.monotonic()
+        invocation = ToolInvocationEvent(
+            execution_id=execution_context.execution_id if execution_context else "",
+            tool_name=tool_name,
+            started_at=start_time,
+            finished_at=end_time,
+            status="failed",
+            error_type=type(exc).__name__,
+        )
+        record_runtime_event(
+            execution_context,
+            build_runtime_event(
+                execution_context,
+                RuntimeEventType.TOOL_FAILED,
+                tool_name=tool_name,
+                status="failed",
+                duration_ms=invocation.duration_ms,
+                metadata={
+                    "executor_type": tool_definition.executor_type,
+                    "error_type": invocation.error_type,
+                },
+            ),
+        )
+        raise
+
+    end_time = time.monotonic()
+    invocation = ToolInvocationEvent(
+        execution_id=execution_context.execution_id if execution_context else "",
+        tool_name=tool_name,
+        started_at=start_time,
+        finished_at=end_time,
+        status="success",
+    )
+    record_runtime_event(
+        execution_context,
+        build_runtime_event(
+            execution_context,
+            RuntimeEventType.TOOL_COMPLETED,
+            tool_name=tool_name,
+            status="success",
+            duration_ms=invocation.duration_ms,
+            metadata={"executor_type": tool_definition.executor_type},
+        ),
     )
     return result.output
