@@ -14,4 +14,6 @@ class AgentDefinition:
     id: str
     name: str
     tool_names: list[str]
+    version: str = "1.0"
+    enabled: bool = True
     metadata: dict[str, Any] = field(default_factory=dict)
