@@ -23,6 +23,10 @@ class RemoteProviderError(ToolExecutionError):
     """Remote provider returned a failure or raised an execution error."""
 
 
+class RemoteAuthError(ToolExecutionError):
+    """Remote provider rejected authentication (HTTP 401/403)."""
+
+
 class RemoteTimeoutError(ToolExecutionError):
     """Remote provider did not respond within the allowed time."""
 

@@ -5,6 +5,10 @@ from __future__ import annotations
 
 from app.runtime.tools.adapter import ToolExecutorAdapter
 from app.runtime.tools.auth import ToolProviderAuth
+from app.runtime.tools.credential_resolver import (
+    CredentialResolver,
+    InMemoryCredentialResolver,
+)
 from app.runtime.tools.definition import (
     ALLOWED_EXECUTOR_TYPES,
     ToolDefinition,
@@ -12,6 +16,7 @@ from app.runtime.tools.definition import (
 )
 from app.runtime.tools.engine import ToolExecutionEngine, ToolExecutionResult
 from app.runtime.tools.errors import (
+    RemoteAuthError,
     RemoteProviderError,
     RemoteResponseValidationError,
     RemoteTimeoutError,
@@ -27,6 +32,7 @@ from app.runtime.tools.factory import (
     create_default_tool_execution_engine,
     create_tool_execution_engine,
 )
+from app.runtime.tools.http_client import HttpRemoteToolClient
 from app.runtime.tools.local_adapter import LocalToolExecutorAdapter
 from app.runtime.tools.local_handler_registry import (
     DuplicateLocalHandlerError,
@@ -58,13 +64,17 @@ from app.runtime.tools.validation import validate_arguments
 
 __all__ = [
     "ALLOWED_EXECUTOR_TYPES",
+    "CredentialResolver",
     "DuplicateExecutorAdapterError",
     "DuplicateLocalHandlerError",
     "DuplicateToolError",
+    "HttpRemoteToolClient",
+    "InMemoryCredentialResolver",
     "InMemoryRemoteClient",
     "LocalHandlerRegistry",
     "LocalToolExecutorAdapter",
     "MissingLocalHandlerError",
+    "RemoteAuthError",
     "RemoteExecutionPolicy",
     "RemoteProviderError",
     "RemoteResponseValidationError",
