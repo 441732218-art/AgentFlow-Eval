@@ -23,17 +23,42 @@ interface ScoreCardProps {
   scorecardName?: string;
 }
 
+/**
+ * 评测规则配置项
+ * 支持自定义权重、阈值与评估器，实现灵活的多维评价体系
+ */
+interface ScoreRuleConfig {
+  /** 指标标识符 */
+  metric: string;
+  /** 权重系数 (0-1)，所有规则权重之和应为1 */
+  weight: number;
+  /** 评估器类型: llm_judge | rule_based | human_review */
+  evaluator: 'llm_judge' | 'rule_based' | 'human_review';
+  /** 合格阈值，低于此值触发告警或人工复核 */
+  threshold?: number;
+  /** 评分说明（用于报告生成） */
+  description?: string;
+}
+
+/**
+ * 默认评测规则配置（可从运行时从后端加载覆盖）
+ */
+const DEFAULT_SCORE_RULES: ScoreRuleConfig[] = [
+  { metric: 'tool_accuracy', weight: 0.4, evaluator: 'llm_judge', threshold: 0.7, description: '工具调用参数提取与执行结果正确性' },
+  { metric: 'answer_correctness', weight: 0.4, evaluator: 'llm_judge', threshold: 0.8, description: '最终答案与标准答案的语义一致性' },
+  { metric: 'reasoning_coherence', weight: 0.2, evaluator: 'rule_based', threshold: 0.6, description: '思维链步骤完整性与逻辑连贯性' },
+];
+
 const FALLBACK_LABELS: Record<string, string> = {
   tool_accuracy: "工具调用准确率",
   answer_correctness: "答案准确性",
   reasoning_coherence: "推理连贯性",
 };
 
-const FALLBACK_MAX: Record<string, number> = {
-  tool_accuracy: 40,
-  answer_correctness: 40,
-  reasoning_coherence: 20,
-};
+/** 从 DEFAULT_SCORE_RULES 派生的回退权重映射 */
+export const FALLBACK_MAX: Record<string, number> = Object.fromEntries(
+  DEFAULT_SCORE_RULES.map((rule) => [rule.metric, Math.round(rule.weight * 100)])
+);
 
 const COLORS = ["#38bdf8", "#34d399", "#818cf8", "#fbbf24", "#f472b6", "#a78bfa"];
 

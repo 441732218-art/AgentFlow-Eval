@@ -1,4 +1,4 @@
-# (c) 2026 AgentFlow-Eval
+﻿# AgentFlow-Eval Agent自动化评测工作台 V1.0
 """Agent runner factory — select OpenAI ReAct, HTTP, or plugin runners."""
 
 from __future__ import annotations
@@ -82,9 +82,33 @@ def build_agent_runner(agent_config: dict[str, Any] | None = None) -> Any:
 
     from app.core.agent_runner.openai_runner import OpenAIReActRunner
 
+    api_key = cfg.get("api_key") or app_settings.OPENAI_API_KEY or None
+    base_url = cfg.get("base_url") or app_settings.OPENAI_BASE_URL or None
+    try:
+        timeout_seconds = float(
+            cfg.get("timeout_seconds")
+            or cfg.get("timeout")
+            or getattr(app_settings, "LLM_CALL_TIMEOUT_SEC", 30.0)
+            or 30.0
+        )
+    except (TypeError, ValueError):
+        timeout_seconds = 30.0
+    try:
+        temperature = float(cfg.get("temperature", 0.0))
+    except (TypeError, ValueError):
+        temperature = 0.0
+    try:
+        max_tokens = int(cfg.get("max_tokens", 0) or 0)
+    except (TypeError, ValueError):
+        max_tokens = 0
+
     return OpenAIReActRunner(
-        api_key=app_settings.OPENAI_API_KEY or None,
-        base_url=app_settings.OPENAI_BASE_URL or None,
+        api_key=api_key,
+        base_url=base_url,
         model=cfg.get("model", "gpt-4o-mini"),
         max_iterations=int(cfg.get("max_iterations", 5)),
+        timeout_seconds=timeout_seconds,
+        temperature=temperature,
+        max_tokens=max_tokens or None,
+        provider=str(cfg.get("provider") or "openai").lower().strip() or "openai",
     )

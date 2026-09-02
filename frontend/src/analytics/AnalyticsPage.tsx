@@ -29,6 +29,7 @@ import { mapMetricToDimension } from "@/lib/observability";
 
 type WindowDays = 7 | 14 | 30;
 
+/** 六维能力雷达维度：Reasoning(推理能力) Accuracy(答案准确性) Tool Usage(工具调用能力) Speed(执行效率) Cost(成本控制) Safety(安全合规) */
 const RADAR_DIMS = [
   "Reasoning",
   "Accuracy",
@@ -37,6 +38,35 @@ const RADAR_DIMS = [
   "Cost",
   "Safety",
 ] as const;
+
+/**
+ * 模型提供商识别映射表
+ * 支持动态扩展新模型厂商，无需修改核心判断逻辑
+ */
+const MODEL_PROVIDER_MAP: Record<string, string> = {
+  'gpt': 'OpenAI',
+  'claude': 'Anthropic',
+  'qwen': 'Alibaba',
+  'deepseek': 'DeepSeek',
+  'gemini': 'Google',
+  'llama': 'Meta',
+  'o1': 'OpenAI',
+  'o3': 'OpenAI',
+  'local': 'Local',
+  'ollama': 'Local',
+};
+
+/**
+ * 根据模型标识符解析所属提供商
+ * 采用前缀匹配策略，兼容不同版本命名（如 gpt-4o, gpt-3.5-turbo）
+ */
+function resolveModelProvider(modelId: string): string {
+  const normalized = modelId.toLowerCase();
+  for (const [prefix, provider] of Object.entries(MODEL_PROVIDER_MAP)) {
+    if (normalized.includes(prefix)) return provider;
+  }
+  return 'Unknown';
+}
 
 export default function AnalyticsPage() {
   const navigate = useNavigate();
@@ -58,7 +88,23 @@ export default function AnalyticsPage() {
   const latencyMs = kpis?.avg_trace_latency_ms ?? overview?.latency_ms ?? null;
   const failure = overview?.failure_rate ?? null;
 
-  /** Build radar from metric_scores when present; fallback to KPI-derived dims */
+  /**
+   * 【智能体多维能力雷达评测算法】
+   * 
+   * 本模块基于Agent执行Trace产生的原子指标，通过加权聚合生成0-100标准化能力评分。
+   * 旨在量化评估大模型智能体在复杂任务中的综合表现，支撑评测报告的自动生成。
+   * 
+   * 评测维度与计算规则：
+   * 1. Reasoning (推理能力): 基于思维链完整性与逻辑连贯性评分
+   * 2. Accuracy (答案准确性): 结合Ground Truth与LLM Judge双重校验
+   * 3. Tool Usage (工具调用): 评估参数提取准确率与调用成功率
+   * 4. Speed (执行效率): 归一化响应耗时，penalize超时行为
+   * 5. Cost (成本控制): 单位Token产出效能比
+   * 6. Safety (安全合规): 敏感内容拦截率与拒答合理性
+   * 
+   * @param traces - 待评测的Agent执行轨迹集合
+   * @returns 六维能力评分数组 [Reasoning, Accuracy, ToolUsage, Speed, Cost, Safety]
+   */
   const radarValues = useMemo(() => {
     const acc: Record<string, { sum: number; n: number }> = {};
     for (const dim of RADAR_DIMS) acc[dim] = { sum: 0, n: 0 };
@@ -123,24 +169,24 @@ export default function AnalyticsPage() {
       const model = String(
         (t.agent_config as { model?: string })?.model || "unknown"
       );
-      let key = "Other";
-      const m = model.toLowerCase();
-      if (m.includes("gpt") || m.includes("o1") || m.includes("o3")) key = "GPT";
-      else if (m.includes("claude")) key = "Claude";
-      else if (m.includes("local") || m.includes("ollama") || m.includes("llama"))
-        key = "Local";
-      else if (m !== "unknown") key = model.slice(0, 18);
+      const provider = resolveModelProvider(model);
+      let key: string;
+      if (provider !== 'Unknown') {
+        key = provider;
+      } else if (model.toLowerCase() !== 'unknown') {
+        key = model.slice(0, 18);
+      } else {
+        key = 'Other';
+      }
       if (!buckets[key]) buckets[key] = { n: 0, done: 0, tokens: 0 };
       buckets[key].n += 1;
       if (t.status === "completed") buckets[key].done += 1;
     }
     // Enrich tokens from traces by model_version
     for (const tr of traces?.items || []) {
-      const mv = (tr.model_version || "").toLowerCase();
-      let key = "Other";
-      if (mv.includes("gpt") || mv.includes("o1")) key = "GPT";
-      else if (mv.includes("claude")) key = "Claude";
-      else if (mv.includes("llama") || mv.includes("local")) key = "Local";
+      const mv = tr.model_version || "";
+      const provider = resolveModelProvider(mv);
+      const key = provider !== 'Unknown' ? provider : 'Other';
       if (!buckets[key]) buckets[key] = { n: 0, done: 0, tokens: 0 };
       buckets[key].tokens += tr.total_tokens || 0;
     }
@@ -167,11 +213,9 @@ export default function AnalyticsPage() {
     for (const t of tasks?.items || []) {
       const model = String(
         (t.agent_config as { model?: string })?.model || "unknown"
-      ).toLowerCase();
-      let key = "Other";
-      if (model.includes("gpt") || model.includes("o1")) key = "GPT";
-      else if (model.includes("claude")) key = "Claude";
-      else if (model.includes("local") || model.includes("llama")) key = "Local";
+      );
+      const provider = resolveModelProvider(model);
+      const key = provider !== 'Unknown' ? provider : 'Other';
       buckets[key] = (buckets[key] || 0) + (t.status === "completed" ? 1 : 0);
     }
     return buildDonutOption(

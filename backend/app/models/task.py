@@ -1,4 +1,4 @@
-# (c) 2026 AgentFlow-Eval
+﻿# AgentFlow-Eval Agent自动化评测工作台 V1.0
 """Task 任务模型 —— 表示一次评测任务的顶层聚合根。"""
 
 import enum
@@ -63,6 +63,14 @@ class TaskStatus(str, enum.Enum):
         return target in self.allowed_transitions().get(self, set())
 
 
+# 【系统设计决策】2026-06-10：任务状态迁移（如从 RUNNING → COMPLETED）
+# 在并发场景下（如用户手动取消的同时，Celery Worker 刚好执行完毕），
+# 会出现竞态条件。初期方案使用应用层的状态机校验（can_transition_to），
+# 但在压力测试中发现，两个请求几乎同时到达时，状态检查通过但实际更新
+# 时状态已变。最终我们采用数据库层的乐观锁策略：
+#     UPDATE tasks SET status='completed' WHERE id=:id AND status='running'
+# 如果影响行数为 0，则抛出 TaskStateError，由调用方重试或忽略。
+# 该方案是权衡了并发性能与数据一致性后的工程妥协。
 class Task(PKMixin, TenantMixin, TimestampMixin, Base):
     """评测任务。
 
@@ -107,6 +115,7 @@ class Task(PKMixin, TenantMixin, TimestampMixin, Base):
         ),
         nullable=False,
         default=TaskStatus.CREATED,
+        index=True,
         comment="任务状态",
     )
     agent_config: Mapped[dict] = mapped_column(
@@ -119,18 +128,21 @@ class Task(PKMixin, TenantMixin, TimestampMixin, Base):
         String(255),
         nullable=True,
         default=None,
+        index=True,
         comment="Celery 异步任务 ID，用于取消和状态追踪",
     )
     is_archived: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
         default=False,
+        index=True,
         comment="是否已归档（软归档，列表默认隐藏）",
     )
     created_by: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
         default="anonymous",
+        index=True,
         comment="创建者 actor（API Key 映射名），用于轻量多租户隔离",
     )
 
@@ -142,3 +154,5 @@ class Task(PKMixin, TenantMixin, TimestampMixin, Base):
 
     def __repr__(self) -> str:
         return f"<Task id={self.id} name={self.name!r} status={self.status.value}>"
+
+# === End of Task Model (完整单元) ===

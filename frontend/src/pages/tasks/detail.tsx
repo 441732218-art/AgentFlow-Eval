@@ -27,6 +27,7 @@ import {
   EyeOutlined,
   UploadOutlined,
   InboxOutlined,
+  DownloadOutlined,
 } from "@ant-design/icons";
 import {
   useTaskDetail,
@@ -35,11 +36,13 @@ import {
   useCancelTask,
   useDeleteTask,
   useUploadTestSuites,
+  useImportCsv,
   useArchiveTask,
 } from "@/hooks";
 import { traceApi } from "@/api";
 import TraceFlowChart from "@/components/TraceFlow/TraceFlowChart";
 import ScoreCard from "@/components/TraceFlow/ScoreCard";
+import HumanReviewCard from "@/components/TraceFlow/HumanReviewCard";
 import StepLogPanel from "@/components/TraceFlow/StepLogPanel";
 import type { Trace } from "@/types";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -88,6 +91,7 @@ export default function TaskDetailPage() {
   const cancelMutation = useCancelTask();
   const deleteMutation = useDeleteTask();
   const uploadMutation = useUploadTestSuites(id || "");
+  const importCsvMutation = useImportCsv(id || "");
   const archiveMutation = useArchiveTask();
 
   const task = taskQuery.data;
@@ -173,6 +177,38 @@ export default function TaskDetailPage() {
       },
     });
     return false;
+  };
+
+  const handleImportCsv = (file: File) => {
+    if (!id) return false;
+    importCsvMutation.mutate(file, {
+      onSuccess: (res) => {
+        message.success(res.message || `Imported ${res.created} suite(s)`);
+        handleRefresh();
+      },
+      onError: (err: any) => {
+        const msg =
+          err?.response?.data?.detail ||
+          err?.response?.data?.error?.message ||
+          err?.message ||
+          "CSV import failed";
+        message.error(typeof msg === "string" ? msg : "CSV import failed");
+      },
+    });
+    return false;
+  };
+
+  const handleDownloadTemplate = () => {
+    const header = "query,expected_output,expected_tools";
+    const bom = "\uFEFF";
+    const blob = new Blob([bom + header + "\n"], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "test_suite_template.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+    message.success("Template downloaded");
   };
 
   const handleArchive = () => {
@@ -315,9 +351,31 @@ export default function TaskDetailPage() {
                 刷新
               </Button>
               {task.status === "created" && (
-                <Button icon={<UploadOutlined />} onClick={() => setUploadOpen(true)}>
-                  导入用例
-                </Button>
+                <>
+                  <Button icon={<UploadOutlined />} onClick={() => setUploadOpen(true)}>
+                    导入用例
+                  </Button>
+                  <Upload
+                    accept=".csv,text/csv"
+                    multiple={false}
+                    showUploadList={false}
+                    beforeUpload={handleImportCsv}
+                    disabled={importCsvMutation.isPending}
+                  >
+                    <Button
+                      icon={<UploadOutlined />}
+                      loading={importCsvMutation.isPending}
+                    >
+                      导入 CSV
+                    </Button>
+                  </Upload>
+                  <Button
+                    icon={<DownloadOutlined />}
+                    onClick={handleDownloadTemplate}
+                  >
+                    下载模板
+                  </Button>
+                </>
               )}
               {isRunning ? (
                 <Button
@@ -479,6 +537,7 @@ export default function TaskDetailPage() {
                 )?.scorecard?.dimensions
               }
             />
+            <HumanReviewCard />
             {traceView === "flow" && (
               <Card
                 className="af-glass"

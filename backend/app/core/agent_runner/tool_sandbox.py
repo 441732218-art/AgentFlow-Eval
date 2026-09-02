@@ -1,4 +1,4 @@
-# (c) 2026 AgentFlow-Eval
+﻿# AgentFlow-Eval Agent自动化评测工作台 V1.0
 """Safe built-in tool registry and sandboxed execution."""
 
 from __future__ import annotations
@@ -101,6 +101,84 @@ def tool_current_datetime(timezone_name: str = "UTC", **kwargs: Any) -> str:
     return now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def tool_time_query(
+    format: str = "unix",   # noqa: A002 鈥?涓庡墠绔?崗璁?瓧娈靛悕淇濇寔涓?鑷?    **kwargs: Any,
+) -> str:
+    """
+    鑾峰彇褰撳墠鏃堕棿鎴筹紝鏀?寔澶氱?杈撳嚭鏍煎紡銆?
+    涓轰粈涔堣?鍗曠嫭瀹炵幇杩欎釜宸?叿鑰屼笉鏄??鐢?current_datetime锛?    - 璇勬祴鍦烘櫙涓?Agent 缁忓父闇?瑕佽幏鍙?Unix 鏃堕棿鎴冲仛鏁板?杩愮畻
+      (濡傝?绠楁椂闂村樊)锛孖SO 瀛楃?涓蹭笉渚夸簬鐩存帴鍙備笌绠楁湳銆?    - 浣滀负娌欑?宸?叿鐙?珛瀹炵幇锛屼笉渚濊禆 time 妯?潡鐨勫叏灞?鐘舵??      (time.time() 鍦?矙绠卞唴琚?檺鍒讹紝杩欓噷鐢?datetime 鏇夸唬)銆?    - 瀹為檯韪?潙锛?026-04 鏈変釜璇勬祴闆嗕紶鍏?"unix_ms" 鏍煎紡浣?      current_datetime 鍙?繑鍥?ISO 瀛楃?涓诧紝瀵艰嚧 Agent 鍙嶅?閲嶈瘯
+      (娴?垂浜?~2k tokens)銆傚垎寮?鍚庡悇鑷?亴璐ｆ竻鏅般??
+    鍙傛暟锛?        format: "unix" 杩斿洖绉掔骇鏃堕棿鎴筹紝"unix_ms" 杩斿洖姣??锛?iso" 杩斿洖 ISO8601
+    """
+    fmt = (format or kwargs.get("fmt") or "unix").strip().lower()
+    now = datetime.now(timezone.utc)
+
+    if fmt in ("unix", "timestamp"):
+        return str(int(now.timestamp()))
+    elif fmt in ("unix_ms", "timestamp_ms"):
+        return str(int(now.timestamp() * 1000))
+    elif fmt == "iso":
+        return now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    else:
+        # 鏈?煡鏍煎紡鍥為??涓?unix 鏃堕棿鎴筹紝骞惰?褰曟棩蹇椾緵鍚庣画浼樺寲
+        logger.warning("tool_time_query: 鏈?煡鏍煎紡 '%s'锛屽洖閫?涓?unix", fmt)
+        return str(int(now.timestamp()))
+
+
+def tool_retrieve_simulate(
+    query: str = "",
+    top_k: int = 3,
+    **kwargs: Any,
+) -> str:
+    """
+    妯?嫙妫?绱??寮虹敓鎴?(RAG) 鐨勬枃妗ｆ?绱?繃绋嬶紝杩斿洖鍋囨暟鎹???
+    璁捐?鑳屾櫙锛?    - 璇勬祴 Sandbox 妯?紡涓嬩笉鍏佽?鐪熷疄缃戠粶璇锋眰鍜屾枃浠惰?鍙栵紝
+      浣嗚瘎娴嬮泦涓?父瑙?"璇锋?绱?浉鍏虫枃妗ｅ苟鍥炵瓟" 绫?prompt銆?      娌?湁杩欎釜宸?叿锛孉gent 浼氬弽澶嶅皾璇曡皟鐢?笉瀛樺湪鐨?search/retrieve API锛?      鏈?缁堣秴鏃舵垨杩斿洖绌虹粨鏋滐紝涓?噸褰卞搷璇勬祴鍑嗙?鎬???    - 杩斿洖缁撴灉鏍煎紡鍙傝?冧簡鐪熷疄鐨勫悜閲忔?绱?API 鍝嶅簲浣?(Elasticsearch / Milvus)锛?      纭?繚 Agent 鑳芥?纭??鏋?"documents" 瀛楁?銆?
+    鍙傛暟锛?        query:  妫?绱?煡璇?瓧绗︿覆
+        top_k:  杩斿洖缁撴灉鏁伴噺 (榛樿? 3锛屾渶澶?10)
+
+    杩斿洖锛?        JSON 瀛楃?涓诧紝鍖呭惈 simulated_documents 鏁扮粍
+    """
+    q = (query or kwargs.get("q") or kwargs.get("text") or "").strip()
+    if not q:
+        return '{"error": "empty query", "documents": []}'
+
+    # top_k 瀹夊叏闄愬埗锛氶槻 OOM 鍜屾伓鎰忓?鍙傛暟
+    k = min(max(int(top_k or 3), 1), 10)
+
+    if k > 5:
+        logger.warning(
+            "tool_retrieve_simulate: simulated overload (top_k=%d > 5), returning degraded response", k
+        )
+        return json.dumps(
+            {"error": "retrieve_service_overload", "fallback": "try later"},
+            ensure_ascii=False,
+        )
+
+    # 鍩轰簬鏌??鐢熸垚鍋囨枃妗ｅ垪琛?鈥斺??姣忎釜鏂囨?妯?嫙鐪熷疄妫?绱?粨鏋滅殑瀛楁?
+    docs = []
+    for i in range(k):
+        docs.append(
+            {
+                "id": f"sim_doc_{i+1:04d}",
+                "score": round(0.95 - i * 0.08, 4),
+                "title": f"Simulated doc about {q[:30]} #{i+1}",
+                "snippet": (
+                    f"This is simulated search result #{i+1} for query '{q[:50]}'. "
+                    f"In production, this would return actual vector DB hits. "
+                    f"Currently in Sandbox mode, all results are deterministic mock data."
+                ),
+                "source": "sandbox_retriever",
+            }
+        )
+
+    result = json.dumps(
+        {"query": q, "top_k": k, "documents": docs},
+        ensure_ascii=False,
+    )
+    return result[:MAX_OUTPUT_CHARS]
+
 def tool_json_get(data: str = "", path: str = "", **kwargs: Any) -> str:
     """Get a dotted path from a JSON string, e.g. path='user.name'."""
     raw = data or kwargs.get("json") or "{}"
@@ -189,6 +267,31 @@ BUILTIN_TOOLS: dict[str, dict[str, Any]] = {
         },
         "required": ["text", "pattern"],
         "fn": tool_regex_extract,
+    },
+    "time_query": {
+        "description": "Get current Unix timestamp or ISO datetime string",
+        "parameters": {
+            "format": {
+                "type": "string",
+                "description": "Output format: unix / unix_ms / iso",
+                "enum": ["unix", "unix_ms", "iso"],
+            },
+        },
+        "required": [],
+        "fn": tool_time_query,
+    },
+    "retrieve_simulate": {
+        "description": "Simulated vector search returning mock documents (Sandbox safe)",
+        "parameters": {
+            "query": {"type": "string", "description": "妫?绱?煡璇?瓧绗︿覆"},
+            "top_k": {
+                "type": "integer",
+                "description": "杩斿洖缁撴灉鏁伴噺 (榛樿?3锛屾渶澶?0)",
+                "default": 3,
+            },
+        },
+        "required": ["query"],
+        "fn": tool_retrieve_simulate,
     },
 }
 
@@ -401,7 +504,7 @@ def run_tool_sandboxed(
 
     text = str(result)
     if len(text) > MAX_OUTPUT_CHARS:
-        text = text[:MAX_OUTPUT_CHARS] + "…[truncated]"
+        text = text[:MAX_OUTPUT_CHARS] + "鈥?truncated]"
 
     latency = int((_time.monotonic() - _t0) * 1000)
     try:
@@ -449,3 +552,19 @@ def resolve_tools_for_suite(expected_tools: list[str] | None) -> list[dict[str, 
         name = d["function"]["name"]
         d["fn"] = get_tool_function(name)
     return defs
+
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Built-in tool implementations
+# ---------------------------------------------------------------------------
+
+def _web_search(query: str, max_results: int = 3) -> str:
+    """Placeholder web search 鈥?returns a stub result."""
+    return json.dumps({
+        "query": query,
+        "results": [f"[stub] Result {i} for '{query}'" for i in range(1, max_results + 1)],
+    })
+
+

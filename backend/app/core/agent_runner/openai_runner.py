@@ -1,11 +1,14 @@
-import json
+﻿import json
 import logging
+import os
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+import httpx
 from openai import AsyncOpenAI
+import openai  # for APIConnectionError type checking
 
 from app.core.agent_runner.base import AgentResult, BaseAgentRunner
 from app.core.agent_runner.tool_sandbox import (
@@ -107,6 +110,10 @@ class OpenAIReActRunner(BaseAgentRunner):
         base_url: str | None = None,
         model: str = "gpt-4o-mini",
         max_iterations: int = 5,
+        timeout_seconds: float = 30.0,
+        temperature: float = 0.0,
+        max_tokens: int | None = None,
+        provider: str = "openai",
     ) -> None:
         try:
             from app.config import settings as _s
@@ -114,8 +121,27 @@ class OpenAIReActRunner(BaseAgentRunner):
             client_timeout = float(getattr(_s, "LLM_CALL_TIMEOUT_SEC", 30.0) or 30.0)
         except Exception:
             client_timeout = 30.0
+
+        self.timeout_seconds = float(timeout_seconds or client_timeout)
+        self.temperature = float(temperature)
+        self.max_tokens = int(max_tokens) if max_tokens else None
+        self.provider = str(provider or "openai").lower().strip() or "openai"
+
+        # Build httpx client with proxy support (picks up HTTPS_PROXY / HTTP_PROXY env vars)
+        _proxy = (
+            os.environ.get("HTTPS_PROXY")
+            or os.environ.get("https_proxy")
+            or os.environ.get("HTTP_PROXY")
+            or os.environ.get("http_proxy")
+            or None
+        )
+        _http_client = httpx.AsyncClient(proxy=_proxy) if _proxy else None
+
         self.client = AsyncOpenAI(
-            api_key=api_key, base_url=base_url, timeout=client_timeout
+            api_key=api_key,
+            base_url=base_url,
+            timeout=self.timeout_seconds,
+            http_client=_http_client,
         )
         self.model = model
         self.max_iterations = max_iterations
@@ -138,23 +164,27 @@ class OpenAIReActRunner(BaseAgentRunner):
 
             emit_llm(
                 LogEvent.LLM_STARTED,
-                provider="openai",
+                provider=self.provider,
                 model=self.model,
-                temperature=0.0,
+                temperature=self.temperature,
                 task_id=task_id,
                 execution_id=execution_id,
             )
         except Exception:
             pass
 
+        create_kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "tools": openai_tools if openai_tools else None,
+            "tool_choice": "auto" if openai_tools else None,
+            "temperature": self.temperature,
+        }
+        if self.max_tokens is not None:
+            create_kwargs["max_tokens"] = self.max_tokens
+
         async def _create() -> Any:
-            return await self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                tools=openai_tools if openai_tools else None,
-                tool_choice="auto" if openai_tools else None,
-                temperature=0,
-            )
+            return await self.client.chat.completions.create(**create_kwargs)
 
         try:
             response = await protected_call_async(_create, policy=policy)
@@ -171,9 +201,9 @@ class OpenAIReActRunner(BaseAgentRunner):
 
                 emit_llm(
                     LogEvent.LLM_COMPLETED,
-                    provider="openai",
+                    provider=self.provider,
                     model=self.model,
-                    temperature=0.0,
+                    temperature=self.temperature,
                     input_tokens=in_tok,
                     output_tokens=out_tok,
                     total_tokens=tot,
@@ -184,15 +214,36 @@ class OpenAIReActRunner(BaseAgentRunner):
             except Exception:
                 pass
             return response
+        except openai.APIConnectionError as exc:
+            logger.error(
+                "Cannot connect to LLM API: %s. "
+                "Check OPENAI_API_KEY, HTTPS_PROXY, and OPENAI_BASE_URL in .env",
+                exc,
+            )
+            try:
+                from app.core.observability.aols import LogEvent, emit_llm, elapsed_ms
+                emit_llm(
+                    LogEvent.LLM_FAILED,
+                    provider=self.provider,
+                    model=self.model,
+                    temperature=self.temperature,
+                    latency_ms=elapsed_ms(t0),
+                    error_type="APIConnectionError",
+                    error_message=str(exc),
+                    task_id=task_id,
+                )
+            except Exception:
+                pass
+            raise
         except Exception as exc:
             try:
                 from app.core.observability.aols import LogEvent, emit_llm, elapsed_ms
 
                 emit_llm(
                     LogEvent.LLM_FAILED,
-                    provider="openai",
+                    provider=self.provider,
                     model=self.model,
-                    temperature=0.0,
+                    temperature=self.temperature,
                     latency_ms=elapsed_ms(t0),
                     error_type=type(exc).__name__,
                     error_message=str(exc),
@@ -363,6 +414,16 @@ class OpenAIReActRunner(BaseAgentRunner):
                         steps.append(step)
                         break
 
+            except openai.APIConnectionError as exc:
+                logger.error(
+                    "ReAct iteration %d: Cannot connect to LLM API: %s. "
+                    "Check OPENAI_API_KEY, HTTPS_PROXY, and OPENAI_BASE_URL in .env",
+                    iteration, exc,
+                )
+                step.observation = f"[API Connection Error: {exc}]"
+                if iteration == 0:
+                    status = "failed"
+                    error_message = f"API Connection Error: {exc}"
             except Exception as exc:
                 logger.exception("ReAct iteration %d failed: %s", iteration, exc)
                 step.observation = f"[Error: {exc}]"
@@ -581,6 +642,23 @@ class OpenAIRunner(BaseAgentRunner):
                 total_tokens=total_tokens,
                 response_time_ms=elapsed_ms,
                 status="success",
+            )
+        except openai.APIConnectionError as exc:
+            elapsed_ms = int((time.monotonic() - start_time) * 1000)
+            error_msg = (
+                f"Cannot connect to LLM API: {exc}\n"
+                "Check:\n"
+                "1. .env OPENAI_API_KEY is set\n"
+                "2. Set HTTPS_PROXY if behind a proxy (e.g. http://127.0.0.1:7890)\n"
+                "3. Set OPENAI_BASE_URL if using a relay service"
+            )
+            logger.error(error_msg)
+            return AgentResult(
+                steps=[{"role": "error", "content": error_msg}],
+                total_tokens=0,
+                response_time_ms=elapsed_ms,
+                status="failed",
+                error_message=str(exc),
             )
         except Exception as exc:
             elapsed_ms = int((time.monotonic() - start_time) * 1000)

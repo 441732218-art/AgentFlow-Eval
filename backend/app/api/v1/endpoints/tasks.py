@@ -1,4 +1,4 @@
-# (c) 2026 AgentFlow-Eval
+﻿# AgentFlow-Eval Agent自动化评测工作台 V1.0
 """Task CRUD API endpoints with optional actor tenancy."""
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from app.core.tenancy import ensure_task_access
 from app.models.task import Task, TaskStatus
 from app.models.test_suite import TestSuite
 from app.schemas.task import TaskCreate, TaskListResponse, TaskResponse
+from app.utils.agent_config import mask_agent_config
 
 router = APIRouter()
 
@@ -60,7 +61,7 @@ def _task_to_response_with_count(task: Task, suite_count: int) -> TaskResponse:
         name=task.name,
         description=task.description,
         status=task.status.value,
-        agent_config=task.agent_config or {},
+        agent_config=mask_agent_config(task.agent_config),
         celery_task_id=task.celery_task_id,
         is_archived=bool(getattr(task, "is_archived", False)),
         created_by=getattr(task, "created_by", None) or "anonymous",
@@ -103,9 +104,52 @@ def _parse_expected_tools(raw: Any) -> list[str]:
                 return [str(x).strip() for x in data if str(x).strip()]
         except json.JSONDecodeError:
             pass
-    return [t.strip() for t in text.split("|") if t.strip()] or [
-        t.strip() for t in text.split(",") if t.strip()
-    ]
+    pipe_parts = [t.strip() for t in text.split("|") if t.strip()]
+    if len(pipe_parts) > 1:
+        return pipe_parts
+    comma_parts = [t.strip() for t in text.split(",") if t.strip()]
+    if len(comma_parts) > 1:
+        return comma_parts
+    return [text.strip()]
+
+
+def _parse_csv_row(row: dict) -> dict | None:
+    """Map CSV row fields to TestSuite-compatible dict.
+
+    Accepts ``query`` or ``user_query`` as the user instruction column
+    (``user_query`` takes priority when both are present).  Also handles
+    ``expected_tools`` as JSON string or comma/pipe-delimited text.
+
+    Returns ``None`` when the row cannot produce a valid suite (i.e. no
+    user_query / query value).
+    """
+    user_query = str(row.get("user_query", "") or "").strip()
+    if not user_query:
+        query_val = str(row.get("query", "") or "").strip()
+        if query_val:
+            user_query = query_val
+    if not user_query:
+        return None  # skip rows without any query column
+
+    expected_output = str(row.get("expected_output", "") or "").strip()
+    expected_tools = _parse_expected_tools(row.get("expected_tools"))
+
+    extra_raw = row.get("extra_metadata", None)
+    extra_metadata: dict | None = None
+    if extra_raw:
+        try:
+            extra_metadata = json.loads(str(extra_raw)) if isinstance(extra_raw, str) else extra_raw
+            if not isinstance(extra_metadata, dict):
+                extra_metadata = None
+        except (json.JSONDecodeError, TypeError):
+            extra_metadata = None
+
+    return {
+        "user_query": user_query,
+        "expected_output": expected_output,
+        "expected_tools": expected_tools,
+        "extra_metadata": extra_metadata,
+    }
 
 
 def _suites_from_items(task_id: str, items: list[dict]) -> list[TestSuite]:
@@ -479,6 +523,105 @@ async def upload_test_suites(
         "created": len(created_suites),
         "filename": file.filename,
         "message": f"Imported {len(created_suites)} test suite(s)",
+    }
+
+
+@router.post("/{task_id}/test-suites/import-csv", status_code=201)
+@require_permission(Permission.TASK_UPDATE)
+async def import_csv_test_suites(
+    task_id: str,
+    request: Request,
+    file: UploadFile = File(..., description="CSV file with query/expected_output/expected_tools columns"),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    """Import test suites from a CSV file with automatic field mapping.
+
+    The CSV can use either ``query`` or ``user_query`` as the column name
+    for the user instruction.  ``expected_tools`` accepts JSON arrays or
+    comma/pipe-delimited strings.  Empty rows and rows missing both
+    ``query`` / ``user_query`` columns are skipped.
+
+    Returns the count of successfully created suites.
+    """
+    actor = _actor(request)
+    await _load_task(session, task_id, actor, role=_role(request))
+
+    filename = (file.filename or "").lower()
+    if not filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only .csv files are accepted")
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(
+            status_code=400, detail="File must be UTF-8 encoded"
+        ) from exc
+
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames:
+        raise HTTPException(status_code=400, detail="CSV has no header row")
+
+    # Normalise field names (strip whitespace, lowercase comparison)
+    fieldnames = [f.strip() for f in reader.fieldnames]
+    has_query = "query" in fieldnames or any(f.lower() == "query" for f in fieldnames)
+    has_user_query = "user_query" in fieldnames or any(f.lower() == "user_query" for f in fieldnames)
+    if not has_query and not has_user_query:
+        raise HTTPException(
+            status_code=400,
+            detail="CSV must include a 'query' or 'user_query' column",
+        )
+
+    created_suites: list[TestSuite] = []
+    skipped = 0
+    for row in reader:
+        # strip whitespace from keys
+        row = {k.strip(): v for k, v in row.items()}
+        parsed = _parse_csv_row(row)
+        if parsed is None:
+            skipped += 1
+            continue
+        created_suites.append(
+            TestSuite(
+                task_id=task_id,
+                user_query=parsed["user_query"],
+                expected_output=parsed["expected_output"],
+                expected_tools=parsed["expected_tools"],
+                extra_metadata=parsed.get("extra_metadata"),
+            )
+        )
+
+    if not created_suites:
+        detail = "No valid rows found in CSV"
+        if skipped:
+            detail += f" ({skipped} row(s) skipped)"
+        raise HTTPException(status_code=400, detail=detail)
+
+    for suite in created_suites:
+        session.add(suite)
+    await write_audit(
+        session,
+        action="task.import_csv_suites",
+        resource_type="task",
+        resource_id=task_id,
+        actor=actor,
+        detail={"filename": file.filename, "created": len(created_suites), "skipped": skipped},
+        request_id=_request_id(request),
+        ip=_client_ip(request),
+    )
+    await session.commit()
+    await _invalidate_task_caches(task_id, actor)
+
+    return {
+        "task_id": task_id,
+        "created": len(created_suites),
+        "skipped": skipped,
+        "filename": file.filename,
+        "message": f"Imported {len(created_suites)} test suite(s) from CSV"
+        + (f" ({skipped} row(s) skipped)" if skipped else ""),
     }
 
 
