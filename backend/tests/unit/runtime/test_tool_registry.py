@@ -10,6 +10,7 @@ from app.runtime.tools.definition import ToolDefinition
 from app.runtime.tools.registry import (
     DuplicateToolError,
     Tool,
+    ToolNotFoundError,
     ToolRegistry,
     tool_definition_from_legacy,
 )
@@ -139,9 +140,11 @@ def test_register_rejects_non_dict_input_schema() -> None:
         registry.register(definition)
 
 
-def test_get_missing_returns_none() -> None:
+def test_get_missing_raises_tool_not_found() -> None:
     registry = ToolRegistry()
-    assert registry.get("missing.tool") is None
+    with pytest.raises(ToolNotFoundError) as exc:
+        registry.get("missing.tool")
+    assert exc.value.name == "missing.tool"
 
 
 def test_register_rejects_unsupported_type() -> None:
