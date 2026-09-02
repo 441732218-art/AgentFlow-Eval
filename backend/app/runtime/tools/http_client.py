@@ -11,43 +11,50 @@ from app.runtime.tools.credential_resolver import CredentialResolver
 from app.runtime.tools.errors import (
     RemoteAuthError,
     RemoteProviderError,
+    RemoteResponseValidationError,
     RemoteTimeoutError,
     ToolExecutionError,
 )
+from app.runtime.tools.policy import RemoteExecutionPolicy
 from app.runtime.tools.provider import ToolProviderRequest, ToolProviderResponse
 from app.runtime.tools.remote_client import RemoteToolClient
 
-_FORBIDDEN_LOG_FIELDS = frozenset(
+_FORBIDDEN_METADATA_KEYS = frozenset(
     {"api_key", "secret", "token", "password", "authorization"}
 )
 
 
 class HttpRemoteToolClient(RemoteToolClient):
-    """Send tool provider requests over HTTP (single attempt per ``send`` call).
+    """Production HTTP transport for remote tool provider requests.
 
-    Retry semantics are handled by ``RemoteToolExecutorAdapter`` via
-    ``RemoteExecutionPolicy``; this client performs one HTTP round-trip and
-    maps transport failures to ``ToolExecutionError`` subclasses.
+    Performs a single HTTP round-trip per ``send`` call. Retry and overall
+    timeout policy are enforced by ``RemoteToolExecutorAdapter`` via
+    ``RemoteExecutionPolicy``.
     """
 
     def __init__(
         self,
         *,
         credential_resolver: CredentialResolver | None = None,
-        timeout_seconds: float = 30.0,
+        remote_policy: RemoteExecutionPolicy | None = None,
+        timeout_seconds: float | None = None,
         http_client: httpx.Client | None = None,
     ) -> None:
-        if timeout_seconds <= 0:
+        policy = remote_policy or RemoteExecutionPolicy()
+        resolved_timeout = (
+            timeout_seconds if timeout_seconds is not None else policy.timeout_seconds
+        )
+        if resolved_timeout <= 0:
             raise ValueError("timeout_seconds must be > 0")
         self._credential_resolver = credential_resolver
-        self._timeout_seconds = timeout_seconds
+        self._timeout_seconds = resolved_timeout
         self._http_client = http_client
 
     def send(self, request: ToolProviderRequest) -> ToolProviderResponse:
         endpoint = self._resolve_endpoint(request)
         headers = self._build_headers(request)
         payload = {
-            "tool_name": request.tool_name,
+            "name": request.tool_name,
             "arguments": dict(request.arguments),
             "metadata": dict(request.metadata),
         }
@@ -161,22 +168,35 @@ class HttpRemoteToolClient(RemoteToolClient):
         try:
             body = response.json()
         except ValueError as exc:
-            raise RemoteProviderError(
+            raise RemoteResponseValidationError(
                 f"HTTP {status}: invalid JSON response",
                 tool_name=tool_name,
                 cause=exc,
             ) from exc
 
         if not isinstance(body, dict):
-            raise RemoteProviderError(
+            raise RemoteResponseValidationError(
                 f"HTTP {status}: response body must be a JSON object",
+                tool_name=tool_name,
+            )
+
+        if "success" not in body:
+            raise RemoteResponseValidationError(
+                f"HTTP {status}: response must include success field",
                 tool_name=tool_name,
             )
 
         success = body.get("success")
         if not isinstance(success, bool):
-            raise RemoteProviderError(
+            raise RemoteResponseValidationError(
                 f"HTTP {status}: response.success must be a bool",
+                tool_name=tool_name,
+            )
+
+        if success is False:
+            error_message = (body.get("error") or "").strip()
+            raise RemoteProviderError(
+                error_message or f"Remote provider failed for {tool_name}",
                 tool_name=tool_name,
             )
 
@@ -184,24 +204,24 @@ class HttpRemoteToolClient(RemoteToolClient):
         if metadata is None:
             metadata = {}
         if not isinstance(metadata, dict):
-            raise RemoteProviderError(
+            raise RemoteResponseValidationError(
                 f"HTTP {status}: response.metadata must be a dict",
                 tool_name=tool_name,
             )
 
-        HttpRemoteToolClient._assert_no_forbidden_fields(metadata)
+        HttpRemoteToolClient._assert_safe_metadata(metadata)
 
         return ToolProviderResponse(
-            success=success,
+            success=True,
             output=body.get("output"),
-            error=body.get("error"),
+            error=None,
             metadata=dict(metadata),
         )
 
     @staticmethod
-    def _assert_no_forbidden_fields(payload: dict[str, Any]) -> None:
+    def _assert_safe_metadata(payload: dict[str, Any]) -> None:
         for key in payload:
-            if key.lower() in _FORBIDDEN_LOG_FIELDS:
-                raise RemoteProviderError(
+            if key.lower() in _FORBIDDEN_METADATA_KEYS:
+                raise RemoteResponseValidationError(
                     "HTTP response metadata must not contain secret field names",
                 )

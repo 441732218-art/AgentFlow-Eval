@@ -30,6 +30,7 @@ from app.runtime.tools.executor_registry import (
 )
 from app.runtime.tools.factory import (
     create_default_tool_execution_engine,
+    create_http_remote_tool_client,
     create_tool_execution_engine,
 )
 from app.runtime.tools.http_client import HttpRemoteToolClient
@@ -98,6 +99,7 @@ __all__ = [
     "ToolRegistry",
     "UnknownExecutorTypeError",
     "create_default_tool_execution_engine",
+    "create_http_remote_tool_client",
     "create_tool_execution_engine",
     "create_tool_registry",
     "get_local_handler_registry",

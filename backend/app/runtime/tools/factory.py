@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from app.runtime.tools.engine import ToolExecutionEngine
 from app.runtime.tools.executor_registry import ToolExecutorRegistry
+from app.runtime.tools.http_client import HttpRemoteToolClient
 from app.runtime.tools.local_adapter import LocalToolExecutorAdapter
 from app.runtime.tools.local_handler_registry import LocalHandlerRegistry
 from app.runtime.tools.policy import RemoteExecutionPolicy
@@ -40,3 +41,11 @@ def create_tool_execution_engine(
             RemoteToolExecutorAdapter(remote_client, policy=remote_policy)
         )
     return ToolExecutionEngine(adapter_registry=adapter_registry)
+
+
+def create_http_remote_tool_client(
+    *,
+    remote_policy: RemoteExecutionPolicy | None = None,
+) -> HttpRemoteToolClient:
+    """Build ``HttpRemoteToolClient`` with timeout from ``RemoteExecutionPolicy``."""
+    return HttpRemoteToolClient(remote_policy=remote_policy)
