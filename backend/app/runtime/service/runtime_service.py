@@ -7,6 +7,10 @@ from app.runtime.context import RuntimeContext
 from app.runtime.execution import ExecutionRecord, ExecutionStore, InMemoryExecutionStore
 from app.runtime.executor import AgentExecutor, ExecutionResult
 from app.runtime.service.dto import ExecutionResponseDTO
+from app.runtime.service.tooling_bootstrap import (
+    bootstrap_production_tooling,
+    create_production_executor,
+)
 
 
 class RuntimeService:
@@ -17,7 +21,10 @@ class RuntimeService:
         executor: AgentExecutor | None = None,
         execution_store: ExecutionStore | None = None,
     ) -> None:
-        self.executor = executor or AgentExecutor()
+        if executor is None:
+            bootstrap_production_tooling()
+            executor = create_production_executor()
+        self.executor = executor
         self.execution_store = execution_store or InMemoryExecutionStore()
 
     def execute(
