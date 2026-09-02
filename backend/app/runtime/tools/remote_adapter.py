@@ -6,6 +6,8 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any
 
+from app.runtime.observability.events import RuntimeEventType
+from app.runtime.observability.recording import build_runtime_event, record_runtime_event
 from app.runtime.tools.adapter import ToolExecutorAdapter
 from app.runtime.tools.auth import ToolProviderAuth
 from app.runtime.tools.definition import ToolDefinition
@@ -18,6 +20,7 @@ from app.runtime.tools.errors import (
 from app.runtime.tools.policy import RemoteExecutionPolicy
 from app.runtime.tools.provider import ToolProviderRequest, ToolProviderResponse
 from app.runtime.tools.remote_client import RemoteToolClient
+from app.runtime.tools.invocation_event import ToolInvocationEvent
 from app.runtime.tools.validation import validate_arguments
 
 if TYPE_CHECKING:
@@ -57,25 +60,94 @@ class RemoteToolExecutorAdapter(ToolExecutorAdapter):
             metadata=request_metadata,
         )
 
+        tool_name = tool_definition.name
+        start_time = time.monotonic()
+        record_runtime_event(
+            execution_context,
+            build_runtime_event(
+                execution_context,
+                RuntimeEventType.TOOL_STARTED,
+                tool_name=tool_name,
+                metadata={
+                    "executor_type": self.executor_type,
+                    "transport": "remote_client",
+                },
+            ),
+        )
+
         last_error: ToolExecutionError | None = None
-        for attempt in range(1, self.policy.max_attempts + 1):
-            started_at = time.monotonic()
-            try:
-                response = self._send_once(request, tool_definition.name, started_at)
-                self._validate_response(response, tool_definition.name)
-                if not response.success:
-                    raise RemoteProviderError(
-                        response.error
-                        or f"Remote provider failed for {tool_definition.name}",
-                        tool_name=tool_definition.name,
+        try:
+            for attempt in range(1, self.policy.max_attempts + 1):
+                started_at = time.monotonic()
+                try:
+                    response = self._send_once(request, tool_name, started_at)
+                    self._validate_response(response, tool_name)
+                    if not response.success:
+                        raise RemoteProviderError(
+                            response.error or f"Remote provider failed for {tool_name}",
+                            tool_name=tool_name,
+                        )
+                    end_time = time.monotonic()
+                    invocation = ToolInvocationEvent(
+                        execution_id=execution_context.execution_id
+                        if execution_context is not None
+                        else "",
+                        tool_name=tool_name,
+                        started_at=start_time,
+                        finished_at=end_time,
+                        status="success",
                     )
-                return response.output
-            except ToolExecutionError as exc:
-                last_error = self._ensure_tool_name(exc, tool_definition.name)
-                if attempt >= self.policy.max_attempts or not self.policy.is_retryable(
-                    last_error
-                ):
-                    raise last_error from last_error.cause
+                    record_runtime_event(
+                        execution_context,
+                        build_runtime_event(
+                            execution_context,
+                            RuntimeEventType.TOOL_COMPLETED,
+                            tool_name=tool_name,
+                            status="success",
+                            duration_ms=invocation.duration_ms,
+                            metadata={
+                                "executor_type": self.executor_type,
+                                "transport": "remote_client",
+                                "attempt": attempt,
+                            },
+                        ),
+                    )
+                    return response.output
+                except ToolExecutionError as exc:
+                    last_error = self._ensure_tool_name(exc, tool_name)
+                    if attempt >= self.policy.max_attempts or not self.policy.is_retryable(
+                        last_error
+                    ):
+                        raise last_error from last_error.cause
+        except ToolExecutionError as exc:
+            end_time = time.monotonic()
+            error_type = type(exc).__name__
+            invocation = ToolInvocationEvent(
+                execution_id=execution_context.execution_id
+                if execution_context is not None
+                else "",
+                tool_name=tool_name,
+                started_at=start_time,
+                finished_at=end_time,
+                status="failed",
+                error_type=error_type,
+            )
+            record_runtime_event(
+                execution_context,
+                build_runtime_event(
+                    execution_context,
+                    RuntimeEventType.TOOL_FAILED,
+                    tool_name=tool_name,
+                    status="failed",
+                    duration_ms=invocation.duration_ms,
+                    metadata={
+                        "executor_type": self.executor_type,
+                        "transport": "remote_client",
+                        "error_type": error_type,
+                    },
+                ),
+            )
+            raise exc
 
         if last_error is not None:
             raise last_error

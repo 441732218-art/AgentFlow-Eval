@@ -190,6 +190,9 @@ def test_tool_invocation_event_model_fields() -> None:
     assert event.tool_name == "example.tool"
     assert event.status == "success"
     assert event.error_type is None
+    assert event.start_time == 1.0
+    assert event.end_time == 2.5
+    assert event.duration_ms == 1500.0
 
 
 def test_runtime_core_has_no_business_leakage() -> None:
