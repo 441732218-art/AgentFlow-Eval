@@ -7,7 +7,11 @@ from typing import Any
 
 import httpx
 
-from app.runtime.tools.credential_resolver import CredentialResolver
+from app.runtime.tools.credential_resolver import (
+    CredentialNotFoundError,
+    CredentialResolutionError,
+    CredentialResolver,
+)
 from app.runtime.tools.errors import (
     RemoteAuthError,
     RemoteProviderError,
@@ -127,24 +131,52 @@ class HttpRemoteToolClient(RemoteToolClient):
             )
 
         try:
-            secret = self._credential_resolver.resolve(str(credential_ref))
-        except KeyError as exc:
+            credentials = self._credential_resolver.resolve(str(credential_ref))
+        except CredentialNotFoundError as exc:
             raise RemoteAuthError(
-                f"HTTP {401}: unknown credential_ref",
+                f"HTTP {401}: credential not found",
+                tool_name=request.tool_name,
+                cause=exc,
+            ) from exc
+        except CredentialResolutionError as exc:
+            raise RemoteAuthError(
+                f"HTTP {401}: credential resolution failed",
                 tool_name=request.tool_name,
                 cause=exc,
             ) from exc
 
-        if auth_type in {"bearer_ref", "oauth_ref"}:
-            headers["Authorization"] = f"Bearer {secret}"
-        elif auth_type == "api_key_ref":
-            headers["X-API-Key"] = secret
-        else:
-            raise RemoteAuthError(
-                f"HTTP {401}: unsupported auth_type={auth_type}",
-                tool_name=request.tool_name,
-            )
+        self._apply_credentials(headers, auth_type, credentials, request.tool_name)
         return headers
+
+    @staticmethod
+    def _apply_credentials(
+        headers: dict[str, str],
+        auth_type: str,
+        credentials: dict[str, Any],
+        tool_name: str,
+    ) -> None:
+        if auth_type in {"bearer_ref", "oauth_ref"}:
+            token = credentials.get("token") or credentials.get("bearer_token")
+            if not token or not str(token).strip():
+                raise RemoteAuthError(
+                    f"HTTP {401}: bearer credentials missing token",
+                    tool_name=tool_name,
+                )
+            headers["Authorization"] = f"Bearer {token}"
+            return
+        if auth_type == "api_key_ref":
+            api_key = credentials.get("api_key")
+            if not api_key or not str(api_key).strip():
+                raise RemoteAuthError(
+                    f"HTTP {401}: api_key credentials missing api_key",
+                    tool_name=tool_name,
+                )
+            headers["X-API-Key"] = str(api_key)
+            return
+        raise RemoteAuthError(
+            f"HTTP {401}: unsupported auth_type={auth_type}",
+            tool_name=tool_name,
+        )
 
     @staticmethod
     def _map_http_response(response: httpx.Response, tool_name: str) -> ToolProviderResponse:

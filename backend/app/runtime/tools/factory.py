@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from app.runtime.tools.credential_resolver import CredentialResolver
 from app.runtime.tools.engine import ToolExecutionEngine
 from app.runtime.tools.executor_registry import ToolExecutorRegistry
 from app.runtime.tools.http_client import HttpRemoteToolClient
@@ -11,6 +12,7 @@ from app.runtime.tools.local_handler_registry import LocalHandlerRegistry
 from app.runtime.tools.policy import RemoteExecutionPolicy
 from app.runtime.tools.remote_adapter import RemoteToolExecutorAdapter
 from app.runtime.tools.remote_client import RemoteToolClient
+from app.runtime.tools.resolvers.env_resolver import EnvCredentialResolver
 
 
 def create_default_tool_execution_engine(
@@ -46,6 +48,15 @@ def create_tool_execution_engine(
 def create_http_remote_tool_client(
     *,
     remote_policy: RemoteExecutionPolicy | None = None,
+    credential_resolver: CredentialResolver | None = None,
 ) -> HttpRemoteToolClient:
     """Build ``HttpRemoteToolClient`` with timeout from ``RemoteExecutionPolicy``."""
-    return HttpRemoteToolClient(remote_policy=remote_policy)
+    return HttpRemoteToolClient(
+        remote_policy=remote_policy,
+        credential_resolver=credential_resolver,
+    )
+
+
+def create_env_credential_resolver() -> EnvCredentialResolver:
+    """Build an environment-variable ``CredentialResolver`` (``env://KEY`` refs)."""
+    return EnvCredentialResolver()

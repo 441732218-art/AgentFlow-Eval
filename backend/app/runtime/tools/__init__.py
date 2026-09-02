@@ -6,6 +6,8 @@ from __future__ import annotations
 from app.runtime.tools.adapter import ToolExecutorAdapter
 from app.runtime.tools.auth import ToolProviderAuth
 from app.runtime.tools.credential_resolver import (
+    CredentialNotFoundError,
+    CredentialResolutionError,
     CredentialResolver,
     InMemoryCredentialResolver,
 )
@@ -30,9 +32,11 @@ from app.runtime.tools.executor_registry import (
 )
 from app.runtime.tools.factory import (
     create_default_tool_execution_engine,
+    create_env_credential_resolver,
     create_http_remote_tool_client,
     create_tool_execution_engine,
 )
+from app.runtime.tools.resolvers.env_resolver import EnvCredentialResolver
 from app.runtime.tools.http_client import HttpRemoteToolClient
 from app.runtime.tools.local_adapter import LocalToolExecutorAdapter
 from app.runtime.tools.local_handler_registry import (
@@ -65,10 +69,13 @@ from app.runtime.tools.validation import validate_arguments
 
 __all__ = [
     "ALLOWED_EXECUTOR_TYPES",
+    "CredentialNotFoundError",
+    "CredentialResolutionError",
     "CredentialResolver",
     "DuplicateExecutorAdapterError",
     "DuplicateLocalHandlerError",
     "DuplicateToolError",
+    "EnvCredentialResolver",
     "HttpRemoteToolClient",
     "InMemoryCredentialResolver",
     "InMemoryRemoteClient",
@@ -99,6 +106,7 @@ __all__ = [
     "ToolRegistry",
     "UnknownExecutorTypeError",
     "create_default_tool_execution_engine",
+    "create_env_credential_resolver",
     "create_http_remote_tool_client",
     "create_tool_execution_engine",
     "create_tool_registry",
