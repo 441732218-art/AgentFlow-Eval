@@ -1,0 +1,442 @@
+INFO:     Started server process [19472]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:9000 (Press CTRL+C to quit)
+INFO:     ('127.0.0.1', 62845) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 61247) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     ('127.0.0.1', 52029) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 50312) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     ('127.0.0.1', 59207) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 55332) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 49983) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 63466) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 64899) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 61128) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 50667) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 53746) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 51059) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 60639) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 54885) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 59661) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 56419) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 57721) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 60647) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 53200) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 65480) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 65398) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 61303) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 59575) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 51200) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 51555) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 53660) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 58048) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 49216) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 58650) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 57637) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 50139) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 52589) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 60575) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 63522) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 55215) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 58658) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 53116) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 58050) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 64886) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 60196) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 55379) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 59634) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 54724) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 63734) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 58444) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 51981) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 55989) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 61513) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 54134) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 57380) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 62111) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 60801) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 61661) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 58777) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 61301) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 62488) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 60116) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 53140) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 60302) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 63638) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 52272) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 58049) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 64108) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 56784) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 54930) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 63766) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 51659) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 56540) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 51179) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 52878) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 53115) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 62693) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 55320) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 52630) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 54428) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 55660) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 54202) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 50074) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 55800) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 55889) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 52920) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 49281) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 64465) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 55868) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 50254) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 52371) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 50309) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 59203) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 61292) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 62120) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 50820) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 62299) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 55763) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 62822) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 52620) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 55237) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 50927) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 59396) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 57089) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 50883) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 59755) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 63787) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 52571) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 60736) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 58152) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 57634) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 50656) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 64134) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 56786) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 54571) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 62794) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 54136) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 62858) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 60446) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 49492) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 59648) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 52792) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 52922) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 55859) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 52458) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 53497) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 52816) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 51649) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 51516) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 63773) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 49184) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 63519) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 64491) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 61116) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 60167) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 51511) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 62528) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 55718) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 53370) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 51167) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 51040) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 50239) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 60246) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 54139) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 52298) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 55998) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     connection closed
+INFO:     connection closed
+INFO:     ('127.0.0.1', 60507) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     ('127.0.0.1', 64423) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 61610) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     ('127.0.0.1', 55661) - "WebSocket /api/v1/ws/activities" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     connection closed

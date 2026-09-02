@@ -107,7 +107,8 @@ def test_application_and_runtime_examples_coexist_without_conflict() -> None:
 
     assert registry.get("example.echo").name == "example.echo"
     assert registry.get("app_example.echo").name == "app_example.echo"
-    assert len(registry.list_tools()) == len(TOOL_DEFINITIONS) + 2
+    assert registry.get("trade.generate_email").name == "trade.generate_email"
+    assert len(registry.list_tools()) == len(TOOL_DEFINITIONS) + 2 + 3
 
 
 def test_tool_definition_names_use_app_example_prefix() -> None:

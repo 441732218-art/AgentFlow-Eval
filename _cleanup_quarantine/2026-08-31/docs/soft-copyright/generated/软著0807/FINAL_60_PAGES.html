@@ -1,0 +1,4832 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>AgentFlow-Eval Agent自动化评测工作台 V1.0</title>
+<style>
+
+@page {
+    size: A4;
+    margin-top: 2.5cm;
+    margin-bottom: 2cm;
+    margin-left: 2cm;
+    margin-right: 2cm;
+    @top-center {
+        content: "AgentFlow-Eval Agent自动化评测工作台 V1.0";
+        font-family: "SimHei", "Microsoft YaHei", sans-serif;
+        font-size: 10pt;
+        font-weight: bold;
+    }
+    @bottom-center {
+        content: "Page " counter(page) " / " 60;
+        font-family: "SimHei", "Microsoft YaHei", sans-serif;
+        font-size: 9pt;
+    }
+}
+@media print {
+    body { margin: 0; }
+    .page { page-break-after: always; }
+    .page:last-child { page-break-after: auto; }
+}
+@media screen {
+    body { background: #e8e8e8; padding: 20px; }
+    .page {
+        background: white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        margin: 0 auto 20px auto;
+        padding: 1.5cm 2cm;
+    }
+}
+.page {
+    width: 21cm;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 9pt;
+    line-height: 1.35;
+    color: #1a1a1a;
+    position: relative;
+    min-height: 25.7cm;
+    box-sizing: border-box;
+}
+.page-header {
+    position: absolute;
+    top: 0.5cm;
+    left: 2cm;
+    right: 2cm;
+    text-align: center;
+    font-family: "SimHei", "Microsoft YaHei", sans-serif;
+    font-size: 10pt;
+    font-weight: bold;
+    border-bottom: 1px solid #999;
+    padding-bottom: 4px;
+}
+.page-footer {
+    position: absolute;
+    bottom: 0.5cm;
+    left: 2cm;
+    right: 2cm;
+    text-align: center;
+    font-family: "SimHei", "Microsoft YaHei", sans-serif;
+    font-size: 9pt;
+    border-top: 1px solid #999;
+    padding-top: 4px;
+}
+.page-content {
+    margin-top: 1.8cm;
+    margin-bottom: 1.5cm;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    tab-size: 4;
+}
+pre, code {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 9pt;
+    margin: 0;
+    padding: 0;
+    background: none;
+}
+
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+# (c) 2026 李凯昕 独立开发
+# 本文件为核心自研代码，涉及状态机、评分引擎、工具沙箱、异步编排等原创逻辑。
+# 第三方库（FastAPI, SQLAlchemy, Celery, React 等）仅作为基础框架使用。
+
+&quot;&quot;&quot;FastAPI application entry point with production middleware stack.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+from typing import Any
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
+
+from app.api.v1.router import router as v1_router
+from app.config import settings
+from app.utils.exceptions import AgentFlowError, error_response
+from app.utils.logger import setup_logging
+from app.core.middleware import (
+    APIKeyAuthMiddleware,
+    RequestIDMiddleware,
+    SecurityHeadersMiddleware,
+)
+from app.core.observability.metrics import MetricsMiddleware, get_metrics_response
+from app.core.settings_guard import enforce_production_settings
+
+setup_logging()
+
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+
+    HAS_SLOWAPI = True
+except ImportError:
+    HAS_SLOWAPI = False
+
+
+def _sqlite_table_columns(connection, table: str) -&gt; set[str]:
+    from sqlalchemy import text
+
+    rows = connection.execute(text(f&quot;PRAGMA table_info({table})&quot;)).fetchall()
+    return {row[1] for row in rows}
+
+
+def _ensure_sqlite_columns(connection) -&gt; None:
+    &quot;&quot;&quot;Add missing columns on existing SQLite DBs (create_all never ALTERs).&quot;&quot;&quot;
+    from sqlalchemy import text
+    import logging
+
+    log = logging.getLogger(__name__)
+    if connection.dialect.name != &quot;sqlite&quot;:
+        return
+
+    task_cols = {
+        &quot;celery_task_id&quot;: &quot;ALTER TABLE tasks ADD COLUMN celery_task_id VARCHAR(255)&quot;,
+        &quot;is_archived&quot;: &quot;ALTER TABLE tasks ADD COLUMN is_archived BOOLEAN NOT NULL DEFAULT 0&quot;,
+        &quot;created_by&quot;: &quot;ALTER TABLE tasks ADD COLUMN created_by VARCHAR(100) NOT NULL DEFAULT 'anonymous'&quot;,
+        &quot;tenant_id&quot;: &quot;ALTER TABLE tasks ADD COLUMN tenant_id VARCHAR(36)&quot;,
+    }
+    existing = _sqlite_table_columns(connection, &quot;tasks&quot;)
+    for name, ddl in task_cols.items():
+        if name not in existing:
+            connection.execute(text(ddl))
+            log.info(&quot;SQLite backfill: tasks.%s&quot;, name)
+
+    if &quot;audit_logs&quot; in {
+        r[0]
+        for r in connection.execute(
+            text(&quot;SELECT name FROM sqlite_master WHERE type='table'&quot;)
+        ).fetchall()
+</code></pre></div>
+  <div class="page-footer">第 1 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    }:
+        al_cols = {
+            &quot;tenant_id&quot;: &quot;ALTER TABLE audit_logs ADD COLUMN tenant_id VARCHAR(36)&quot;,
+        }
+        existing = _sqlite_table_columns(connection, &quot;audit_logs&quot;)
+        for name, ddl in al_cols.items():
+            if name not in existing:
+                connection.execute(text(ddl))
+                log.info(&quot;SQLite backfill: audit_logs.%s&quot;, name)
+
+    if &quot;traces&quot; in {
+        r[0]
+        for r in connection.execute(
+            text(&quot;SELECT name FROM sqlite_master WHERE type='table'&quot;)
+        ).fetchall()
+    }:
+        trace_cols = {
+            &quot;prompt_tokens&quot;: &quot;ALTER TABLE traces ADD COLUMN prompt_tokens INTEGER NOT NULL DEFAULT 0&quot;,
+            &quot;completion_tokens&quot;: &quot;ALTER TABLE traces ADD COLUMN completion_tokens INTEGER NOT NULL DEFAULT 0&quot;,
+            &quot;cost&quot;: &quot;ALTER TABLE traces ADD COLUMN cost FLOAT NOT NULL DEFAULT 0&quot;,
+            &quot;agent_version&quot;: &quot;ALTER TABLE traces ADD COLUMN agent_version VARCHAR(100)&quot;,
+            &quot;prompt_version&quot;: &quot;ALTER TABLE traces ADD COLUMN prompt_version VARCHAR(100)&quot;,
+            &quot;model_version&quot;: &quot;ALTER TABLE traces ADD COLUMN model_version VARCHAR(100)&quot;,
+            &quot;tool_version&quot;: &quot;ALTER TABLE traces ADD COLUMN tool_version VARCHAR(100)&quot;,
+        }
+        existing = _sqlite_table_columns(connection, &quot;traces&quot;)
+        for name, ddl in trace_cols.items():
+            if name not in existing:
+                connection.execute(text(ddl))
+                log.info(&quot;SQLite backfill: traces.%s&quot;, name)
+
+    if &quot;metric_scores&quot; in {
+        r[0]
+        for r in connection.execute(
+            text(&quot;SELECT name FROM sqlite_master WHERE type='table'&quot;)
+        ).fetchall()
+    }:
+        ms_cols = {
+            &quot;confidence&quot;: &quot;ALTER TABLE metric_scores ADD COLUMN confidence FLOAT&quot;,
+            &quot;is_human_reviewed&quot;: &quot;ALTER TABLE metric_scores ADD COLUMN is_human_reviewed BOOLEAN NOT NULL DEFAULT 0&quot;,
+            &quot;human_score&quot;: &quot;ALTER TABLE metric_scores ADD COLUMN human_score FLOAT&quot;,
+            &quot;reviewer&quot;: &quot;ALTER TABLE metric_scores ADD COLUMN reviewer VARCHAR(100)&quot;,
+        }
+        existing = _sqlite_table_columns(connection, &quot;metric_scores&quot;)
+        for name, ddl in ms_cols.items():
+            if name not in existing:
+                connection.execute(text(ddl))
+                log.info(&quot;SQLite backfill: metric_scores.%s&quot;, name)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    &quot;&quot;&quot;Manage application lifecycle.&quot;&quot;&quot;
+    from app.models.base import Base
+    from app.core.dependencies import engine
+    import logging
+
+    log = logging.getLogger(__name__)
+
+    try:
+        enforce_production_settings(settings)
+    except Exception:
+        log.exception(&quot;Production settings validation failed&quot;)
+        raise
+
+    import app.models  # noqa: F401
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+        try:
+            await conn.run_sync(_ensure_sqlite_columns)
+        except Exception as exc:
+</code></pre></div>
+  <div class="page-footer">第 2 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+            log.warning(&quot;Schema backfill skipped: %s&quot;, exc)
+    log.info(&quot;Tables initialized&quot;)
+
+    ws_started = False
+    try:
+        from app.core.ws_hub import start_ws_hub, stop_ws_hub
+
+        await start_ws_hub()
+        ws_started = True
+    except Exception as exc:
+        log.warning(&quot;WS hub start failed: %s&quot;, exc)
+
+    if getattr(settings, &quot;CACHE_WARMUP_ON_STARTUP&quot;, False):
+        try:
+            from app.core.cache.warmup import warm_cache
+
+            summary = await warm_cache(actor=&quot;anonymous&quot;, limit=20)
+            log.info(&quot;Cache warmup: %s&quot;, summary)
+        except Exception as exc:
+            log.warning(&quot;Cache warmup skipped: %s&quot;, exc)
+
+    try:
+        from app.core.profiles import apply_profile_from_settings, profile_status
+
+        apply_profile_from_settings()
+        log.info(&quot;Infrastructure ports: %s&quot;, profile_status())
+    except Exception as exc:
+        log.warning(&quot;Deploy profile apply failed (using lazy defaults): %s&quot;, exc)
+
+    plugins_bootstrapped = False
+    try:
+        from app.core.plugins.manager import get_plugin_manager
+        from app.core.plugins.market import get_plugin_market
+
+        if getattr(settings, &quot;PLUGINS_ENABLED&quot;, True):
+            mgr = get_plugin_manager()
+            strict = bool(
+                getattr(settings, &quot;PLUGIN_STRICT_ALLOWLIST&quot;, False)
+                or getattr(settings, &quot;PLUGIN_STRICT_MODE&quot;, False)
+            )
+            modules = list(getattr(settings, &quot;plugin_module_list&quot;, []) or [])
+            directories = list(getattr(settings, &quot;plugin_dir_list&quot;, []) or [])
+            if strict:
+                directories = []
+                if not modules:
+                    log.warning(
+                        &quot;PLUGIN_STRICT_MODE/ALLOWLIST=true but PLUGIN_MODULES empty — no plugins loaded&quot;
+                    )
+            try:
+                from app.core.plugins.signature import (
+                    filter_signed_modules,
+                    signature_check_enabled,
+                )
+
+                if signature_check_enabled() and modules:
+                    modules, rejected = filter_signed_modules(modules)
+                    if rejected:
+                        log.warning(&quot;Plugin signature rejections: %s&quot;, rejected)
+            except Exception as sig_exc:
+                log.warning(&quot;Plugin signature check skipped: %s&quot;, sig_exc)
+            summary = mgr.bootstrap(
+                enabled=True,
+                directories=directories,
+                modules=modules,
+                auto_activate=True,
+                allowlist=list(getattr(settings, &quot;plugin_allowlist&quot;, []) or [])
+                or (modules if strict else None),
+            )
+            plugins_bootstrapped = True
+            log.info(
+                &quot;Plugins bootstrap (strict=%s): %s&quot;,
+                strict,
+</code></pre></div>
+  <div class="page-footer">第 3 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+                summary,
+            )
+            market = get_plugin_market()
+            if getattr(settings, &quot;PLUGIN_MARKET_SEED_EXAMPLES&quot;, True):
+                market.seed_builtin_catalog()
+            catalog = getattr(settings, &quot;PLUGIN_CATALOG_PATH&quot;, &quot;&quot;) or &quot;&quot;
+            if catalog:
+                market.catalog_path = __import__(&quot;pathlib&quot;).Path(catalog)
+                market.load_catalog()
+        else:
+            log.info(&quot;Plugin system disabled (PLUGINS_ENABLED=false)&quot;)
+    except Exception as exc:
+        log.warning(&quot;Plugin bootstrap skipped: %s&quot;, exc)
+
+    yield
+
+    if plugins_bootstrapped:
+        try:
+            from app.core.plugins.manager import get_plugin_manager
+
+            get_plugin_manager().shutdown()
+        except Exception as exc:
+            log.warning(&quot;Plugin shutdown failed: %s&quot;, exc)
+
+    if ws_started:
+        try:
+            from app.core.ws_hub import stop_ws_hub
+
+            await stop_ws_hub()
+        except Exception as exc:
+            log.warning(&quot;WS hub stop failed: %s&quot;, exc)
+
+    await engine.dispose()
+    from app.core.dependencies import close_redis
+
+    await close_redis()
+
+
+app = FastAPI(
+    title=settings.APP_NAME,
+    description=&quot;Agent automated evaluation platform&quot;,
+    version=&quot;1.0.0&quot;,
+    lifespan=lifespan,
+    docs_url=&quot;/docs&quot; if not settings.is_prod else None,
+    redoc_url=&quot;/redoc&quot; if not settings.is_prod else None,
+)
+
+if HAS_SLOWAPI and settings.RATE_LIMIT_ENABLED:
+    limiter = Limiter(
+        key_func=get_remote_address, default_limits=[settings.RATE_LIMIT_DEFAULT]
+    )
+    app.state.limiter = limiter
+    app.add_exception_handler(429, _rate_limit_exceeded_handler)
+
+app.add_middleware(APIKeyAuthMiddleware)
+app.add_middleware(MetricsMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=[&quot;GET&quot;, &quot;POST&quot;, &quot;PUT&quot;, &quot;DELETE&quot;, &quot;OPTIONS&quot;],
+    allow_headers=[
+        &quot;Authorization&quot;,
+        &quot;Content-Type&quot;,
+        &quot;X-Request-ID&quot;,
+        &quot;X-Trace-ID&quot;,
+        &quot;X-API-Key&quot;,
+    ],
+    expose_headers=[&quot;X-Request-ID&quot;, &quot;X-Trace-ID&quot;, &quot;X-Error-ID&quot;],
+)
+</code></pre></div>
+  <div class="page-footer">第 4 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+
+if settings.is_prod:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=[&quot;*&quot;])
+
+app.include_router(v1_router)
+
+
+@app.exception_handler(AgentFlowError)
+async def agentflow_error_handler(
+    request: Request, exc: AgentFlowError
+) -&gt; JSONResponse:
+    rid = getattr(request.state, &quot;request_id&quot;, None)
+    error_id = getattr(request.state, &quot;error_id&quot;, None)
+    if not error_id and exc.status_code &gt;= 500:
+        try:
+            from app.core.observability.aols import new_error_id
+
+            error_id = new_error_id()
+            request.state.error_id = error_id
+        except Exception:
+            error_id = None
+    if exc.status_code &gt;= 500:
+        try:
+            from app.core.observability.aols import LogEvent, get_logger
+
+            get_logger(&quot;app.errors&quot;).error(
+                str(LogEvent.SYSTEM_ERROR),
+                error_type=type(exc).__name__,
+                error_message=exc.message,
+                status_code=exc.status_code,
+                path=request.url.path,
+                request_id=rid,
+                error_id=error_id,
+            )
+        except Exception:
+            pass
+    body = error_response(
+        exc.status_code,
+        exc.message,
+        exc.detail,
+        request_id=rid,
+        error_id=error_id if exc.status_code &gt;= 500 else None,
+    )
+    resp = JSONResponse(status_code=exc.status_code, content=body)
+    if error_id:
+        resp.headers[&quot;X-Error-ID&quot;] = str(error_id)
+    return resp
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -&gt; JSONResponse:
+    import traceback
+
+    rid = getattr(request.state, &quot;request_id&quot;, None)
+    try:
+        from app.core.observability.aols import LogEvent, get_logger, new_error_id
+
+        error_id = getattr(request.state, &quot;error_id&quot;, None) or new_error_id()
+        request.state.error_id = error_id
+        get_logger(&quot;app.errors&quot;).error(
+            str(LogEvent.SYSTEM_ERROR),
+            error_type=type(exc).__name__,
+            error_message=str(exc),
+            status_code=500,
+            path=request.url.path,
+            request_id=rid,
+            error_id=error_id,
+            exc_info=True,
+        )
+    except Exception:
+        error_id = getattr(request.state, &quot;error_id&quot;, None)
+
+</code></pre></div>
+  <div class="page-footer">第 5 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    stack = traceback.format_exc() if settings.DEBUG else None
+    resp = JSONResponse(
+        status_code=500,
+        content=error_response(
+            500,
+            &quot;Internal error&quot;,
+            str(exc) if settings.DEBUG else None,
+            request_id=rid,
+            stacktrace=stack,
+            error_id=error_id,
+        ),
+    )
+    if error_id:
+        resp.headers[&quot;X-Error-ID&quot;] = str(error_id)
+    return resp
+
+
+@app.get(&quot;/metrics&quot;, include_in_schema=False)
+async def prometheus_metrics() -&gt; Any:
+    &quot;&quot;&quot;Prometheus text exposition endpoint (scraped by Prometheus / Grafana Agent).
+
+    Public path (no API key). Disable via ``METRICS_ENABLED=false`` to return 404.
+    &quot;&quot;&quot;
+    if not settings.METRICS_ENABLED:
+        return JSONResponse(status_code=404, content={&quot;detail&quot;: &quot;Metrics disabled&quot;})
+    return get_metrics_response()
+
+
+APP_VERSION = &quot;1.0.0&quot;
+
+
+async def _probe_services() -&gt; dict[str, str]:
+    &quot;&quot;&quot;Probe database and Redis; return per-service status strings.&quot;&quot;&quot;
+    from sqlalchemy import text
+    from app.core.dependencies import engine
+
+    services: dict[str, str] = {}
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text(&quot;SELECT 1&quot;))
+        services[&quot;database&quot;] = &quot;ok&quot;
+    except Exception as e:
+        services[&quot;database&quot;] = f&quot;error: {e}&quot;
+
+    skip_redis = bool(settings.CELERY_TASK_ALWAYS_EAGER)
+    try:
+        from app.core.profiles import current_profile, get_task_queue
+
+        if current_profile() == &quot;lite&quot; or get_task_queue().is_eager():
+            skip_redis = True
+        if get_task_queue().backend_name in {&quot;eager&quot;, &quot;memory&quot;}:
+            skip_redis = True
+    except Exception:
+        pass
+
+    if skip_redis:
+        services[&quot;redis&quot;] = &quot;skipped (lite/eager)&quot;
+    else:
+        try:
+            from app.core.dependencies import get_redis
+
+            r = await get_redis()
+            await r.ping()
+            services[&quot;redis&quot;] = &quot;ok&quot;
+        except Exception:
+            services[&quot;redis&quot;] = &quot;unavailable&quot;
+    return services
+
+
+@app.get(&quot;/health/live&quot;)
+async def liveness() -&gt; dict[str, Any]:
+    &quot;&quot;&quot;Kubernetes-style liveness probe — process is up, no dependency checks.
+</code></pre></div>
+  <div class="page-footer">第 6 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+
+    Always returns HTTP 200 if the event loop can serve the request.
+    &quot;&quot;&quot;
+    return {
+        &quot;status&quot;: &quot;alive&quot;,
+        &quot;app&quot;: settings.APP_NAME,
+        &quot;version&quot;: APP_VERSION,
+    }
+
+
+@app.get(&quot;/health/ready&quot;)
+async def readiness(request: Request) -&gt; JSONResponse:
+    &quot;&quot;&quot;Kubernetes-style readiness probe — ready to accept traffic.
+
+    Returns 200 when the database is reachable; 503 when critical deps fail.
+    Redis is required only when not in Celery eager mode.
+    &quot;&quot;&quot;
+    services = await _probe_services()
+    critical_ok = services.get(&quot;database&quot;) == &quot;ok&quot;
+    redis_ok = services.get(&quot;redis&quot;, &quot;&quot;).startswith((&quot;ok&quot;, &quot;skipped&quot;))
+    ready = critical_ok and redis_ok
+    deploy = {}
+    try:
+        from app.core.profiles import profile_status
+
+        deploy = profile_status()
+    except Exception:
+        pass
+    body: dict[str, Any] = {
+        &quot;status&quot;: &quot;ready&quot; if ready else &quot;not_ready&quot;,
+        &quot;app&quot;: settings.APP_NAME,
+        &quot;version&quot;: APP_VERSION,
+        &quot;services&quot;: services,
+        &quot;celery_eager&quot;: settings.CELERY_TASK_ALWAYS_EAGER,
+        &quot;deploy&quot;: deploy,
+    }
+    return JSONResponse(status_code=200 if ready else 503, content=body)
+
+
+@app.get(&quot;/health&quot;)
+async def health_check() -&gt; dict[str, Any]:
+    &quot;&quot;&quot;Composite health check with database and Redis connectivity.
+
+    Backward-compatible with existing Docker healthchecks. Prefer
+    ``/health/live`` and ``/health/ready`` for orchestrators.
+    &quot;&quot;&quot;
+    services = await _probe_services()
+    critical_ok = services.get(&quot;database&quot;) == &quot;ok&quot;
+    redis_ok = services.get(&quot;redis&quot;, &quot;&quot;).startswith((&quot;ok&quot;, &quot;skipped&quot;))
+    all_healthy = critical_ok and redis_ok
+    deploy = {}
+    try:
+        from app.core.profiles import profile_status
+
+        deploy = profile_status()
+    except Exception:
+        pass
+    return {
+        &quot;status&quot;: &quot;healthy&quot; if all_healthy else &quot;degraded&quot;,
+        &quot;app&quot;: settings.APP_NAME,
+        &quot;version&quot;: APP_VERSION,
+        &quot;services&quot;: services,
+        &quot;celery_eager&quot;: settings.CELERY_TASK_ALWAYS_EAGER,
+        &quot;deploy&quot;: deploy,
+    }
+&quot;&quot;&quot;Application configuration using pydantic-settings with environment modes.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Literal
+
+</code></pre></div>
+  <div class="page-footer">第 7 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    &quot;&quot;&quot;Production-grade configuration with dev/test/prod separation.
+
+    Environment variables override .env values which override defaults.
+    &quot;&quot;&quot;
+
+    ENV: Literal[&quot;dev&quot;, &quot;test&quot;, &quot;prod&quot;] = &quot;dev&quot;
+    DEBUG: bool = True
+    APP_NAME: str = &quot;AgentFlow Intelligence&quot;
+    API_V1_PREFIX: str = &quot;/api/v1&quot;
+    SECRET_KEY: str = &quot;change-me-in-production&quot;
+
+    CORS_ORIGINS: list[str] = [
+        &quot;http://localhost:5173&quot;,
+        &quot;http://127.0.0.1:5173&quot;,
+        &quot;http://localhost:3000&quot;,
+    ]
+
+    DATABASE_URL: str = &quot;sqlite+aiosqlite:///./agentflow_eval.db&quot;
+    DB_POOL_SIZE: int = 20
+    DB_MAX_OVERFLOW: int = 40
+    DB_ECHO: bool = False
+
+    REDIS_URL: str = &quot;redis://localhost:6379/0&quot;
+    CELERY_BROKER_URL: str = &quot;redis://localhost:6379/0&quot;
+    CELERY_RESULT_BACKEND: str = &quot;redis://localhost:6379/0&quot;
+    CELERY_TASK_ALWAYS_EAGER: bool = False
+
+    OPENAI_API_KEY: str = &quot;&quot;
+    OPENAI_BASE_URL: str = &quot;https://api.openai.com/v1&quot;
+
+    LOG_LEVEL: str = &quot;INFO&quot;
+    LOG_FILE: str = &quot;logs/agentflow_eval.log&quot;
+    LOG_FORMAT: Literal[&quot;json&quot;, &quot;text&quot;] = &quot;text&quot;
+    LOG_MAX_BYTES: int = 10485760  # 10 MB
+    LOG_BACKUP_COUNT: int = 30
+    LOG_SERVICE_NAME: str = &quot;agentflow-api&quot;
+    LOG_ACCESS_SKIP_PATHS: str = &quot;/health,/metrics,/favicon.ico&quot;
+    LOG_REDACT_MAX_STR: int = 2000
+    LOG_DB_SINK: bool = True
+    LOG_DB_BATCH_SIZE: int = 32
+    LOG_DB_FLUSH_INTERVAL_SEC: float = 1.0
+    LOG_DB_RETENTION_DAYS: int = 30
+
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_DEFAULT: str = &quot;100/minute&quot;
+
+    AUTH_ENABLED: bool = False
+    API_KEYS: str = &quot;&quot;
+
+    RBAC_ENABLED: bool = True
+    DEFAULT_ROLE: str = &quot;member&quot;
+    ACTOR_ROLES: str = &quot;&quot;
+
+    TENANCY_ENABLED: bool = False
+    ADMIN_ACTORS: str = &quot;admin&quot;
+
+    MULTI_TENANT_ENABLED: bool = False
+
+    TOOL_TIMEOUT_SEC: float = 3.0
+
+    HTTP_AGENT_ALLOW_PRIVATE_IP: bool = False
+    HTTP_AGENT_DEFAULT_TIMEOUT_SEC: float = 60.0
+    HTTP_AGENT_SSRF_RESOLVE_DNS: bool = True
+
+    MAX_REQUEST_SIZE: int = 10 * 1024 * 1024  # 10 MB
+
+    DEFAULT_PAGE_SIZE: int = 20
+    MAX_PAGE_SIZE: int = 100
+</code></pre></div>
+  <div class="page-footer">第 8 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+
+    GUNICORN_WORKERS: int = 4
+    GUNICORN_WORKER_CLASS: str = &quot;uvicorn.workers.UvicornWorker&quot;
+    GUNICORN_TIMEOUT: int = 120
+
+    JUDGE_TIMEOUT_SEC: float = 60.0
+    JUDGE_CACHE_SIZE: int = 128
+
+    METRICS_ENABLED: bool = True
+
+    CACHE_ENABLED: bool = True
+    CACHE_WARMUP_ON_STARTUP: bool = False
+
+    LLM_RETRY_ENABLED: bool = True
+    LLM_MAX_RETRIES: int = 3
+    LLM_RETRY_MIN_WAIT_SEC: float = 1.0
+    LLM_RETRY_MAX_WAIT_SEC: float = 10.0
+    LLM_CALL_TIMEOUT_SEC: float = 30.0
+    CIRCUIT_ENABLED: bool = True
+    CIRCUIT_FAILURE_THRESHOLD: int = 5
+    CIRCUIT_RECOVERY_TIMEOUT_SEC: float = 60.0
+
+    STORAGE_BACKEND: str = &quot;local&quot;
+    LOCAL_STORAGE_PATH: str = &quot;data/uploads&quot;
+    S3_BUCKET: str = &quot;agentflow&quot;
+    S3_ENDPOINT_URL: str = &quot;&quot;  # e.g. http://localhost:9000 for MinIO
+    S3_ACCESS_KEY: str = &quot;&quot;
+    S3_SECRET_KEY: str = &quot;&quot;
+    S3_REGION: str = &quot;us-east-1&quot;
+    S3_PREFIX: str = &quot;&quot;
+    MEDIA_MAX_UPLOAD_BYTES: int = 20 * 1024 * 1024  # 20 MB
+    VISION_MODEL: str = &quot;gpt-4o-mini&quot;
+
+    DEPLOY_PROFILE: str = &quot;auto&quot;
+    TASK_QUEUE_BACKEND: str = &quot;&quot;
+    BILLING_ENABLED: bool = False
+    STRIPE_MODE: str = &quot;mock&quot;
+    STRIPE_SECRET_KEY: str = &quot;&quot;
+    STRIPE_WEBHOOK_SECRET: str = &quot;&quot;
+    STRIPE_SUCCESS_URL: str = &quot;http://localhost:5173/billing?checkout=success&quot;
+    STRIPE_CANCEL_URL: str = &quot;http://localhost:5173/billing?checkout=cancel&quot;
+    STRIPE_PRICE_IDS: str = &quot;&quot;
+    SLOW_TASK_THRESHOLD_SEC: float = 30.0
+    OBSERVABILITY_KPI_ENABLED: bool = True
+
+    PLUGINS_ENABLED: bool = True
+    PLUGIN_DIRS: str = &quot;plugins&quot;
+    PLUGIN_MODULES: str = &quot;&quot;
+    PLUGIN_CATALOG_PATH: str = &quot;&quot;
+    PLUGIN_MARKET_SEED_EXAMPLES: bool = True
+    PLUGIN_STRICT_ALLOWLIST: bool = False
+    PLUGIN_STRICT_MODE: bool = False
+    PLUGIN_ALLOWLIST: str = &quot;&quot;
+    PLUGIN_SIGNATURE_CHECK: bool = False
+    PLUGIN_SIGNING_SECRET: str = &quot;&quot;
+    PLUGIN_SIGNATURES: str = &quot;&quot;
+
+    @property
+    def plugin_dir_list(self) -&gt; list[str]:
+        raw = (self.PLUGIN_DIRS or &quot;&quot;).strip()
+        if not raw:
+            return []
+        return [p.strip() for p in raw.replace(&quot;;&quot;, &quot;,&quot;).split(&quot;,&quot;) if p.strip()]
+
+    @property
+    def plugin_module_list(self) -&gt; list[str]:
+        raw = (self.PLUGIN_MODULES or &quot;&quot;).strip()
+        if not raw:
+            return []
+        return [p.strip() for p in raw.replace(&quot;;&quot;, &quot;,&quot;).split(&quot;,&quot;) if p.strip()]
+
+    @property
+</code></pre></div>
+  <div class="page-footer">第 9 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    def plugin_allowlist(self) -&gt; list[str]:
+        raw = (self.PLUGIN_ALLOWLIST or &quot;&quot;).strip()
+        if not raw:
+            return []
+        return [p.strip() for p in raw.replace(&quot;;&quot;, &quot;,&quot;).split(&quot;,&quot;) if p.strip()]
+
+    @property
+    def is_dev(self) -&gt; bool:
+        return self.ENV == &quot;dev&quot;
+
+    @property
+    def is_test(self) -&gt; bool:
+        return self.ENV == &quot;test&quot;
+
+    @property
+    def is_prod(self) -&gt; bool:
+        return self.ENV == &quot;prod&quot;
+
+    model_config = SettingsConfigDict(
+        env_file=&quot;.env&quot;,
+        env_file_encoding=&quot;utf-8&quot;,
+        extra=&quot;ignore&quot;,
+        case_sensitive=True,
+    )
+
+
+settings = Settings()
+
+Path(settings.LOG_FILE).parent.mkdir(parents=True, exist_ok=True)
+&quot;&quot;&quot;Dependency injection with database pool and Redis cache.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+from collections.abc import AsyncGenerator
+from typing import Any
+
+import redis.asyncio as aioredis
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+
+from app.config import settings
+
+_engine_kw: dict = {
+    &quot;echo&quot;: settings.DB_ECHO,
+    &quot;future&quot;: True,
+}
+db_url = settings.DATABASE_URL or &quot;&quot;
+if &quot;postgresql&quot; in db_url:
+    _engine_kw.update(
+        {
+            &quot;pool_size&quot;: settings.DB_POOL_SIZE,
+            &quot;max_overflow&quot;: settings.DB_MAX_OVERFLOW,
+            &quot;pool_pre_ping&quot;: True,
+            &quot;pool_recycle&quot;: 3600,
+        }
+    )
+elif &quot;sqlite&quot; in db_url:
+    _engine_kw.update(
+        {
+            &quot;connect_args&quot;: {&quot;check_same_thread&quot;: False},
+        }
+    )
+
+engine = create_async_engine(settings.DATABASE_URL, **_engine_kw)
+
+
+if &quot;sqlite&quot; in db_url:
+    from sqlalchemy import event
+
+</code></pre></div>
+  <div class="page-footer">第 10 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    @event.listens_for(engine.sync_engine, &quot;connect&quot;)
+    def _sqlite_on_connect(dbapi_conn, connection_record) -&gt; None:  # type: ignore[no-untyped-def]
+        cursor = dbapi_conn.cursor()
+        try:
+            cursor.execute(&quot;PRAGMA journal_mode=WAL&quot;)
+            cursor.execute(&quot;PRAGMA synchronous=NORMAL&quot;)
+            cursor.execute(&quot;PRAGMA foreign_keys=ON&quot;)
+            cursor.execute(&quot;PRAGMA temp_store=MEMORY&quot;)
+            cursor.execute(&quot;PRAGMA busy_timeout=5000&quot;)
+        finally:
+            cursor.close()
+
+
+async_session_factory = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
+
+
+async def get_db() -&gt; AsyncGenerator[AsyncSession, Any]:
+    &quot;&quot;&quot;Provide an async database session with auto-commit/rollback.&quot;&quot;&quot;
+    async with async_session_factory() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
+async def bind_tenant(request: Any, session: AsyncSession) -&gt; Any:
+    &quot;&quot;&quot;Resolve X-Tenant-ID against DB membership; store on request.state.
+
+    Call from endpoints after injecting ``Request`` + ``get_db`` session, or
+    wrap with ``Depends`` via a thin FastAPI-layer helper in routers.
+    &quot;&quot;&quot;
+    from app.core.tenant_context import extract_tenant_header, resolve_tenant_context
+
+    actor = getattr(request.state, &quot;actor&quot;, None) or &quot;anonymous&quot;
+    role = getattr(request.state, &quot;role&quot;, None)
+    role_s = role.value if hasattr(role, &quot;value&quot;) else (str(role) if role else &quot;&quot;)
+    header = extract_tenant_header(request)
+    ctx = await resolve_tenant_context(
+        session,
+        actor=actor,
+        header_value=header,
+        system_role=role_s,
+    )
+    request.state.tenant_id = ctx.tenant_id
+    request.state.tenant_slug = ctx.tenant_slug
+    request.state.tenant_member_role = ctx.member_role
+    return ctx
+
+
+_redis: aioredis.Redis | None = None
+
+
+async def get_redis() -&gt; aioredis.Redis:
+    &quot;&quot;&quot;Lazy-init Redis connection pool.&quot;&quot;&quot;
+    global _redis
+    if _redis is None:
+        _redis = aioredis.from_url(
+            settings.REDIS_URL,
+            encoding=&quot;utf-8&quot;,
+            decode_responses=True,
+            socket_timeout=0.8,
+            socket_connect_timeout=0.5,
+        )
+    return _redis
+</code></pre></div>
+  <div class="page-footer">第 11 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+
+
+async def close_redis() -&gt; None:
+    &quot;&quot;&quot;Close the Redis connection pool gracefully.&quot;&quot;&quot;
+    global _redis
+    if _redis:
+        await _redis.close()
+        _redis = None
+
+
+CACHE_TTL_DEFAULT = 300  # 5 minutes
+CACHE_TTL_LIST = 60  # 1 minute for lists
+
+
+async def cache_get(key: str) -&gt; Any | None:
+    &quot;&quot;&quot;Get value from multi-layer cache (L1 + Redis).&quot;&quot;&quot;
+    from app.core.cache.client import get_cache
+
+    return await get_cache().get(key)
+
+
+async def cache_set(key: str, value: Any, ttl: int = CACHE_TTL_DEFAULT) -&gt; None:
+    &quot;&quot;&quot;Set value in multi-layer cache with TTL.&quot;&quot;&quot;
+    from app.core.cache.client import get_cache
+
+    await get_cache().set(key, value, ttl=ttl)
+
+
+async def cache_invalidate(pattern: str) -&gt; None:
+    &quot;&quot;&quot;Invalidate all keys matching a pattern.&quot;&quot;&quot;
+    from app.core.cache.client import get_cache
+
+    await get_cache().delete_pattern(pattern)
+&quot;&quot;&quot;Task activity events — Redis pub/sub + local callback bridge for WebSocket.
+
+Celery workers publish here; the API process subscribes and fans out to WS clients.
+When Redis is unavailable, in-process listeners still receive local publishes.
+&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import json
+import logging
+from datetime import datetime, timezone
+from typing import Any, Awaitable, Callable
+
+logger = logging.getLogger(__name__)
+
+CHANNEL = &quot;agentflow:task_events&quot;
+
+_local_listeners: list[Callable[[dict[str, Any]], Awaitable[None]]] = []
+
+
+def register_local_listener(cb: Callable[[dict[str, Any]], Awaitable[None]]) -&gt; None:
+    if cb not in _local_listeners:
+        _local_listeners.append(cb)
+
+
+def unregister_local_listener(cb: Callable[[dict[str, Any]], Awaitable[None]]) -&gt; None:
+    if cb in _local_listeners:
+        _local_listeners.remove(cb)
+
+
+def build_task_event(
+    *,
+    task_id: str,
+    task_name: str,
+    status: str,
+    prev_status: str | None = None,
+    actor: str | None = None,
+    extra: dict[str, Any] | None = None,
+) -&gt; dict[str, Any]:
+</code></pre></div>
+  <div class="page-footer">第 12 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    payload: dict[str, Any] = {
+        &quot;type&quot;: &quot;task_status&quot;,
+        &quot;task_id&quot;: task_id,
+        &quot;task_name&quot;: task_name,
+        &quot;status&quot;: status,
+        &quot;prev_status&quot;: prev_status,
+        &quot;actor&quot;: actor or &quot;anonymous&quot;,
+        &quot;at&quot;: datetime.now(timezone.utc).isoformat(),
+    }
+    if extra:
+        payload[&quot;extra&quot;] = extra
+    return payload
+
+
+def publish_task_event(event: dict[str, Any]) -&gt; None:
+    &quot;&quot;&quot;Sync-safe publish for Celery workers and FastAPI endpoints.
+
+    1) Publish to Redis (best-effort)
+    2) Schedule local async listeners if a loop is running
+    &quot;&quot;&quot;
+    body = json.dumps(event, ensure_ascii=False, default=str)
+
+    try:
+        import redis as sync_redis
+        from app.config import settings
+
+        client = sync_redis.from_url(settings.REDIS_URL, socket_connect_timeout=0.5)
+        try:
+            client.publish(CHANNEL, body)
+        finally:
+            client.close()
+    except Exception as exc:
+        logger.debug(&quot;Redis publish skipped: %s&quot;, exc)
+
+    try:
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+
+    for cb in list(_local_listeners):
+        try:
+            loop.create_task(cb(event))
+        except Exception as exc:
+            logger.debug(&quot;Local listener schedule failed: %s&quot;, exc)
+
+
+def publish_task_status(
+    task_id: str,
+    task_name: str,
+    status: str,
+    *,
+    prev_status: str | None = None,
+    actor: str | None = None,
+) -&gt; None:
+    publish_task_event(
+        build_task_event(
+            task_id=task_id,
+            task_name=task_name,
+            status=status if isinstance(status, str) else str(status),
+            prev_status=prev_status,
+            actor=actor,
+        )
+    )
+&quot;&quot;&quot;Request tracing, security headers, and optional API-key auth middleware.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import time
+import uuid
+
+</code></pre></div>
+  <div class="page-footer">第 13 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
+
+from app.config import settings
+from app.core.security import (
+    authenticate_api_key,
+    extract_api_key,
+    is_public_path,
+)
+from app.utils.exceptions import error_response
+
+try:
+    from app.core.observability.aols import (
+        LogEvent,
+        bind_request_context,
+        clear_request_context,
+        get_logger,
+        new_error_id,
+    )
+
+    log = get_logger(&quot;app.http&quot;)
+    HAS_AOLS = True
+except Exception:  # pragma: no cover
+    import logging
+
+    log = logging.getLogger(__name__)
+    HAS_AOLS = False
+    LogEvent = None  # type: ignore[misc, assignment]
+
+    def bind_request_context(**kwargs):  # type: ignore[misc]
+        return None
+
+    def clear_request_context() -&gt; None:  # type: ignore[misc]
+        return None
+
+    def new_error_id() -&gt; str:  # type: ignore[misc]
+        return uuid.uuid4().hex[:16]
+
+
+def _client_ip(request: Request) -&gt; str:
+    forwarded = request.headers.get(&quot;X-Forwarded-For&quot;)
+    if forwarded:
+        return forwarded.split(&quot;,&quot;)[0].strip()
+    if request.client:
+        return request.client.host or &quot;&quot;
+    return &quot;&quot;
+
+
+def _skip_access_log(path: str) -&gt; bool:
+    raw = getattr(settings, &quot;LOG_ACCESS_SKIP_PATHS&quot;, &quot;&quot;) or &quot;&quot;
+    prefixes = [p.strip() for p in raw.split(&quot;,&quot;) if p.strip()]
+    for p in prefixes:
+        if path == p or path.startswith(p.rstrip(&quot;/&quot;) + &quot;/&quot;) or path.startswith(p):
+            if path == p or path.startswith(p):
+                return True
+    return False
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    &quot;&quot;&quot;Inject request/trace IDs, bind AOLS context, emit structured access logs.
+
+    Behaviour:
+      1. Reads ``X-Request-ID`` / ``X-Trace-ID`` or generates a UUID.
+      2. Sets request.state + contextvars TraceID + structlog bind.
+      3. Echoes IDs on response; optional ``X-Error-ID`` when set.
+      4. Logs each request as ``http.request`` / ``http.request.failed``.
+    &quot;&quot;&quot;
+
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -&gt; Response:
+</code></pre></div>
+  <div class="page-footer">第 14 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+        request_id = (
+            request.headers.get(&quot;X-Request-ID&quot;)
+            or request.headers.get(&quot;X-Trace-ID&quot;)
+            or str(uuid.uuid4())
+        )
+        request.state.request_id = request_id
+        try:
+            from app.core.observability.tracing import set_trace_id
+
+            set_trace_id(request_id)
+        except Exception:
+            pass
+
+        client_ip = _client_ip(request)
+        path = request.url.path
+        method = request.method
+
+        bind_request_context(
+            request_id=request_id,
+            trace_id=request_id,
+            method=method,
+            path=path,
+            client_ip=client_ip,
+        )
+
+        start = time.perf_counter()
+        error_id: str | None = None
+        status_code = 500
+        response: Response | None = None
+
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+        except Exception:
+            error_id = new_error_id()
+            request.state.error_id = error_id
+            duration_ms = int((time.perf_counter() - start) * 1000)
+            if not _skip_access_log(path):
+                self._emit_access(
+                    method=method,
+                    path=path,
+                    status_code=500,
+                    latency_ms=duration_ms,
+                    request_id=request_id,
+                    client_ip=client_ip,
+                    error_id=error_id,
+                    failed=True,
+                )
+            clear_request_context()
+            raise
+
+        actor = getattr(request.state, &quot;actor&quot;, None)
+        if actor:
+            bind_request_context(actor=str(actor))
+
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        response.headers[&quot;X-Request-ID&quot;] = request_id
+        response.headers[&quot;X-Trace-ID&quot;] = request_id
+        err_state = getattr(request.state, &quot;error_id&quot;, None)
+        if err_state:
+            response.headers[&quot;X-Error-ID&quot;] = str(err_state)
+            error_id = str(err_state)
+
+        failed = status_code &gt;= 400
+        if not _skip_access_log(path):
+            self._emit_access(
+                method=method,
+                path=path,
+                status_code=status_code,
+                latency_ms=duration_ms,
+                request_id=request_id,
+                client_ip=client_ip,
+</code></pre></div>
+  <div class="page-footer">第 15 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+                actor=str(actor) if actor else None,
+                error_id=error_id,
+                failed=failed,
+            )
+
+        clear_request_context()
+        return response
+
+    @staticmethod
+    def _emit_access(
+        *,
+        method: str,
+        path: str,
+        status_code: int,
+        latency_ms: int,
+        request_id: str,
+        client_ip: str,
+        actor: str | None = None,
+        error_id: str | None = None,
+        failed: bool = False,
+    ) -&gt; None:
+        event = (
+            str(LogEvent.HTTP_REQUEST_FAILED)
+            if failed and LogEvent is not None
+            else (
+                str(LogEvent.HTTP_REQUEST) if LogEvent is not None else &quot;http.request&quot;
+            )
+        )
+        if failed and LogEvent is None:
+            event = &quot;http.request.failed&quot;
+
+        fields: dict = {
+            &quot;event&quot;: event,
+            &quot;method&quot;: method,
+            &quot;path&quot;: path,
+            &quot;status_code&quot;: status_code,
+            &quot;latency_ms&quot;: latency_ms,
+            &quot;request_id&quot;: request_id,
+            &quot;trace_id&quot;: request_id,
+            &quot;client_ip&quot;: client_ip,
+        }
+        if actor:
+            fields[&quot;actor&quot;] = actor
+        if error_id:
+            fields[&quot;error_id&quot;] = error_id
+
+        try:
+            if failed:
+                log.warning(event, **{k: v for k, v in fields.items() if k != &quot;event&quot;})
+            else:
+                log.info(event, **{k: v for k, v in fields.items() if k != &quot;event&quot;})
+        except TypeError:
+            log.info(
+                &quot;%s %s -&gt; %s [%dms] request_id=%s&quot;,
+                method,
+                path,
+                status_code,
+                latency_ms,
+                request_id,
+            )
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    &quot;&quot;&quot;Attach enterprise security response headers to every response.&quot;&quot;&quot;
+
+    _API_CSP = &quot;default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'&quot;
+    _DOCS_CSP = (
+        &quot;default-src 'self'; &quot;
+        &quot;script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; &quot;
+        &quot;style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; &quot;
+        &quot;img-src 'self' data: https:; &quot;
+        &quot;font-src 'self' https://cdn.jsdelivr.net data:; &quot;
+</code></pre></div>
+  <div class="page-footer">第 16 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+        &quot;connect-src 'self'; &quot;
+        &quot;frame-ancestors 'none'&quot;
+    )
+
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -&gt; Response:
+        response = await call_next(request)
+
+        response.headers.setdefault(&quot;X-Content-Type-Options&quot;, &quot;nosniff&quot;)
+        response.headers.setdefault(&quot;X-Frame-Options&quot;, &quot;DENY&quot;)
+        response.headers.setdefault(
+            &quot;Referrer-Policy&quot;, &quot;strict-origin-when-cross-origin&quot;
+        )
+        response.headers.setdefault(
+            &quot;Permissions-Policy&quot;,
+            &quot;geolocation=(), microphone=(), camera=(), payment=()&quot;,
+        )
+        response.headers.setdefault(&quot;X-XSS-Protection&quot;, &quot;0&quot;)
+        response.headers.setdefault(&quot;Cross-Origin-Opener-Policy&quot;, &quot;same-origin&quot;)
+        response.headers.setdefault(&quot;Cross-Origin-Resource-Policy&quot;, &quot;same-site&quot;)
+
+        path = request.url.path
+        if path in {&quot;/docs&quot;, &quot;/redoc&quot;, &quot;/openapi.json&quot;} or path.startswith(&quot;/docs&quot;):
+            response.headers.setdefault(&quot;Content-Security-Policy&quot;, self._DOCS_CSP)
+        else:
+            response.headers.setdefault(&quot;Content-Security-Policy&quot;, self._API_CSP)
+
+        if settings.is_prod and not settings.DEBUG:
+            response.headers.setdefault(
+                &quot;Strict-Transport-Security&quot;,
+                &quot;max-age=31536000; includeSubDomains&quot;,
+            )
+
+        return response
+
+
+class APIKeyAuthMiddleware(BaseHTTPMiddleware):
+    &quot;&quot;&quot;Enforce API key auth for /api/v1 when AUTH_ENABLED=true.&quot;&quot;&quot;
+
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -&gt; Response:
+        path = request.url.path
+        if not settings.AUTH_ENABLED:
+            from app.core.rbac import Role
+
+            request.state.actor = &quot;anonymous&quot;
+            request.state.role = Role.SYSTEM_ADMIN
+            return await call_next(request)
+
+        if is_public_path(path) or not path.startswith(&quot;/api/&quot;):
+            from app.core.rbac import Role
+
+            request.state.actor = &quot;public&quot;
+            request.state.role = Role.VIEWER
+            return await call_next(request)
+
+        if request.method == &quot;OPTIONS&quot;:
+            return await call_next(request)
+
+        api_key = extract_api_key(request)
+        identity = authenticate_api_key(api_key)
+        if identity is None:
+            rid = getattr(request.state, &quot;request_id&quot;, None)
+            return JSONResponse(
+                status_code=401,
+                content=error_response(
+                    401,
+                    &quot;Unauthorized&quot;,
+                    &quot;Provide a valid X-API-Key or Authorization: Bearer &lt;key&gt;&quot;,
+                    request_id=rid,
+</code></pre></div>
+  <div class="page-footer">第 17 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+                ),
+            )
+
+        request.state.actor = identity.actor
+        request.state.auth = identity
+        request.state.role = identity.role
+        return await call_next(request)
+&quot;&quot;&quot;API Key authentication helpers with optional RBAC role binding.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import hmac
+import secrets
+from dataclasses import dataclass
+
+from fastapi import Header, Request
+from fastapi.security.utils import get_authorization_scheme_param
+
+from app.config import settings
+from app.core.rbac import Role, resolve_role_for_actor
+from app.utils.exceptions import AgentFlowError
+
+
+class UnauthorizedError(AgentFlowError):
+    &quot;&quot;&quot;Raised when authentication fails.&quot;&quot;&quot;
+
+    def __init__(self, message: str = &quot;Unauthorized&quot;) -&gt; None:
+        super().__init__(message=message, status_code=401, detail=None)
+
+
+@dataclass(frozen=True)
+class ApiKeyEntry:
+    &quot;&quot;&quot;Parsed API key configuration entry.&quot;&quot;&quot;
+
+    secret: str
+    actor: str
+    role: Role | None = None  # None -&gt; resolve at auth time
+
+
+@dataclass(frozen=True)
+class AuthIdentity:
+    &quot;&quot;&quot;Authenticated principal derived from API key.&quot;&quot;&quot;
+
+    key_id: str
+    actor: str
+    raw_key_prefix: str
+    role: Role = Role.USER
+
+
+def parse_api_key_entries(raw: str | list[str] | None) -&gt; list[ApiKeyEntry]:
+    &quot;&quot;&quot;Parse API_KEYS into structured entries.
+
+    Supported formats per item:
+    - ``secret``
+    - ``secret:actor``
+    - ``secret:actor:role``  (role is admin|manager|reviewer|user|guest)
+    &quot;&quot;&quot;
+    if not raw:
+        return []
+    items: list[str]
+    if isinstance(raw, list):
+        items = [str(x).strip() for x in raw if str(x).strip()]
+    else:
+        items = [p.strip() for p in str(raw).split(&quot;,&quot;) if p.strip()]
+
+    entries: list[ApiKeyEntry] = []
+    for idx, item in enumerate(items, start=1):
+        parts = [p.strip() for p in item.split(&quot;:&quot;)]
+        secret = parts[0] if parts else &quot;&quot;
+        if not secret:
+            continue
+        actor = parts[1] if len(parts) &gt; 1 and parts[1] else f&quot;key_{idx}&quot;
+</code></pre></div>
+  <div class="page-footer">第 18 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+        role: Role | None = None
+        if len(parts) &gt; 2 and parts[2]:
+            try:
+                role = Role.parse(parts[2])
+            except ValueError:
+                actor = f&quot;{actor}:{parts[2]}&quot;
+                role = None
+        entries.append(ApiKeyEntry(secret=secret, actor=actor, role=role))
+    return entries
+
+
+def parse_api_keys(raw: str | list[str] | None) -&gt; dict[str, str]:
+    &quot;&quot;&quot;Parse API keys config into {secret: actor_name}.
+
+    Backward-compatible helper used by settings UI and tests.
+    &quot;&quot;&quot;
+    return {e.secret: e.actor for e in parse_api_key_entries(raw)}
+
+
+def extract_api_key(
+    request: Request,
+    authorization: str | None = None,
+    x_api_key: str | None = None,
+) -&gt; str | None:
+    &quot;&quot;&quot;Extract API key from X-API-Key or Authorization: Bearer.&quot;&quot;&quot;
+    key = (x_api_key or request.headers.get(&quot;X-API-Key&quot;) or &quot;&quot;).strip()
+    if key:
+        return key
+    header = authorization or request.headers.get(&quot;Authorization&quot;)
+    if header:
+        scheme, param = get_authorization_scheme_param(header)
+        if scheme.lower() == &quot;bearer&quot; and param:
+            return param.strip()
+        if scheme.lower() in {&quot;apikey&quot;, &quot;api-key&quot;} and param:
+            return param.strip()
+    return None
+
+
+def authenticate_api_key(api_key: str | None) -&gt; AuthIdentity | None:
+    &quot;&quot;&quot;Validate API key against configured secrets (constant-time compare).&quot;&quot;&quot;
+    if not api_key:
+        return None
+    entries = parse_api_key_entries(settings.API_KEYS)
+    for entry in entries:
+        if hmac.compare_digest(api_key, entry.secret):
+            role = resolve_role_for_actor(entry.actor, explicit=entry.role)
+            return AuthIdentity(
+                key_id=secrets.token_hex(4),
+                actor=entry.actor,
+                raw_key_prefix=api_key[:4] + &quot;***&quot;,
+                role=role,
+            )
+    return None
+
+
+def require_auth_if_enabled(
+    request: Request,
+    authorization: str | None = Header(default=None),
+    x_api_key: str | None = Header(default=None, alias=&quot;X-API-Key&quot;),
+) -&gt; AuthIdentity | None:
+    &quot;&quot;&quot;FastAPI dependency: enforce API key when AUTH_ENABLED is true.&quot;&quot;&quot;
+    if not settings.AUTH_ENABLED:
+        identity = AuthIdentity(
+            key_id=&quot;dev&quot;,
+            actor=&quot;anonymous&quot;,
+            raw_key_prefix=&quot;dev&quot;,
+            role=Role.SYSTEM_ADMIN,
+        )
+        request.state.actor = identity.actor
+        request.state.auth = identity
+        request.state.role = identity.role
+        return identity
+</code></pre></div>
+  <div class="page-footer">第 19 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+
+    api_key = extract_api_key(request, authorization, x_api_key)
+    identity = authenticate_api_key(api_key)
+    if identity is None:
+        raise UnauthorizedError(
+            &quot;Invalid or missing API key. Provide X-API-Key or Authorization: Bearer &lt;key&gt;.&quot;
+        )
+    request.state.actor = identity.actor
+    request.state.auth = identity
+    request.state.role = identity.role
+    return identity
+
+
+AUTH_PUBLIC_PATHS = frozenset(
+    {
+        &quot;/health&quot;,
+        &quot;/health/live&quot;,
+        &quot;/health/ready&quot;,
+        &quot;/metrics&quot;,
+        &quot;/docs&quot;,
+        &quot;/redoc&quot;,
+        &quot;/openapi.json&quot;,
+        &quot;/api/v1/billing/webhook/stripe&quot;,
+        &quot;/api/v1/billing/webhook&quot;,
+    }
+)
+
+
+def is_public_path(path: str) -&gt; bool:
+    &quot;&quot;&quot;Return True if the path is exempt from API key authentication.&quot;&quot;&quot;
+    if path in AUTH_PUBLIC_PATHS:
+        return True
+    if path.startswith(&quot;/docs&quot;) or path.startswith(&quot;/redoc&quot;):
+        return True
+    if path.rstrip(&quot;/&quot;).endswith(&quot;/billing/webhook/stripe&quot;):
+        return True
+    if path.rstrip(&quot;/&quot;).endswith(&quot;/billing/webhook&quot;):
+        return True
+    return False
+&quot;&quot;&quot;Production settings validation — fail fast on insecure prod config.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import logging
+import re
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.config import Settings
+
+logger = logging.getLogger(__name__)
+
+_INSECURE_SECRET_KEYS = frozenset(
+    {
+        &quot;change-me-in-production&quot;,
+        &quot;secret&quot;,
+        &quot;changeme&quot;,
+        &quot;dev&quot;,
+        &quot;development&quot;,
+        &quot;test&quot;,
+        &quot;password&quot;,
+        &quot;&quot;,
+    }
+)
+
+_WEAK_SECRET_RE = re.compile(r&quot;^(.)\1{7,}$&quot;)  # e.g. aaaaaaaa
+
+
+class ProductionConfigError(RuntimeError):
+    &quot;&quot;&quot;Raised when production configuration fails hard security checks.&quot;&quot;&quot;
+
+</code></pre></div>
+  <div class="page-footer">第 20 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    def __init__(self, errors: list[str]) -&gt; None:
+        self.errors = list(errors)
+        message = &quot;Production configuration invalid:\n  - &quot; + &quot;\n  - &quot;.join(self.errors)
+        super().__init__(message)
+
+
+@dataclass
+class SettingsValidationResult:
+    &quot;&quot;&quot;Outcome of validating application settings for a target environment.&quot;&quot;&quot;
+
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+    @property
+    def ok(self) -&gt; bool:
+        &quot;&quot;&quot;True when no hard errors were found.&quot;&quot;&quot;
+        return not self.errors
+
+
+def validate_settings(
+    settings: Settings,
+    *,
+    strict: bool | None = None,
+) -&gt; SettingsValidationResult:
+    &quot;&quot;&quot;Validate settings for the current (or forced) environment.
+
+    Args:
+        settings: Application settings instance.
+        strict: When True, apply production rules. When None, use ``settings.is_prod``.
+
+    Returns:
+        SettingsValidationResult with ``errors`` (must fix) and ``warnings`` (should fix).
+    &quot;&quot;&quot;
+    result = SettingsValidationResult()
+    use_strict = settings.is_prod if strict is None else strict
+
+    if not use_strict:
+        if settings.AUTH_ENABLED and not str(settings.API_KEYS or &quot;&quot;).strip():
+            result.errors.append(
+                &quot;AUTH_ENABLED=true but API_KEYS is empty — authentication would lock out all clients&quot;
+            )
+        return result
+
+    secret = (settings.SECRET_KEY or &quot;&quot;).strip()
+    if secret.lower() in _INSECURE_SECRET_KEYS or len(secret) &lt; 16:
+        result.errors.append(
+            &quot;SECRET_KEY must be a strong random string (≥16 chars); &quot;
+            &quot;do not use the default 'change-me-in-production'&quot;
+        )
+    elif _WEAK_SECRET_RE.match(secret):
+        result.errors.append(&quot;SECRET_KEY looks weak (repeated single character)&quot;)
+
+    if settings.DEBUG:
+        result.errors.append(&quot;DEBUG must be false when ENV=prod (leaks stacktraces)&quot;)
+
+    if settings.AUTH_ENABLED and not str(settings.API_KEYS or &quot;&quot;).strip():
+        result.errors.append(&quot;AUTH_ENABLED=true requires a non-empty API_KEYS list&quot;)
+
+    if not settings.AUTH_ENABLED:
+        result.warnings.append(
+            &quot;AUTH_ENABLED=false in production — API is publicly reachable; &quot;
+            &quot;enable AUTH_ENABLED and set API_KEYS for enterprise deployments&quot;
+        )
+
+    db_url = (settings.DATABASE_URL or &quot;&quot;).lower()
+    if db_url.startswith(&quot;sqlite&quot;):
+        result.warnings.append(
+            &quot;DATABASE_URL uses SQLite in production — prefer PostgreSQL for concurrency and durability&quot;
+        )
+
+    if settings.LOG_FORMAT != &quot;json&quot;:
+        result.warnings.append(
+</code></pre></div>
+  <div class="page-footer">第 21 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+            &quot;LOG_FORMAT is not 'json' — structured JSON logs are recommended for production aggregators&quot;
+        )
+
+    cors = settings.CORS_ORIGINS or []
+    if &quot;*&quot; in cors:
+        result.warnings.append(
+            &quot;CORS_ORIGINS contains '*' — restrict origins to known frontends in production&quot;
+        )
+
+    if not cors:
+        result.warnings.append(&quot;CORS_ORIGINS is empty — browser clients may be blocked&quot;)
+
+    return result
+
+
+def enforce_production_settings(settings: Settings) -&gt; SettingsValidationResult:
+    &quot;&quot;&quot;Run validation and raise ProductionConfigError on hard failures.
+
+    Always logs warnings. Only enforces errors when ``settings.is_prod``.
+
+    Args:
+        settings: Application settings instance.
+
+    Returns:
+        The validation result (empty errors when not in prod).
+
+    Raises:
+        ProductionConfigError: When ENV=prod and hard errors exist.
+    &quot;&quot;&quot;
+    result = validate_settings(settings, strict=settings.is_prod)
+
+    for warning in result.warnings:
+        logger.warning(&quot;Config warning: %s&quot;, warning)
+
+    if settings.is_prod and result.errors:
+        for err in result.errors:
+            logger.error(&quot;Config error: %s&quot;, err)
+        raise ProductionConfigError(result.errors)
+
+    if result.ok and settings.is_prod:
+        logger.info(&quot;Production settings validation passed&quot;)
+
+    return result
+&quot;&quot;&quot;Actor isolation + enterprise tenant filtering helpers.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+from sqlalchemy import Select, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.config import settings
+from app.models.task import Task
+from app.models.test_suite import TestSuite
+from app.models.trace import Trace
+from app.utils.exceptions import NotFoundError
+
+
+def tenancy_enforced() -&gt; bool:
+    &quot;&quot;&quot;Isolation is on when auth is enabled, or TENANCY_ENABLED is explicit.&quot;&quot;&quot;
+    return bool(settings.AUTH_ENABLED or settings.TENANCY_ENABLED)
+
+
+def admin_actors() -&gt; set[str]:
+    raw = settings.ADMIN_ACTORS or &quot;&quot;
+    return {p.strip() for p in raw.split(&quot;,&quot;) if p.strip()}
+
+
+def is_admin(actor: str | None) -&gt; bool:
+    if not actor:
+        return False
+    return actor in admin_actors()
+</code></pre></div>
+  <div class="page-footer">第 22 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+
+
+def can_access_task(
+    task: Task,
+    actor: str | None,
+    *,
+    role: str | None = None,
+) -&gt; bool:
+    &quot;&quot;&quot;Return True if actor may read/mutate the task.
+
+    Cross-owner access is granted to ADMIN/MANAGER/REVIEWER / enterprise
+    system_admin / tenant_admin roles when RBAC is active; otherwise falls
+    back to ADMIN_ACTORS + ownership checks.
+
+    When multi-tenant is on and a tenant is selected, also enforce tenant_id.
+    &quot;&quot;&quot;
+    try:
+        from app.core.tenant_context import (
+            current_tenant_id,
+            multi_tenant_enabled,
+        )
+
+        if multi_tenant_enabled():
+            tid = current_tenant_id()
+            if tid:
+                resource_tid = getattr(task, &quot;tenant_id&quot;, None)
+                if resource_tid and resource_tid != tid:
+                    return False
+                if not resource_tid:
+                    return False
+    except Exception:
+        pass
+
+    if not tenancy_enforced():
+        return True
+    if is_admin(actor):
+        return True
+    try:
+        from app.core.rbac import CROSS_OWNER_ROLES, Role, rbac_enforced
+
+        if rbac_enforced() and role:
+            try:
+                r = Role.parse(str(role))
+                if r in CROSS_OWNER_ROLES:
+                    return True
+            except ValueError:
+                pass
+    except Exception:
+        pass
+    owner = getattr(task, &quot;created_by&quot;, None) or &quot;anonymous&quot;
+    return owner == (actor or &quot;anonymous&quot;)
+
+
+def ensure_task_access(
+    task: Task | None,
+    actor: str | None,
+    task_id: str = &quot;&quot;,
+    *,
+    role: str | None = None,
+) -&gt; Task:
+    &quot;&quot;&quot;Raise NotFoundError if missing or not accessible (no existence leak).&quot;&quot;&quot;
+    if task is None or not can_access_task(task, actor, role=role):
+        raise NotFoundError(&quot;Task&quot;, task_id or (task.id if task else &quot;&quot;))
+    return task
+
+
+def apply_owner_filter(
+    query: Select,
+    actor: str | None,
+    *,
+    role: str | None = None,
+) -&gt; Select:
+</code></pre></div>
+  <div class="page-footer">第 23 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    &quot;&quot;&quot;Restrict Task list queries to the current actor when tenancy is on.
+
+    Also applies ``tenant_id`` filter when multi-tenant context is active.
+    &quot;&quot;&quot;
+    try:
+        from app.core.tenant_context import apply_tenant_filter
+
+        query = apply_tenant_filter(query, Task)
+    except Exception:
+        pass
+
+    if not tenancy_enforced():
+        return query
+    if is_admin(actor):
+        return query
+    try:
+        from app.core.rbac import CROSS_OWNER_ROLES, Role, rbac_enforced
+
+        if rbac_enforced() and role:
+            try:
+                if Role.parse(str(role)) in CROSS_OWNER_ROLES:
+                    return query
+            except ValueError:
+                pass
+    except Exception:
+        pass
+    owner = actor or &quot;anonymous&quot;
+    return query.where(Task.created_by == owner)
+
+
+def apply_trace_owner_filter(query: Select, actor: str | None) -&gt; Select:
+    &quot;&quot;&quot;Restrict Trace queries to suites belonging to actor-owned tasks.&quot;&quot;&quot;
+    try:
+        from app.core.tenant_context import apply_tenant_filter
+
+        query = apply_tenant_filter(query, Trace)
+    except Exception:
+        pass
+
+    if not tenancy_enforced():
+        return query
+    if is_admin(actor):
+        return query
+    owner = actor or &quot;anonymous&quot;
+    return (
+        query.join(TestSuite, Trace.test_suite_id == TestSuite.id)
+        .join(Task, TestSuite.task_id == Task.id)
+        .where(Task.created_by == owner)
+    )
+
+
+async def load_task_for_suite(
+    session: AsyncSession,
+    suite_id: str,
+    actor: str | None,
+) -&gt; Task:
+    &quot;&quot;&quot;Load parent Task for a test suite; enforce ownership.&quot;&quot;&quot;
+    result = await session.execute(
+        select(Task)
+        .join(TestSuite, TestSuite.task_id == Task.id)
+        .where(TestSuite.id == suite_id)
+    )
+    task = result.scalar_one_or_none()
+    if task is None or not can_access_task(task, actor):
+        raise NotFoundError(&quot;测试用例&quot;, suite_id)
+    return task
+
+
+async def load_trace_with_access(
+    session: AsyncSession,
+    trace_id: str,
+    actor: str | None,
+</code></pre></div>
+  <div class="page-footer">第 24 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    *,
+    with_scores: bool = True,
+) -&gt; Trace:
+    &quot;&quot;&quot;Load a Trace and ensure the caller owns the parent Task.&quot;&quot;&quot;
+    opts = [selectinload(Trace.metric_scores)] if with_scores else []
+    result = await session.execute(
+        select(Trace).options(*opts).where(Trace.id == trace_id)
+    )
+    trace = result.scalar_one_or_none()
+    if trace is None:
+        raise NotFoundError(&quot;执行轨迹&quot;, trace_id)
+
+    suite_result = await session.execute(
+        select(TestSuite).where(TestSuite.id == trace.test_suite_id)
+    )
+    suite = suite_result.scalar_one_or_none()
+    if suite is None:
+        raise NotFoundError(&quot;执行轨迹&quot;, trace_id)
+
+    task_result = await session.execute(select(Task).where(Task.id == suite.task_id))
+    task = task_result.scalar_one_or_none()
+    if task is None or not can_access_task(task, actor):
+        raise NotFoundError(&quot;执行轨迹&quot;, trace_id)
+    return trace
+&quot;&quot;&quot;Request-scoped enterprise TenantContext (X-Tenant-ID).&quot;&quot;&quot;
+
+from __future__ import annotations
+
+from contextvars import ContextVar
+from dataclasses import dataclass
+from typing import Any
+
+from fastapi import Request
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings
+from app.utils.exceptions import AgentFlowError, NotFoundError
+
+_tenant_ctx: ContextVar[&quot;TenantContext | None&quot;] = ContextVar(&quot;tenant_ctx&quot;, default=None)
+
+
+class TenantAccessError(AgentFlowError):
+    &quot;&quot;&quot;Caller not allowed for the requested tenant.&quot;&quot;&quot;
+
+    def __init__(self, message: str = &quot;Tenant access denied&quot;) -&gt; None:
+        super().__init__(message=message, status_code=403, detail=None)
+
+
+@dataclass(frozen=True)
+class TenantContext:
+    &quot;&quot;&quot;Resolved tenant for the current request.&quot;&quot;&quot;
+
+    tenant_id: str | None
+    tenant_slug: str | None
+    member_role: str | None
+    enforced: bool
+
+    @property
+    def active(self) -&gt; bool:
+        return bool(self.tenant_id)
+
+
+def multi_tenant_enabled() -&gt; bool:
+    &quot;&quot;&quot;Enterprise multi-tenant mode (org tables + X-Tenant-ID).&quot;&quot;&quot;
+    return bool(getattr(settings, &quot;MULTI_TENANT_ENABLED&quot;, False))
+
+
+def get_tenant_context() -&gt; TenantContext | None:
+    return _tenant_ctx.get()
+
+
+</code></pre></div>
+  <div class="page-footer">第 25 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+def set_tenant_context(ctx: TenantContext | None) -&gt; None:
+    _tenant_ctx.set(ctx)
+
+
+def current_tenant_id() -&gt; str | None:
+    ctx = get_tenant_context()
+    return ctx.tenant_id if ctx else None
+
+
+def extract_tenant_header(request: Request) -&gt; str | None:
+    &quot;&quot;&quot;Accept X-Tenant-ID (uuid or slug).&quot;&quot;&quot;
+    raw = (
+        request.headers.get(&quot;X-Tenant-ID&quot;)
+        or request.headers.get(&quot;X-Tenant-Id&quot;)
+        or request.headers.get(&quot;x-tenant-id&quot;)
+        or &quot;&quot;
+    ).strip()
+    return raw or None
+
+
+async def resolve_tenant_context(
+    session: AsyncSession,
+    *,
+    actor: str,
+    header_value: str | None,
+    system_role: str | None = None,
+) -&gt; TenantContext:
+    &quot;&quot;&quot;Resolve and validate tenant membership for ``actor``.
+
+    - MULTI_TENANT off -&gt; empty context (legacy actor isolation only)
+    - Header absent -&gt; empty tenant_id (optional scope)
+    - Header present -&gt; must be valid tenant + membership (unless system_admin)
+    &quot;&quot;&quot;
+    if not multi_tenant_enabled():
+        ctx = TenantContext(
+            tenant_id=None,
+            tenant_slug=None,
+            member_role=None,
+            enforced=False,
+        )
+        set_tenant_context(ctx)
+        return ctx
+
+    if not header_value:
+        ctx = TenantContext(
+            tenant_id=None,
+            tenant_slug=None,
+            member_role=None,
+            enforced=True,
+        )
+        set_tenant_context(ctx)
+        return ctx
+
+    from app.models.tenant import Tenant, TenantMember
+
+    result = await session.execute(
+        select(Tenant).where(
+            (Tenant.id == header_value) | (Tenant.slug == header_value)
+        )
+    )
+    tenant = result.scalar_one_or_none()
+    if tenant is None or tenant.status == &quot;deleted&quot;:
+        raise NotFoundError(&quot;Tenant&quot;, header_value)
+    if tenant.status == &quot;suspended&quot;:
+        raise TenantAccessError(&quot;Tenant is suspended&quot;)
+
+    role_l = (system_role or &quot;&quot;).lower()
+    if role_l in {&quot;system_admin&quot;, &quot;admin&quot;}:
+        ctx = TenantContext(
+            tenant_id=tenant.id,
+            tenant_slug=tenant.slug,
+            member_role=&quot;system_admin&quot;,
+</code></pre></div>
+  <div class="page-footer">第 26 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+            enforced=True,
+        )
+        set_tenant_context(ctx)
+        return ctx
+
+    mem = await session.execute(
+        select(TenantMember).where(
+            TenantMember.tenant_id == tenant.id,
+            TenantMember.user_id == actor,
+        )
+    )
+    member = mem.scalar_one_or_none()
+    if member is None:
+        raise TenantAccessError(
+            f&quot;Actor {actor!r} is not a member of tenant {tenant.slug!r}&quot;
+        )
+
+    ctx = TenantContext(
+        tenant_id=tenant.id,
+        tenant_slug=tenant.slug,
+        member_role=member.role,
+        enforced=True,
+    )
+    set_tenant_context(ctx)
+    return ctx
+
+
+def apply_tenant_filter(query: Any, model: Any, tenant_id: str | None = None) -&gt; Any:
+    &quot;&quot;&quot;Restrict query to a single tenant when multi-tenant is active and scoped.
+
+    Rows with ``tenant_id IS NULL`` are treated as legacy (visible only when
+    filter is not enforced, or to system paths that opt out).
+    &quot;&quot;&quot;
+    tid = tenant_id if tenant_id is not None else current_tenant_id()
+    if not multi_tenant_enabled() or not tid:
+        return query
+    col = getattr(model, &quot;tenant_id&quot;, None)
+    if col is None:
+        return query
+    return query.where(col == tid)
+
+
+def ensure_tenant_resource(
+    resource_tenant_id: str | None,
+    *,
+    resource: str = &quot;Resource&quot;,
+    resource_id: str = &quot;&quot;,
+) -&gt; None:
+    &quot;&quot;&quot;Raise NotFound if resource belongs to another tenant (no existence leak).&quot;&quot;&quot;
+    if not multi_tenant_enabled():
+        return
+    tid = current_tenant_id()
+    if not tid:
+        return
+    if not resource_tenant_id or resource_tenant_id != tid:
+        raise NotFoundError(resource, resource_id)
+
+
+def tenant_dict() -&gt; dict[str, Any]:
+    ctx = get_tenant_context()
+    if not ctx:
+        return {
+            &quot;multi_tenant_enabled&quot;: multi_tenant_enabled(),
+            &quot;tenant_id&quot;: None,
+            &quot;tenant_slug&quot;: None,
+            &quot;member_role&quot;: None,
+        }
+    return {
+        &quot;multi_tenant_enabled&quot;: multi_tenant_enabled(),
+        &quot;tenant_id&quot;: ctx.tenant_id,
+        &quot;tenant_slug&quot;: ctx.tenant_slug,
+        &quot;member_role&quot;: ctx.member_role,
+</code></pre></div>
+  <div class="page-footer">第 27 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+        &quot;enforced&quot;: ctx.enforced,
+    }
+&quot;&quot;&quot;Role-Based Access Control (RBAC) for AgentFlow-Eval.
+
+Enterprise roles (v1.0)
+-----------------------
+system_admin, tenant_admin, manager, reviewer, member, viewer
+
+Legacy aliases (still accepted)
+-------------------------------
+admin -&gt; system_admin, user -&gt; member, guest -&gt; viewer
+
+Permissions
+-----------
+task:* | evaluation:* | user:manage | system:config | audit:read
+tenant:create | tenant:manage | billing:read | billing:manage
+benchmark:create | benchmark:read
+
+API key format (``API_KEYS``)
+-----------------------------
+- ``secret``
+- ``secret:actor``
+- ``secret:actor:role``   e.g. ``sk-ops:alice:manager``
+
+Optional ``ACTOR_ROLES=alice:manager,bob:user`` overrides / fills role when not
+embedded in the key. Actors listed in ``ADMIN_ACTORS`` default to SYSTEM_ADMIN.
+&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import functools
+import inspect
+import logging
+from collections.abc import Callable, Collection
+from enum import Enum
+from typing import Any, ParamSpec, TypeVar
+
+from fastapi import Depends, Request
+
+from app.config import settings
+from app.utils.exceptions import AgentFlowError
+
+logger = logging.getLogger(__name__)
+
+P = ParamSpec(&quot;P&quot;)
+R = TypeVar(&quot;R&quot;)
+
+
+
+
+class Role(str, Enum):
+    &quot;&quot;&quot;Roles ordered from most to least privileged.
+
+    Enterprise (canonical): system_admin, tenant_admin, manager, reviewer,
+    member, viewer.
+
+    Legacy members (admin/user/guest) remain for backward-compatible API keys
+    and tests; they share permission sets with their enterprise equivalents.
+    &quot;&quot;&quot;
+
+    SYSTEM_ADMIN = &quot;system_admin&quot;
+    TENANT_ADMIN = &quot;tenant_admin&quot;
+    MANAGER = &quot;manager&quot;
+    REVIEWER = &quot;reviewer&quot;
+    MEMBER = &quot;member&quot;
+    VIEWER = &quot;viewer&quot;
+    ADMIN = &quot;admin&quot;
+    USER = &quot;user&quot;
+    GUEST = &quot;guest&quot;
+
+    @classmethod
+    def parse(cls, value: str | None, default: &quot;Role | None&quot; = None) -&gt; &quot;Role&quot;:
+</code></pre></div>
+  <div class="page-footer">第 28 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+        &quot;&quot;&quot;Parse a role string (case-insensitive); maps legacy names.&quot;&quot;&quot;
+        if value is None or not str(value).strip():
+            if default is not None:
+                return default
+            raise ValueError(&quot;empty role&quot;)
+        key = str(value).strip().lower().replace(&quot;-&quot;, &quot;_&quot;)
+        aliases = {
+            &quot;sysadmin&quot;: cls.SYSTEM_ADMIN,
+            &quot;systemadmin&quot;: cls.SYSTEM_ADMIN,
+            &quot;owner&quot;: cls.TENANT_ADMIN,
+            &quot;org_admin&quot;: cls.TENANT_ADMIN,
+        }
+        if key in aliases:
+            return aliases[key]
+        for role in cls:
+            if role.value == key or role.name.lower() == key:
+                return role
+        raise ValueError(f&quot;unknown role: {value!r}&quot;)
+
+    def canonical(self) -&gt; &quot;Role&quot;:
+        &quot;&quot;&quot;Map legacy roles to enterprise names.&quot;&quot;&quot;
+        if self is Role.ADMIN:
+            return Role.SYSTEM_ADMIN
+        if self is Role.USER:
+            return Role.MEMBER
+        if self is Role.GUEST:
+            return Role.VIEWER
+        return self
+
+
+class Permission(str, Enum):
+    &quot;&quot;&quot;Fine-grained permissions (resource:action).&quot;&quot;&quot;
+
+    TASK_CREATE = &quot;task:create&quot;
+    TASK_READ = &quot;task:read&quot;
+    TASK_UPDATE = &quot;task:update&quot;
+    TASK_DELETE = &quot;task:delete&quot;
+    TASK_EXECUTE = &quot;task:execute&quot;
+    TASK_CANCEL = &quot;task:cancel&quot;
+
+    EVALUATION_READ = &quot;evaluation:read&quot;
+    EVALUATION_SUBMIT = &quot;evaluation:submit&quot;
+    EVALUATION_APPROVE = &quot;evaluation:approve&quot;
+
+    USER_MANAGE = &quot;user:manage&quot;
+    SYSTEM_CONFIG = &quot;system:config&quot;
+    AUDIT_READ = &quot;audit:read&quot;
+
+    TENANT_CREATE = &quot;tenant:create&quot;
+    TENANT_MANAGE = &quot;tenant:manage&quot;
+    BILLING_READ = &quot;billing:read&quot;
+    BILLING_MANAGE = &quot;billing:manage&quot;
+    BENCHMARK_CREATE = &quot;benchmark:create&quot;
+    BENCHMARK_READ = &quot;benchmark:read&quot;
+
+
+
+_ALL_TASK = frozenset(
+    {
+        Permission.TASK_CREATE,
+        Permission.TASK_READ,
+        Permission.TASK_UPDATE,
+        Permission.TASK_DELETE,
+        Permission.TASK_EXECUTE,
+        Permission.TASK_CANCEL,
+    }
+)
+_ALL_EVAL = frozenset(
+    {
+        Permission.EVALUATION_READ,
+        Permission.EVALUATION_SUBMIT,
+        Permission.EVALUATION_APPROVE,
+</code></pre></div>
+  <div class="page-footer">第 29 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    }
+)
+_TENANT_OPS = frozenset({Permission.TENANT_MANAGE})
+_BILLING = frozenset({Permission.BILLING_READ, Permission.BILLING_MANAGE})
+_BENCHMARK = frozenset({Permission.BENCHMARK_CREATE, Permission.BENCHMARK_READ})
+
+_SYSTEM_ADMIN_PERMS = frozenset(Permission)
+
+_TENANT_ADMIN_PERMS = frozenset(
+    {
+        *_ALL_TASK,
+        *_ALL_EVAL,
+        Permission.AUDIT_READ,
+        Permission.USER_MANAGE,
+        *_TENANT_OPS,
+        *_BILLING,
+        *_BENCHMARK,
+    }
+)
+
+_MANAGER_PERMS = frozenset(
+    {
+        *_ALL_TASK,
+        *_ALL_EVAL,
+        Permission.AUDIT_READ,
+        Permission.BILLING_READ,
+        Permission.BENCHMARK_CREATE,
+        Permission.BENCHMARK_READ,
+    }
+)
+
+_REVIEWER_PERMS = frozenset(
+    {
+        Permission.TASK_READ,
+        Permission.EVALUATION_READ,
+        Permission.EVALUATION_SUBMIT,
+        Permission.EVALUATION_APPROVE,
+        Permission.AUDIT_READ,
+        Permission.BENCHMARK_READ,
+    }
+)
+
+_MEMBER_PERMS = frozenset(
+    {
+        *_ALL_TASK,
+        Permission.EVALUATION_READ,
+        Permission.EVALUATION_SUBMIT,
+        Permission.BENCHMARK_READ,
+        Permission.BILLING_READ,
+    }
+)
+
+_VIEWER_PERMS = frozenset(
+    {
+        Permission.TASK_READ,
+        Permission.EVALUATION_READ,
+        Permission.BENCHMARK_READ,
+    }
+)
+
+ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
+    Role.SYSTEM_ADMIN: _SYSTEM_ADMIN_PERMS,
+    Role.TENANT_ADMIN: _TENANT_ADMIN_PERMS,
+    Role.MANAGER: _MANAGER_PERMS,
+    Role.REVIEWER: _REVIEWER_PERMS,
+    Role.MEMBER: _MEMBER_PERMS,
+    Role.VIEWER: _VIEWER_PERMS,
+    Role.ADMIN: _SYSTEM_ADMIN_PERMS,
+    Role.USER: _MEMBER_PERMS,
+    Role.GUEST: _VIEWER_PERMS,
+}
+
+</code></pre></div>
+  <div class="page-footer">第 30 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+
+SAMPLE_AGENT_CONFIG_CANDIDATE = {
+    &quot;runner&quot;: &quot;openai&quot;,
+    &quot;model&quot;: &quot;gpt-4o&quot;,
+    &quot;temperature&quot;: 0,
+    &quot;max_iterations&quot;: 5,
+    &quot;max_tokens&quot;: 4096,
+    &quot;scorecard&quot;: SAMPLE_SCORECARD,
+}
+
+SAMPLE_TASK = {
+    &quot;name&quot;: &quot;客服 Agent 综合评测(Demo)&quot;,
+    &quot;description&quot;: (
+        &quot;演示用评测任务:覆盖天气、计算、差旅、邮件与常识问答;&quot;
+        &quot;含成功/失败 Trace、三维评分与 AOLS 日志.&quot;
+        &quot;Seed 同时写入「多变体对比」实验,打开 /experiments 即可查看.&quot;
+    ),
+    &quot;agent_config&quot;: SAMPLE_AGENT_CONFIG,
+}
+
+DEMO_EXPERIMENT_NAME = &quot;Demo 多变体对比(mini vs 4o)&quot;
+
+SAMPLE_TEST_SUITES = [
+    {
+        &quot;user_query&quot;: &quot;北京今天天气怎么样？&quot;,
+        &quot;expected_output&quot;: &quot;北京今日晴,最高气温约 25 摄氏度.&quot;,
+        &quot;expected_tools&quot;: [&quot;get_weather&quot;],
+        &quot;outcome&quot;: &quot;success&quot;,
+    },
+    {
+        &quot;user_query&quot;: &quot;请计算 15 × 37 等于多少？&quot;,
+        &quot;expected_output&quot;: &quot;555&quot;,
+        &quot;expected_tools&quot;: [&quot;calculator&quot;],
+        &quot;outcome&quot;: &quot;success&quot;,
+    },
+    {
+        &quot;user_query&quot;: &quot;帮我预订下周一北京到上海的往返机票.&quot;,
+        &quot;expected_output&quot;: &quot;已预订北京至上海往返航班,出发日为下周一.&quot;,
+        &quot;expected_tools&quot;: [&quot;flight_search&quot;, &quot;book_flight&quot;],
+        &quot;outcome&quot;: &quot;success&quot;,
+    },
+    {
+        &quot;user_query&quot;: &quot;给 zhangsan@company.com 发邮件,主题 Meeting,正文 Hello.&quot;,
+        &quot;expected_output&quot;: &quot;邮件已发送至 zhangsan@company.com.&quot;,
+        &quot;expected_tools&quot;: [&quot;send_email&quot;],
+        &quot;outcome&quot;: &quot;success&quot;,
+    },
+    {
+        &quot;user_query&quot;: &quot;法国的首都是哪里？&quot;,
+        &quot;expected_output&quot;: &quot;法国的首都是巴黎.&quot;,
+        &quot;expected_tools&quot;: [],
+        &quot;outcome&quot;: &quot;success&quot;,
+    },
+    {
+        &quot;user_query&quot;: &quot;反复查询同一航班并重试失败的工具调用(诊断演示用例)&quot;,
+        &quot;expected_output&quot;: &quot;应给出明确结果或失败说明&quot;,
+        &quot;expected_tools&quot;: [&quot;flight_search&quot;],
+        &quot;outcome&quot;: &quot;failed&quot;,
+    },
+]
+
+
+def _success_steps(query: str, tools: list[str]) -&gt; list[dict]:
+    steps: list[dict] = [
+        {
+            &quot;type&quot;: &quot;thought&quot;,
+            &quot;content&quot;: f&quot;用户询问:{query[:80]}.将按预期工具执行.&quot;,
+            &quot;tokens&quot;: 40,
+        },
+    ]
+    for tool in tools or [&quot;final_answer&quot;]:
+        steps.append(
+</code></pre></div>
+  <div class="page-footer">第 31 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+            {
+                &quot;type&quot;: &quot;action&quot;,
+                &quot;tool_name&quot;: tool if tool != &quot;final_answer&quot; else &quot;&quot;,
+                &quot;action&quot;: tool,
+                &quot;tool_input&quot;: query[:60],
+                &quot;content&quot;: f&quot;call {tool}&quot;,
+                &quot;tokens&quot;: 25,
+            }
+        )
+        steps.append(
+            {
+                &quot;type&quot;: &quot;observation&quot;,
+                &quot;content&quot;: f&quot;{tool} ok: demo observation for seed&quot;,
+                &quot;tokens&quot;: 30,
+            }
+        )
+    steps.append(
+        {
+            &quot;type&quot;: &quot;final_answer&quot;,
+            &quot;content&quot;: &quot;演示种子答案(seed)&quot;,
+            &quot;tokens&quot;: 20,
+        }
+    )
+    return steps
+
+
+def _failed_loop_steps(query: str) -&gt; list[dict]:
+    &quot;&quot;&quot;Repeated tool calls + error observations -&gt; diagnosis agent_loop / tool_failure.&quot;&quot;&quot;
+    steps: list[dict] = [
+        {&quot;type&quot;: &quot;thought&quot;, &quot;content&quot;: f&quot;处理:{query[:60]}&quot;, &quot;tokens&quot;: 50},
+    ]
+    for i in range(4):
+        steps.append(
+            {
+                &quot;type&quot;: &quot;action&quot;,
+                &quot;tool_name&quot;: &quot;flight_search&quot;,
+                &quot;action&quot;: &quot;flight_search&quot;,
+                &quot;tool_input&quot;: &quot;PEK-SHA next monday&quot;,
+                &quot;content&quot;: &quot;retry flight_search&quot;,
+                &quot;tokens&quot;: 35 + i,
+            }
+        )
+        steps.append(
+            {
+                &quot;type&quot;: &quot;observation&quot;,
+                &quot;content&quot;: &quot;error: timeout connecting to flight API (rate limit 429)&quot;,
+                &quot;tokens&quot;: 20,
+            }
+        )
+    steps.append(
+        {
+            &quot;type&quot;: &quot;final_answer&quot;,
+            &quot;content&quot;: &quot;无法完成预订,工具反复失败&quot;,
+            &quot;tokens&quot;: 15,
+        }
+    )
+    return steps
+
+
+async def seed_database(async_session_factory, *, force: bool = False) -&gt; None:
+    &quot;&quot;&quot;Insert seed data into the database.
+
+    Args:
+        async_session_factory: SQLAlchemy async session factory.
+        force: If True, insert demo task even when other tasks already exist
+            (skips only when a demo-named task is present).
+    &quot;&quot;&quot;
+    from sqlalchemy import select, func
+
+    from app.models.agent_log import AgentLog
+    from app.models.metric_score import MetricScore
+    from app.models.task import Task, TaskStatus
+</code></pre></div>
+  <div class="page-footer">第 32 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    from app.models.test_suite import TestSuite
+    from app.models.trace import Trace, TraceStatus
+
+    async with async_session_factory() as session:
+        if not force:
+            result = await session.execute(select(func.count(Task.id)))
+            count = result.scalar() or 0
+            if count &gt; 0:
+                return
+        else:
+            existing = await session.execute(
+                select(Task).where(Task.name == SAMPLE_TASK[&quot;name&quot;]).limit(1)
+            )
+            existing_task = existing.scalar_one_or_none()
+            if existing_task is not None:
+                exp_id, labels = await _seed_experiment_pair(
+                    session,
+                    base_task_id=existing_task.id,
+                    now=datetime.now(timezone.utc),
+                )
+                await session.commit()
+                if exp_id:
+                return
+
+        now = datetime.now(timezone.utc)
+        task_id = str(uuid4())
+        task = Task(
+            id=task_id,
+            name=SAMPLE_TASK[&quot;name&quot;],
+            description=SAMPLE_TASK[&quot;description&quot;],
+            agent_config=SAMPLE_TASK[&quot;agent_config&quot;],
+            status=TaskStatus.COMPLETED,
+            created_by=&quot;demo&quot;,
+        )
+        session.add(task)
+        await session.flush()
+
+        suite_ids: list[str] = []
+        trace_ids: list[str] = []
+        log_rows = 0
+
+        for idx, suite_data in enumerate(SAMPLE_TEST_SUITES):
+            suite_id = str(uuid4())
+            suite = TestSuite(
+                id=suite_id,
+                task_id=task.id,
+                user_query=suite_data[&quot;user_query&quot;],
+                expected_output=suite_data[&quot;expected_output&quot;],
+                expected_tools=suite_data[&quot;expected_tools&quot;],
+            )
+            session.add(suite)
+            suite_ids.append(suite_id)
+            await session.flush()
+
+            failed = suite_data.get(&quot;outcome&quot;) == &quot;failed&quot;
+            steps = (
+                _failed_loop_steps(suite_data[&quot;user_query&quot;])
+                if failed
+                else _success_steps(
+                    suite_data[&quot;user_query&quot;],
+                    list(suite_data.get(&quot;expected_tools&quot;) or []),
+                )
+            )
+            tokens = sum(int(s.get(&quot;tokens&quot;) or 0) for s in steps)
+            created = now - timedelta(
+                days=(len(SAMPLE_TEST_SUITES) - idx) % 6, hours=idx
+            )
+
+            trace_id = str(uuid4())
+            tr = Trace(
+                id=trace_id,
+                test_suite_id=suite_id,
+</code></pre></div>
+  <div class="page-footer">第 33 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+                user_query=suite_data[&quot;user_query&quot;],
+                steps=steps,
+                total_tokens=tokens,
+                prompt_tokens=int(tokens * 0.6),
+                completion_tokens=int(tokens * 0.4),
+                response_time_ms=800 + idx * 120 + (2000 if failed else 0),
+                status=TraceStatus.FAILED if failed else TraceStatus.SUCCESS,
+                cost=round(tokens * 0.000002, 6),
+                agent_version=&quot;demo-seed-1.0&quot;,
+                model_version=&quot;gpt-4o-mini&quot;,
+            )
+            if hasattr(tr, &quot;created_at&quot;):
+                try:
+                    tr.created_at = created  # type: ignore[assignment]
+                except Exception:
+                    pass
+            session.add(tr)
+            trace_ids.append(trace_id)
+            await session.flush()
+
+            for metric_name, score, reason in _dimension_scores(
+                failed=failed, idx=idx, variant=&quot;baseline&quot;
+            ):
+                session.add(
+                    MetricScore(
+                        id=str(uuid4()),
+                        trace_id=trace_id,
+                        metric_name=metric_name,
+                        score=score,
+                        reason=reason,
+                        confidence=0.75 if not failed else 0.55,
+                    )
+                )
+
+            events = [
+                (&quot;info&quot;, &quot;evaluation.running&quot;, {&quot;suite_index&quot;: idx}),
+                (&quot;info&quot;, &quot;agent.started&quot;, {&quot;model&quot;: &quot;gpt-4o-mini&quot;}),
+                (
+                    &quot;info&quot; if not failed else &quot;error&quot;,
+                    &quot;agent.completed&quot; if not failed else &quot;agent.failed&quot;,
+                    {&quot;tokens&quot;: tokens, &quot;latency_ms&quot;: tr.response_time_ms},
+                ),
+                (
+                    &quot;info&quot;,
+                    &quot;llm.request&quot;,
+                    {&quot;tokens&quot;: tokens, &quot;latency_ms&quot;: 200 + idx * 10},
+                ),
+            ]
+            if failed:
+                events.append(
+                    (
+                        &quot;error&quot;,
+                        &quot;tool.failed&quot;,
+                        {&quot;tool&quot;: &quot;flight_search&quot;, &quot;error&quot;: &quot;timeout 429&quot;},
+                    )
+                )
+            else:
+                events.append(
+                    (
+                        &quot;info&quot;,
+                        &quot;tool.completed&quot;,
+                        {&quot;tool&quot;: (suite_data.get(&quot;expected_tools&quot;) or [&quot;none&quot;])[0]},
+                    )
+                )
+
+            for level, event, payload in events:
+                session.add(
+                    AgentLog(
+                        id=str(uuid4()),
+                        level=level,
+                        event=event,
+                        service=&quot;agentflow-api&quot;,
+</code></pre></div>
+  <div class="page-footer">第 34 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+                        trace_id=trace_id[:32],
+                        task_id=task_id,
+                        payload={
+                            &quot;seed&quot;: True,
+                            &quot;total_tokens&quot;: tokens,
+                            &quot;latency_ms&quot;: tr.response_time_ms,
+                            **payload,
+                        },
+                    )
+                )
+                log_rows += 1
+
+        for d in range(7):
+            for k in range(3):
+                session.add(
+                    AgentLog(
+                        id=str(uuid4()),
+                        level=&quot;info&quot; if k % 3 else &quot;warning&quot;,
+                        event=&quot;http.request&quot; if k else &quot;evaluation.suite_complete&quot;,
+                        service=&quot;agentflow-api&quot;,
+                        trace_id=f&quot;seed-day-{d}&quot;,
+                        task_id=task_id,
+                        payload={
+                            &quot;seed&quot;: True,
+                            &quot;total_tokens&quot;: 100 + d * 10 + k,
+                            &quot;latency_ms&quot;: 50 + k * 15,
+                            &quot;day_offset&quot;: d,
+                        },
+                    )
+                )
+                log_rows += 1
+
+        exp_id, run_labels = await _seed_experiment_pair(
+            session,
+            base_task_id=task_id,
+            now=now,
+        )
+
+        await session.commit()
+        if exp_id:
+            &quot;Next: /dashboard · /experiments · demo task Trace + ScoreCard · /diagnosis&quot;
+        )
+
+
+def _dimension_scores(
+    *,
+    failed: bool,
+    idx: int,
+    variant: str = &quot;baseline&quot;,
+) -&gt; list[tuple[str, float, str]]:
+    &quot;&quot;&quot;Scorecard-aligned seed scores (tool/answer/coherence).&quot;&quot;&quot;
+    boost = 3.0 if variant == &quot;candidate&quot; else 0.0
+    if failed:
+        return [
+            (&quot;tool_accuracy&quot;, 12.0, &quot;seed: tool loop / timeout&quot;),
+            (&quot;answer_correctness&quot;, 15.0, &quot;seed: incomplete answer&quot;),
+            (&quot;reasoning_coherence&quot;, 8.0, &quot;seed: repeated steps&quot;),
+        ]
+    tool = min(40.0, max(0.0, 36.0 - idx * 0.8 + boost))
+    ans = min(40.0, max(0.0, 34.0 - idx * 0.5 + boost))
+    coh = min(20.0, max(0.0, 17.5 - idx * 0.3 + boost * 0.5))
+    return [
+        (&quot;tool_accuracy&quot;, round(tool, 1), &quot;seed demo&quot;),
+        (&quot;answer_correctness&quot;, round(ans, 1), &quot;seed demo&quot;),
+        (&quot;reasoning_coherence&quot;, round(coh, 1), &quot;seed demo&quot;),
+    ]
+
+
+async def _seed_variant_task(
+    session,
+    *,
+    label: str,
+</code></pre></div>
+  <div class="page-footer">第 35 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    agent_config: dict,
+    snapshot: list[dict],
+    variant: str,
+    model_version: str,
+) -&gt; str:
+    &quot;&quot;&quot;Materialize one completed variant task with suites/traces/metrics.&quot;&quot;&quot;
+    from app.models.metric_score import MetricScore
+    from app.models.task import Task, TaskStatus
+    from app.models.test_suite import TestSuite
+    from app.models.trace import Trace, TraceStatus
+
+    task_id = str(uuid4())
+    session.add(
+        Task(
+            id=task_id,
+            name=f&quot;Demo 对比变体 · {label}&quot;,
+            description=f&quot;Seed 变体 {label},与其它变体共享相同用例快照.&quot;,
+            agent_config=agent_config,
+            status=TaskStatus.COMPLETED,
+            created_by=&quot;demo&quot;,
+        )
+    )
+    await session.flush()
+
+    for idx, case in enumerate(snapshot):
+        suite_id = str(uuid4())
+        session.add(
+            TestSuite(
+                id=suite_id,
+                task_id=task_id,
+                user_query=case[&quot;user_query&quot;],
+                expected_output=case[&quot;expected_output&quot;],
+                expected_tools=case[&quot;expected_tools&quot;],
+            )
+        )
+        await session.flush()
+        steps = _success_steps(
+            case[&quot;user_query&quot;], list(case.get(&quot;expected_tools&quot;) or [])
+        )
+        tokens = sum(int(s.get(&quot;tokens&quot;) or 0) for s in steps)
+        token_mul = 1.15 if variant == &quot;candidate&quot; else 1.0
+        tokens = int(tokens * token_mul)
+        tid = str(uuid4())
+        session.add(
+            Trace(
+                id=tid,
+                test_suite_id=suite_id,
+                user_query=case[&quot;user_query&quot;],
+                steps=steps,
+                total_tokens=tokens,
+                prompt_tokens=int(tokens * 0.6),
+                completion_tokens=int(tokens * 0.4),
+                response_time_ms=int(
+                    (750 + idx * 90) * (1.1 if variant == &quot;candidate&quot; else 1.0)
+                ),
+                status=TraceStatus.SUCCESS,
+                cost=round(tokens * 0.0000025, 6),
+                agent_version=&quot;demo-seed-1.0&quot;,
+                model_version=model_version,
+            )
+        )
+        await session.flush()
+        for metric_name, score, reason in _dimension_scores(
+            failed=False, idx=idx, variant=variant
+        ):
+            session.add(
+                MetricScore(
+                    id=str(uuid4()),
+                    trace_id=tid,
+                    metric_name=metric_name,
+                    score=score,
+                    reason=reason,
+</code></pre></div>
+  <div class="page-footer">第 36 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+                    confidence=0.8,
+                )
+            )
+    return task_id
+
+
+async def _seed_experiment_pair(session, *, base_task_id: str, now: datetime):
+    &quot;&quot;&quot;Create two fair variant tasks + Experiment for /experiments compare.&quot;&quot;&quot;
+    from app.models.experiment import Experiment, ExperimentRun
+    from sqlalchemy import select
+
+    _ = now
+    existing = await session.execute(
+        select(Experiment).where(Experiment.name == DEMO_EXPERIMENT_NAME).limit(1)
+    )
+    if existing.scalar_one_or_none() is not None:
+        return None, []
+
+    snapshot = [
+        {
+            &quot;user_query&quot;: s[&quot;user_query&quot;],
+            &quot;expected_output&quot;: s[&quot;expected_output&quot;],
+            &quot;expected_tools&quot;: list(s.get(&quot;expected_tools&quot;) or []),
+        }
+        for s in SAMPLE_TEST_SUITES
+        if s.get(&quot;outcome&quot;) != &quot;failed&quot;
+    ][:3]
+
+    baseline_id = await _seed_variant_task(
+        session,
+        label=&quot;gpt-4o-mini&quot;,
+        agent_config=SAMPLE_AGENT_CONFIG,
+        snapshot=snapshot,
+        variant=&quot;baseline&quot;,
+        model_version=&quot;gpt-4o-mini&quot;,
+    )
+    candidate_id = await _seed_variant_task(
+        session,
+        label=&quot;gpt-4o&quot;,
+        agent_config=SAMPLE_AGENT_CONFIG_CANDIDATE,
+        snapshot=snapshot,
+        variant=&quot;candidate&quot;,
+        model_version=&quot;gpt-4o&quot;,
+    )
+
+    exp_id = str(uuid4())
+    session.add(
+        Experiment(
+            id=exp_id,
+            name=DEMO_EXPERIMENT_NAME,
+            description=(
+                &quot;Seed 演示:同一套 3 条用例,对比 gpt-4o-mini 与 gpt-4o.&quot;
+                &quot;打开「对比实验」查看 Best / 维度分 / Token / 耗时.&quot;
+            ),
+            base_task_id=base_task_id,
+            suite_snapshot=snapshot,
+            created_by=&quot;demo&quot;,
+        )
+    )
+    await session.flush()
+    session.add(
+        ExperimentRun(
+            id=str(uuid4()),
+            experiment_id=exp_id,
+            task_id=baseline_id,
+            label=&quot;gpt-4o-mini&quot;,
+            agent_config=SAMPLE_AGENT_CONFIG,
+        )
+    )
+    session.add(
+        ExperimentRun(
+            id=str(uuid4()),
+</code></pre></div>
+  <div class="page-footer">第 37 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+            experiment_id=exp_id,
+            task_id=candidate_id,
+            label=&quot;gpt-4o&quot;,
+            agent_config=SAMPLE_AGENT_CONFIG_CANDIDATE,
+        )
+    )
+    return exp_id, [&quot;gpt-4o-mini&quot;, &quot;gpt-4o&quot;]
+
+
+def main() -&gt; None:
+    import argparse
+    import asyncio
+    import sys
+
+    parser = argparse.ArgumentParser(description=&quot;Seed AgentFlow-Eval demo data&quot;)
+    parser.add_argument(
+        &quot;--force&quot;,
+        action=&quot;store_true&quot;,
+        help=&quot;Insert demo task even if other tasks already exist&quot;,
+    )
+    args = parser.parse_args()
+
+    try:
+        from app.core.dependencies import async_session_factory
+    except Exception as exc:  # pragma: no cover
+            &quot;Run from backend/ with venv activated and .env configured.&quot;,
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    asyncio.run(seed_database(async_session_factory, force=args.force))
+
+
+if __name__ == &quot;__main__&quot;:
+    main()
+&quot;&quot;&quot;Database helpers: bulk queries and performance utilities.&quot;&quot;&quot;
+
+from app.core.db.queries import (
+    batch_suite_counts,
+    count_suites_for_task,
+    tasks_with_suite_counts,
+)
+
+__all__ = [
+    &quot;batch_suite_counts&quot;,
+    &quot;count_suites_for_task&quot;,
+    &quot;tasks_with_suite_counts&quot;,
+]
+&quot;&quot;&quot;Optimized query helpers — avoid N+1 patterns on hot list endpoints.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import Any
+
+from sqlalchemy import Select, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.task import Task
+from app.models.test_suite import TestSuite
+
+
+async def batch_suite_counts(
+    session: AsyncSession,
+    task_ids: Sequence[str],
+) -&gt; dict[str, int]:
+    &quot;&quot;&quot;Return ``{task_id: suite_count}`` in a single grouped query.
+
+    Args:
+        session: Async DB session.
+        task_ids: Task primary keys (empty -&gt; empty dict).
+
+</code></pre></div>
+  <div class="page-footer">第 38 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    Returns:
+        Mapping of task_id to number of test suites. Missing ids map to 0
+        when looked up via ``.get(id, 0)``.
+    &quot;&quot;&quot;
+    if not task_ids:
+        return {}
+    unique_ids = list(dict.fromkeys(task_ids))
+    result = await session.execute(
+        select(TestSuite.task_id, func.count(TestSuite.id))
+        .where(TestSuite.task_id.in_(unique_ids))
+        .group_by(TestSuite.task_id)
+    )
+    return {str(row[0]): int(row[1]) for row in result.all()}
+
+
+async def count_suites_for_task(session: AsyncSession, task_id: str) -&gt; int:
+    &quot;&quot;&quot;Count suites for one task (detail views).&quot;&quot;&quot;
+    result = await session.execute(
+        select(func.count(TestSuite.id)).where(TestSuite.task_id == task_id)
+    )
+    return int(result.scalar() or 0)
+
+
+async def tasks_with_suite_counts(
+    session: AsyncSession,
+    tasks: Sequence[Task],
+) -&gt; list[tuple[Task, int]]:
+    &quot;&quot;&quot;Attach suite counts to a page of tasks without N+1 queries.
+
+    Args:
+        session: Async DB session.
+        tasks: Already-fetched Task rows (e.g. one list page).
+
+    Returns:
+        List of ``(task, suite_count)`` in the same order as ``tasks``.
+    &quot;&quot;&quot;
+    counts = await batch_suite_counts(session, [t.id for t in tasks])
+    return [(t, counts.get(t.id, 0)) for t in tasks]
+
+
+def apply_task_list_filters(
+    query: Select[Any],
+    *,
+    status: str | None = None,
+    include_archived: bool = False,
+) -&gt; Select[Any]:
+    &quot;&quot;&quot;Apply common list filters used by ``GET /tasks``.&quot;&quot;&quot;
+    if not include_archived:
+        query = query.where(Task.is_archived.is_(False))
+    if status:
+        query = query.where(Task.status == status)
+    return query
+&quot;&quot;&quot;Port adapters — wrap existing Celery/Redis/cache implementations.&quot;&quot;&quot;
+from app.core.adapters.bus.inprocess import InProcessEventBus
+from app.core.adapters.bus.redis_pubsub import RedisEventBus
+
+__all__ = [&quot;InProcessEventBus&quot;, &quot;RedisEventBus&quot;]
+&quot;&quot;&quot;In-process event bus — local listeners only (lite profile).&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import json
+import logging
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+class InProcessEventBus:
+    @property
+    def backend_name(self) -&gt; str:
+        return &quot;inprocess&quot;
+</code></pre></div>
+  <div class="page-footer">第 39 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+
+    def publish(self, channel: str, payload: dict[str, Any]) -&gt; None:
+        try:
+            from app.core.events import _local_listeners  # noqa: PLC2701
+            import asyncio
+
+            async def _fanout() -&gt; None:
+                for cb in list(_local_listeners):
+                    try:
+                        await cb(payload)
+                    except Exception as exc:
+                        logger.debug(&quot;local listener error: %s&quot;, exc)
+
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(_fanout())
+            except RuntimeError:
+                logger.debug(
+                    &quot;InProcess publish skipped (no loop) channel=%s bytes=%s&quot;,
+                    channel,
+                    len(json.dumps(payload, default=str)),
+                )
+        except Exception as exc:
+            logger.debug(&quot;InProcess publish failed: %s&quot;, exc)
+&quot;&quot;&quot;Redis pub/sub EventBusPort — delegates to existing events.publish path.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+class RedisEventBus:
+    @property
+    def backend_name(self) -&gt; str:
+        return &quot;redis&quot;
+
+    def publish(self, channel: str, payload: dict[str, Any]) -&gt; None:
+        try:
+            from app.core import events as ev
+
+            if channel in (ev.CHANNEL, &quot;agentflow:task_events&quot;) and payload.get(&quot;type&quot;):
+                ev.publish_task_event(payload)
+                return
+        except Exception as exc:
+            logger.debug(&quot;delegated publish_task_event failed: %s&quot;, exc)
+
+        try:
+            import json
+            import redis as sync_redis
+            from app.config import settings
+
+            body = json.dumps(payload, ensure_ascii=False, default=str)
+            client = sync_redis.from_url(settings.REDIS_URL, socket_connect_timeout=0.5)
+            try:
+                client.publish(channel, body)
+            finally:
+                client.close()
+        except Exception as exc:
+            logger.debug(&quot;RedisEventBus publish skipped: %s&quot;, exc)
+from app.core.adapters.cache.memory_only import MemoryOnlyCacheAdapter
+from app.core.adapters.cache.redis_l2 import RedisL2CacheAdapter
+
+__all__ = [&quot;MemoryOnlyCacheAdapter&quot;, &quot;RedisL2CacheAdapter&quot;]
+&quot;&quot;&quot;L1-only cache adapter for lite profile (no Redis).&quot;&quot;&quot;
+
+from __future__ import annotations
+
+from typing import Any
+
+</code></pre></div>
+  <div class="page-footer">第 40 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+from app.core.cache.client import LocalMemoryCache
+
+
+class MemoryOnlyCacheAdapter:
+    def __init__(self, max_size: int = 2048, default_ttl: int = 60) -&gt; None:
+        self._l1 = LocalMemoryCache(max_size=max_size)
+        self._default_ttl = default_ttl
+
+    @property
+    def backend_name(self) -&gt; str:
+        return &quot;memory&quot;
+
+    async def get(self, key: str) -&gt; Any | None:
+        return await self._l1.get(key)
+
+    async def set(self, key: str, value: Any, ttl: int | None = None) -&gt; None:
+        await self._l1.set(
+            key, value, int(ttl if ttl is not None else self._default_ttl)
+        )
+
+    async def delete(self, key: str) -&gt; None:
+        await self._l1.delete(key)
+&quot;&quot;&quot;Delegate CachePort to existing multi-layer CacheClient.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+from typing import Any
+
+
+class RedisL2CacheAdapter:
+    &quot;&quot;&quot;Wraps ``app.core.cache.client.get_cache_client`` (L1+L2).&quot;&quot;&quot;
+
+    def __init__(self) -&gt; None:
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            from app.core.cache.client import get_cache
+
+            self._client = get_cache()
+        return self._client
+
+    @property
+    def backend_name(self) -&gt; str:
+        return &quot;redis_l2&quot;
+
+    async def get(self, key: str) -&gt; Any | None:
+        client = self._get_client()
+        return await client.get(key)
+
+    async def set(self, key: str, value: Any, ttl: int | None = None) -&gt; None:
+        client = self._get_client()
+        await client.set(key, value, int(ttl or 60))
+
+    async def delete(self, key: str) -&gt; None:
+        client = self._get_client()
+        await client.delete(key)
+from app.core.adapters.metering.noop import NoopMeter
+from app.core.adapters.metering.sqlalchemy_meter import SqlAlchemyMeter
+
+__all__ = [&quot;NoopMeter&quot;, &quot;SqlAlchemyMeter&quot;]
+&quot;&quot;&quot;No-op metering (billing disabled / lite / private default).&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+class NoopMeter:
+</code></pre></div>
+  <div class="page-footer">第 41 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    @property
+    def backend_name(self) -&gt; str:
+        return &quot;noop&quot;
+
+    def record(
+        self,
+        *,
+        actor: str,
+        metric: str,
+        quantity: float = 1.0,
+        ref_type: str | None = None,
+        ref_id: str | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -&gt; None:
+        logger.debug(
+            &quot;meter.noop actor=%s metric=%s qty=%s ref=%s/%s&quot;,
+            actor,
+            metric,
+            quantity,
+            ref_type,
+            ref_id,
+        )
+&quot;&quot;&quot;SQLAlchemy metering — persists usage_records when BILLING_ENABLED.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+class SqlAlchemyMeter:
+    &quot;&quot;&quot;Best-effort sync-looking API; schedules async write when loop available.
+
+    For Celery workers we open a short async session via asyncio.run-free path:
+    records go through a thread-local fire-and-forget when possible.
+    &quot;&quot;&quot;
+
+    @property
+    def backend_name(self) -&gt; str:
+        return &quot;sqlalchemy&quot;
+
+    def record(
+        self,
+        *,
+        actor: str,
+        metric: str,
+        quantity: float = 1.0,
+        ref_type: str | None = None,
+        ref_id: str | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -&gt; None:
+        try:
+            from app.config import settings
+
+            if not getattr(settings, &quot;BILLING_ENABLED&quot;, False):
+                return
+        except Exception:
+            return
+
+        trace_id = None
+        try:
+            from app.core.observability.tracing import get_trace_id
+
+            trace_id = get_trace_id() or None
+        except Exception:
+            pass
+
+        try:
+            import asyncio
+
+</code></pre></div>
+  <div class="page-footer">第 42 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+            async def _write() -&gt; None:
+                from app.core.billing.service import get_billing_service
+                from app.core.dependencies import async_session_factory
+
+                svc = get_billing_service()
+                async with async_session_factory() as session:
+                    try:
+                        await svc.record_usage(
+                            session,
+                            actor=actor or &quot;anonymous&quot;,
+                            metric=metric,
+                            quantity=quantity,
+                            ref_type=ref_type,
+                            ref_id=ref_id,
+                            trace_id=trace_id,
+                            extra=extra,
+                        )
+                        await session.commit()
+                    except Exception:
+                        await session.rollback()
+                        raise
+
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(_write())
+            except RuntimeError:
+                asyncio.run(_write())
+        except Exception as exc:
+            logger.debug(&quot;SqlAlchemyMeter.record skipped: %s&quot;, exc)
+from app.core.adapters.queue.celery_queue import CeleryTaskQueue
+from app.core.adapters.queue.eager_queue import EagerTaskQueue
+from app.core.adapters.queue.memory_queue import MemoryTaskQueue
+
+__all__ = [&quot;CeleryTaskQueue&quot;, &quot;EagerTaskQueue&quot;, &quot;MemoryTaskQueue&quot;]
+&quot;&quot;&quot;Celery-backed TaskQueuePort — default for private/saas profiles.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import logging
+import uuid
+from typing import Any, Callable
+
+from app.core.ports.task_queue import EnqueueResult
+
+logger = logging.getLogger(__name__)
+
+_TASK_MAP: dict[str, str] = {
+    &quot;run_full_evaluation&quot;: &quot;app.core.celery_app.tasks.run_full_evaluation&quot;,
+    &quot;run_single_test_suite&quot;: &quot;app.core.celery_app.tasks.run_single_test_suite&quot;,
+    &quot;run_judge_evaluation&quot;: &quot;app.core.celery_app.tasks.run_judge_evaluation&quot;,
+}
+
+
+def _resolve_task(name: str) -&gt; Callable[..., Any]:
+    path = _TASK_MAP.get(name) or name
+    if &quot;:&quot; in path:
+        mod_name, attr = path.rsplit(&quot;:&quot;, 1)
+    elif path.count(&quot;.&quot;) &gt;= 2:
+        mod_name, attr = path.rsplit(&quot;.&quot;, 1)
+    else:
+        raise KeyError(f&quot;unknown task: {name}&quot;)
+    import importlib
+
+    mod = importlib.import_module(mod_name)
+    fn = getattr(mod, attr)
+    return fn
+
+
+class CeleryTaskQueue:
+    &quot;&quot;&quot;Dispatch via Celery ``.delay`` / ``.apply_async``.&quot;&quot;&quot;
+
+    @property
+</code></pre></div>
+  <div class="page-footer">第 43 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    def backend_name(self) -&gt; str:
+        return &quot;celery&quot;
+
+    def is_eager(self) -&gt; bool:
+        try:
+            from app.core.celery_app.celery import celery_app
+
+            return bool(celery_app.conf.task_always_eager)
+        except Exception:
+            from app.config import settings
+
+            return bool(settings.CELERY_TASK_ALWAYS_EAGER)
+
+    def enqueue(
+        self,
+        name: str,
+        *,
+        args: tuple[Any, ...] = (),
+        kwargs: dict[str, Any] | None = None,
+        countdown: float = 0.0,
+    ) -&gt; EnqueueResult:
+        kwargs = dict(kwargs or {})
+        task = _resolve_task(name)
+        if countdown and countdown &gt; 0:
+            async_result = task.apply_async(
+                args=args, kwargs=kwargs, countdown=countdown
+            )
+        else:
+            async_result = task.delay(*args, **kwargs)
+        tid = getattr(async_result, &quot;id&quot;, None) or str(uuid.uuid4())
+        return EnqueueResult(
+            task_id=str(tid),
+            backend=self.backend_name,
+            eager=self.is_eager(),
+        )
+
+    def revoke(self, task_id: str, *, terminate: bool = True) -&gt; None:
+        if not task_id:
+            return
+        try:
+            from app.core.celery_app.celery import celery_app
+
+            celery_app.control.revoke(task_id, terminate=terminate, signal=&quot;SIGTERM&quot;)
+        except Exception as exc:
+            logger.warning(&quot;Celery revoke failed for %s: %s&quot;, task_id, exc)
+&quot;&quot;&quot;In-process TaskQueuePort — zero Redis/Celery broker (lite / tests).&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import logging
+import uuid
+from typing import Any, Callable
+
+from app.core.ports.task_queue import EnqueueResult
+
+logger = logging.getLogger(__name__)
+
+_TASK_MAP: dict[str, str] = {
+    &quot;run_full_evaluation&quot;: &quot;app.core.celery_app.tasks.run_full_evaluation&quot;,
+    &quot;run_single_test_suite&quot;: &quot;app.core.celery_app.tasks.run_single_test_suite&quot;,
+    &quot;run_judge_evaluation&quot;: &quot;app.core.celery_app.tasks.run_judge_evaluation&quot;,
+}
+
+
+def _resolve_task(name: str) -&gt; Callable[..., Any]:
+    path = _TASK_MAP.get(name) or name
+    mod_name, attr = path.rsplit(&quot;.&quot;, 1)
+    import importlib
+
+    mod = importlib.import_module(mod_name)
+    return getattr(mod, attr)
+
+</code></pre></div>
+  <div class="page-footer">第 44 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+
+class EagerTaskQueue:
+    &quot;&quot;&quot;Run Celery task callables synchronously in the current process.
+
+    Works with both ``@celery_app.task`` wrapped callables (``.run`` / direct call)
+    and plain functions.
+    &quot;&quot;&quot;
+
+    @property
+    def backend_name(self) -&gt; str:
+        return &quot;eager&quot;
+
+    def is_eager(self) -&gt; bool:
+        return True
+
+    def enqueue(
+        self,
+        name: str,
+        *,
+        args: tuple[Any, ...] = (),
+        kwargs: dict[str, Any] | None = None,
+        countdown: float = 0.0,
+    ) -&gt; EnqueueResult:
+        _ = countdown  # ignored in eager mode
+        kwargs = dict(kwargs or {})
+        tid = str(uuid.uuid4())
+        task = _resolve_task(name)
+        try:
+            if hasattr(task, &quot;run&quot;):
+                task.run(*args, **kwargs)
+            else:
+                task(*args, **kwargs)
+        except TypeError:
+            if hasattr(task, &quot;delay&quot;):
+                task.delay(*args, **kwargs)
+            else:
+                raise
+        except Exception:
+            logger.exception(&quot;Eager task %s failed&quot;, name)
+            raise
+        return EnqueueResult(task_id=tid, backend=self.backend_name, eager=True)
+
+    def revoke(self, task_id: str, *, terminate: bool = True) -&gt; None:
+        logger.debug(&quot;Eager revoke no-op for %s (terminate=%s)&quot;, task_id, terminate)
+&quot;&quot;&quot;Background thread TaskQueuePort — fire-and-forget without Redis.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import logging
+import threading
+import uuid
+from typing import Any, Callable
+
+from app.core.ports.task_queue import EnqueueResult
+
+logger = logging.getLogger(__name__)
+
+_TASK_MAP: dict[str, str] = {
+    &quot;run_full_evaluation&quot;: &quot;app.core.celery_app.tasks.run_full_evaluation&quot;,
+    &quot;run_single_test_suite&quot;: &quot;app.core.celery_app.tasks.run_single_test_suite&quot;,
+    &quot;run_judge_evaluation&quot;: &quot;app.core.celery_app.tasks.run_judge_evaluation&quot;,
+}
+
+_jobs: dict[str, threading.Thread] = {}
+_lock = threading.Lock()
+
+
+def _resolve_task(name: str) -&gt; Callable[..., Any]:
+    path = _TASK_MAP.get(name) or name
+    mod_name, attr = path.rsplit(&quot;.&quot;, 1)
+    import importlib
+
+</code></pre></div>
+  <div class="page-footer">第 45 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    mod = importlib.import_module(mod_name)
+    return getattr(mod, attr)
+
+
+class MemoryTaskQueue:
+    &quot;&quot;&quot;Spawn a daemon thread per job (demo / single-node).&quot;&quot;&quot;
+
+    @property
+    def backend_name(self) -&gt; str:
+        return &quot;memory&quot;
+
+    def is_eager(self) -&gt; bool:
+        return False
+
+    def enqueue(
+        self,
+        name: str,
+        *,
+        args: tuple[Any, ...] = (),
+        kwargs: dict[str, Any] | None = None,
+        countdown: float = 0.0,
+    ) -&gt; EnqueueResult:
+        kwargs = dict(kwargs or {})
+        tid = str(uuid.uuid4())
+        task = _resolve_task(name)
+
+        def _run() -&gt; None:
+            if countdown and countdown &gt; 0:
+                import time
+
+                time.sleep(float(countdown))
+            try:
+                if hasattr(task, &quot;run&quot;):
+                    task.run(*args, **kwargs)
+                else:
+                    task(*args, **kwargs)
+            except Exception:
+                logger.exception(&quot;Memory task %s (%s) failed&quot;, name, tid)
+
+        t = threading.Thread(target=_run, name=f&quot;mem-queue-{name}&quot;, daemon=True)
+        with _lock:
+            _jobs[tid] = t
+        t.start()
+        return EnqueueResult(task_id=tid, backend=self.backend_name, eager=False)
+
+    def revoke(self, task_id: str, *, terminate: bool = True) -&gt; None:
+        logger.debug(&quot;Memory revoke no-op for %s&quot;, task_id)
+&quot;&quot;&quot;数据模型包,包含 Task、TestSuite、Trace、MetricScore 等 ORM 模型.&quot;&quot;&quot;
+
+from app.models.base import Base
+from app.models.task import Task
+from app.models.test_suite import TestSuite
+from app.models.trace import Trace
+from app.models.metric_score import MetricScore
+from app.models.audit_log import AuditLog
+from app.models.experiment import Experiment, ExperimentRun
+from app.models.media_asset import MediaAsset
+from app.models.ab_test import ABAssignment, ABEvent, ABExperiment, ABVariant
+from app.models.billing import (
+    BillingPlan,
+    Invoice,
+    QuotaBalance,
+    Subscription,
+    UsageRecord,
+)
+from app.models.slow_task import SlowTaskEvent
+from app.models.agent_log import AgentLog
+from app.models.tenant import Tenant, TenantMember
+from app.models.benchmark import (
+    Benchmark,
+    BenchmarkCase,
+    BenchmarkResult,
+</code></pre></div>
+  <div class="page-footer">第 46 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    BenchmarkRun,
+)
+
+__all__ = [
+    &quot;Base&quot;,
+    &quot;Task&quot;,
+    &quot;TestSuite&quot;,
+    &quot;Trace&quot;,
+    &quot;MetricScore&quot;,
+    &quot;AuditLog&quot;,
+    &quot;Experiment&quot;,
+    &quot;ExperimentRun&quot;,
+    &quot;MediaAsset&quot;,
+    &quot;ABExperiment&quot;,
+    &quot;ABVariant&quot;,
+    &quot;ABAssignment&quot;,
+    &quot;ABEvent&quot;,
+    &quot;BillingPlan&quot;,
+    &quot;Subscription&quot;,
+    &quot;UsageRecord&quot;,
+    &quot;QuotaBalance&quot;,
+    &quot;Invoice&quot;,
+    &quot;SlowTaskEvent&quot;,
+    &quot;AgentLog&quot;,
+    &quot;Tenant&quot;,
+    &quot;TenantMember&quot;,
+    &quot;Benchmark&quot;,
+    &quot;BenchmarkCase&quot;,
+    &quot;BenchmarkRun&quot;,
+    &quot;BenchmarkResult&quot;,
+]
+&quot;&quot;&quot;Agent observability log events (AOLS Phase 4 durable sink).&quot;&quot;&quot;
+
+from sqlalchemy import Index, JSON, String
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import Base, PKMixin, TimestampMixin
+
+
+class AgentLog(PKMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;Structured runtime log row for query / statistics APIs.
+
+    ``payload`` holds the full event envelope (tokens, latency, agent_context, …).
+    &quot;&quot;&quot;
+
+    __tablename__ = &quot;agent_logs&quot;
+    __table_args__ = (
+        Index(&quot;ix_agent_logs_created_at&quot;, &quot;created_at&quot;),
+        Index(&quot;ix_agent_logs_event_created&quot;, &quot;event&quot;, &quot;created_at&quot;),
+        Index(&quot;ix_agent_logs_level_created&quot;, &quot;level&quot;, &quot;created_at&quot;),
+        Index(&quot;ix_agent_logs_task_created&quot;, &quot;task_id&quot;, &quot;created_at&quot;),
+        Index(&quot;ix_agent_logs_trace_created&quot;, &quot;trace_id&quot;, &quot;created_at&quot;),
+        Index(&quot;ix_agent_logs_service&quot;, &quot;service&quot;),
+    )
+
+    level: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default=&quot;info&quot;,
+        comment=&quot;info|warning|error|debug&quot;,
+    )
+    event: Mapped[str] = mapped_column(
+        String(96),
+        nullable=False,
+        index=True,
+        comment=&quot;dot-notation event name&quot;,
+    )
+    service: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default=&quot;agentflow-api&quot;,
+        comment=&quot;emitting service&quot;,
+</code></pre></div>
+  <div class="page-footer">第 47 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+    )
+    trace_id: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        default=None,
+        comment=&quot;correlation / request id&quot;,
+    )
+    task_id: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        default=None,
+        comment=&quot;evaluation task id if any&quot;,
+    )
+    payload: Mapped[dict] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+        comment=&quot;full event fields (redacted)&quot;,
+    )
+
+    def __repr__(self) -&gt; str:
+        return f&quot;&lt;AgentLog {self.event} level={self.level}&gt;&quot;
+&quot;&quot;&quot;Audit log model for security-relevant actions.&quot;&quot;&quot;
+
+from sqlalchemy import Index, JSON, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
+
+
+class AuditLog(PKMixin, TenantMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;Immutable-style audit record (no update API).&quot;&quot;&quot;
+
+    __tablename__ = &quot;audit_logs&quot;
+    __table_args__ = (
+        Index(&quot;ix_audit_logs_created_at&quot;, &quot;created_at&quot;),
+        Index(&quot;ix_audit_logs_action&quot;, &quot;action&quot;),
+        Index(&quot;ix_audit_logs_resource&quot;, &quot;resource_type&quot;, &quot;resource_id&quot;),
+        Index(&quot;ix_audit_logs_actor_created&quot;, &quot;actor&quot;, &quot;created_at&quot;),
+        Index(&quot;ix_audit_logs_tenant_created&quot;, &quot;tenant_id&quot;, &quot;created_at&quot;),
+    )
+
+    actor: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        default=&quot;anonymous&quot;,
+        comment=&quot;操作者标识&quot;,
+    )
+    action: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        comment=&quot;动作,如 task.create / task.execute&quot;,
+    )
+    resource_type: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        comment=&quot;资源类型&quot;,
+    )
+    resource_id: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        default=None,
+        comment=&quot;资源 ID&quot;,
+    )
+    detail: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
+        comment=&quot;附加详情&quot;,
+    )
+    request_id: Mapped[str | None] = mapped_column(
+        String(64),
+</code></pre></div>
+  <div class="page-footer">第 48 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+        nullable=True,
+        default=None,
+        comment=&quot;请求追踪 ID&quot;,
+    )
+    ip_address: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        default=None,
+        comment=&quot;客户端 IP&quot;,
+    )
+    note: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default=&quot;&quot;,
+        comment=&quot;备注&quot;,
+    )
+
+    def __repr__(self) -&gt; str:
+        return f&quot;&lt;AuditLog {self.action} {self.resource_type}/{self.resource_id}&gt;&quot;
+&quot;&quot;&quot;基础 ORM 模型类,提供 UUID 主键与时间戳字段的公共基类.&quot;&quot;&quot;
+
+from datetime import datetime
+from uuid import uuid4
+
+from sqlalchemy import DateTime, String, func
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+
+class Base(DeclarativeBase):
+    &quot;&quot;&quot;所有 ORM 模型的抽象基类.&quot;&quot;&quot;
+
+    pass
+
+
+class TimestampMixin:
+    &quot;&quot;&quot;混入类,自动添加 created_at / updated_at 时间戳字段.
+
+    所有业务模型通过多重继承获得时间戳能力.
+    &quot;&quot;&quot;
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        comment=&quot;记录创建时间&quot;,
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        onupdate=func.now(),
+        nullable=True,
+        comment=&quot;记录最后更新时间&quot;,
+    )
+
+
+class PKMixin:
+    &quot;&quot;&quot;混入类,提供 UUID 字符串主键.
+
+    兼容 SQLite(开发)和 PostgreSQL(生产)两种后端.
+    &quot;&quot;&quot;
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid4()),
+        comment=&quot;UUID 主键&quot;,
+    )
+
+
+class TenantMixin:
+    &quot;&quot;&quot;Optional enterprise tenant scope (nullable for Lite / pre-migration rows).&quot;&quot;&quot;
+
+    tenant_id: Mapped[str | None] = mapped_column(
+        String(36),
+</code></pre></div>
+  <div class="page-footer">第 49 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+        nullable=True,
+        index=True,
+        default=None,
+        comment=&quot;所属租户 ID(企业多租户);空=未绑定/单租户模式&quot;,
+    )
+&quot;&quot;&quot;Industry benchmark suite models.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
+
+
+class Benchmark(PKMixin, TenantMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;Named benchmark suite (collection of cases).&quot;&quot;&quot;
+
+    __tablename__ = &quot;benchmarks&quot;
+    __table_args__ = (
+        Index(&quot;ix_benchmarks_created_by&quot;, &quot;created_by&quot;),
+        Index(&quot;ix_benchmarks_status&quot;, &quot;status&quot;),
+        Index(&quot;ix_benchmarks_tenant_created&quot;, &quot;tenant_id&quot;, &quot;created_at&quot;),
+    )
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default=&quot;&quot;)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=&quot;active&quot;
+    )  # active|archived
+    created_by: Mapped[str] = mapped_column(
+        String(100), nullable=False, default=&quot;anonymous&quot;
+    )
+    tags: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    meta: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+    cases: Mapped[list[BenchmarkCase]] = relationship(
+        back_populates=&quot;benchmark&quot;,
+        cascade=&quot;all, delete-orphan&quot;,
+        order_by=&quot;BenchmarkCase.created_at&quot;,
+    )
+    runs: Mapped[list[BenchmarkRun]] = relationship(
+        back_populates=&quot;benchmark&quot;,
+        cascade=&quot;all, delete-orphan&quot;,
+        order_by=&quot;BenchmarkRun.created_at&quot;,
+    )
+
+
+class BenchmarkCase(PKMixin, TenantMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;Single evaluation case inside a benchmark.&quot;&quot;&quot;
+
+    __tablename__ = &quot;benchmark_cases&quot;
+    __table_args__ = (
+        Index(&quot;ix_benchmark_cases_benchmark&quot;, &quot;benchmark_id&quot;),
+        Index(&quot;ix_benchmark_cases_tenant&quot;, &quot;tenant_id&quot;),
+    )
+
+    benchmark_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(&quot;benchmarks.id&quot;, ondelete=&quot;CASCADE&quot;),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False, default=&quot;&quot;)
+    user_query: Mapped[str] = mapped_column(Text, nullable=False)
+    expected_output: Mapped[str] = mapped_column(Text, nullable=False, default=&quot;&quot;)
+    expected_tools: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    weight: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    extra_metadata: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+    benchmark: Mapped[Benchmark] = relationship(back_populates=&quot;cases&quot;)
+</code></pre></div>
+  <div class="page-footer">第 50 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+
+
+class BenchmarkRun(PKMixin, TenantMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;One execution of a benchmark against an agent configuration.&quot;&quot;&quot;
+
+    __tablename__ = &quot;benchmark_runs&quot;
+    __table_args__ = (
+        Index(&quot;ix_benchmark_runs_benchmark&quot;, &quot;benchmark_id&quot;),
+        Index(&quot;ix_benchmark_runs_task&quot;, &quot;task_id&quot;),
+        Index(&quot;ix_benchmark_runs_status&quot;, &quot;status&quot;),
+        Index(&quot;ix_benchmark_runs_tenant&quot;, &quot;tenant_id&quot;),
+    )
+
+    benchmark_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(&quot;benchmarks.id&quot;, ondelete=&quot;CASCADE&quot;),
+        nullable=False,
+    )
+    task_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    label: Mapped[str] = mapped_column(
+        String(128), nullable=False, default=&quot;default&quot;
+    )  # leaderboard series key
+    agent_config: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=&quot;pending&quot;
+    )  # pending|queued|running|completed|failed
+    created_by: Mapped[str] = mapped_column(
+        String(100), nullable=False, default=&quot;anonymous&quot;
+    )
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    summary: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+    benchmark: Mapped[Benchmark] = relationship(back_populates=&quot;runs&quot;)
+    results: Mapped[list[BenchmarkResult]] = relationship(
+        back_populates=&quot;run&quot;,
+        cascade=&quot;all, delete-orphan&quot;,
+    )
+
+
+class BenchmarkResult(PKMixin, TenantMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;Per-case metrics for a benchmark run.&quot;&quot;&quot;
+
+    __tablename__ = &quot;benchmark_results&quot;
+    __table_args__ = (
+        Index(&quot;ix_benchmark_results_run&quot;, &quot;run_id&quot;),
+        Index(&quot;ix_benchmark_results_case&quot;, &quot;case_id&quot;),
+        Index(&quot;ix_benchmark_results_tenant&quot;, &quot;tenant_id&quot;),
+    )
+
+    run_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(&quot;benchmark_runs.id&quot;, ondelete=&quot;CASCADE&quot;),
+        nullable=False,
+    )
+    case_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    trace_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    accuracy: Mapped[float | None] = mapped_column(Float, nullable=True)
+    quality: Mapped[float | None] = mapped_column(Float, nullable=True)
+    latency_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    detail: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+    run: Mapped[BenchmarkRun] = relationship(back_populates=&quot;results&quot;)
+&quot;&quot;&quot;SaaS billing models: plans, subscriptions, usage, quotas, invoices.&quot;&quot;&quot;
+
+</code></pre></div>
+  <div class="page-footer">第 51 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    Index,
+    Integer,
+    JSON,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
+
+
+class BillingPlan(PKMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;Subscription plan catalog.&quot;&quot;&quot;
+
+    __tablename__ = &quot;billing_plans&quot;
+    __table_args__ = (UniqueConstraint(&quot;code&quot;, name=&quot;uq_billing_plans_code&quot;),)
+
+    code: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default=&quot;&quot;)
+    price_month_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    billing_cycle: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=&quot;monthly&quot;
+    )  # monthly | yearly
+    token_quota: Mapped[int] = mapped_column(Integer, nullable=False, default=100_000)
+    task_quota: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    storage_quota_mb: Mapped[int] = mapped_column(Integer, nullable=False, default=1024)
+    plugin_quota: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
+    features: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class Subscription(PKMixin, TenantMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;Actor/tenant subscription to a plan.&quot;&quot;&quot;
+
+    __tablename__ = &quot;subscriptions&quot;
+    __table_args__ = (
+        Index(&quot;ix_subscriptions_actor_status&quot;, &quot;actor&quot;, &quot;status&quot;),
+        Index(&quot;ix_subscriptions_tenant_status&quot;, &quot;tenant_id&quot;, &quot;status&quot;),
+    )
+
+    actor: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    plan_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=&quot;active&quot;
+    )  # active|past_due|canceled|trialing
+    period_start: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    period_end: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    external_ref: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+
+class UsageRecord(PKMixin, TenantMixin, Base):
+    &quot;&quot;&quot;Immutable usage event (token / task / judge / storage).&quot;&quot;&quot;
+
+    __tablename__ = &quot;usage_records&quot;
+    __table_args__ = (
+        Index(&quot;ix_usage_actor_created&quot;, &quot;actor&quot;, &quot;created_at&quot;),
+</code></pre></div>
+  <div class="page-footer">第 52 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+        Index(&quot;ix_usage_metric_created&quot;, &quot;metric&quot;, &quot;created_at&quot;),
+        Index(&quot;ix_usage_trace_id&quot;, &quot;trace_id&quot;),
+        Index(&quot;ix_usage_tenant_created&quot;, &quot;tenant_id&quot;, &quot;created_at&quot;),
+    )
+
+    actor: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    metric: Mapped[str] = mapped_column(
+        String(32), nullable=False
+    )  # token|task|judge|storage
+    quantity: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    unit_cost: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    ref_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    ref_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    extra: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
+class QuotaBalance(PKMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;Period-scoped counters per actor.&quot;&quot;&quot;
+
+    __tablename__ = &quot;quota_balances&quot;
+    __table_args__ = (
+        UniqueConstraint(&quot;actor&quot;, &quot;period&quot;, name=&quot;uq_quota_actor_period&quot;),
+        Index(&quot;ix_quota_actor_period&quot;, &quot;actor&quot;, &quot;period&quot;),
+    )
+
+    actor: Mapped[str] = mapped_column(String(100), nullable=False)
+    period: Mapped[str] = mapped_column(String(7), nullable=False)
+    token_used: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    token_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=100_000)
+    task_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    task_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    storage_used_mb: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    storage_limit_mb: Mapped[int] = mapped_column(Integer, nullable=False, default=1024)
+    plugin_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    plugin_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
+
+
+class Invoice(PKMixin, TenantMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;Billing period invoice (draft until payment integration).&quot;&quot;&quot;
+
+    __tablename__ = &quot;invoices&quot;
+    __table_args__ = (
+        Index(&quot;ix_invoices_actor_period&quot;, &quot;actor&quot;, &quot;period&quot;),
+        Index(&quot;ix_invoices_tenant_period&quot;, &quot;tenant_id&quot;, &quot;period&quot;),
+    )
+
+    actor: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    period: Mapped[str] = mapped_column(String(7), nullable=False)
+    amount_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=&quot;draft&quot;
+    )  # draft|open|paid|void
+    line_items: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    issued_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+&quot;&quot;&quot;Experiment models — multi-run comparison on the same test suites.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from sqlalchemy import ForeignKey, Index, JSON, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
+</code></pre></div>
+  <div class="page-footer">第 53 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+
+if TYPE_CHECKING:
+    from app.models.task import Task
+
+
+class Experiment(PKMixin, TenantMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;A comparison experiment grouping multiple evaluation runs.
+
+    Suites are snapshotted as JSON so later base-task edits do not alter
+    historical comparisons. Each run materializes a Task with cloned suites.
+    &quot;&quot;&quot;
+
+    __tablename__ = &quot;experiments&quot;
+    __table_args__ = (
+        Index(&quot;ix_experiments_created_by&quot;, &quot;created_by&quot;),
+        Index(&quot;ix_experiments_created_at&quot;, &quot;created_at&quot;),
+        Index(&quot;ix_experiments_base_task_id&quot;, &quot;base_task_id&quot;),
+        Index(&quot;ix_experiments_owner_created&quot;, &quot;created_by&quot;, &quot;created_at&quot;),
+        Index(&quot;ix_experiments_tenant_created&quot;, &quot;tenant_id&quot;, &quot;created_at&quot;),
+    )
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False, comment=&quot;实验名称&quot;)
+    description: Mapped[str] = mapped_column(
+        Text, nullable=False, default=&quot;&quot;, comment=&quot;实验描述&quot;
+    )
+    base_task_id: Mapped[str | None] = mapped_column(
+        String(36),
+        nullable=True,
+        comment=&quot;可选:套件来源任务 ID&quot;,
+    )
+    suite_snapshot: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        comment=&quot;测试用例快照 [{user_query, expected_output, expected_tools}]&quot;,
+    )
+    created_by: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        default=&quot;anonymous&quot;,
+        comment=&quot;创建者 actor&quot;,
+    )
+
+    runs: Mapped[list[ExperimentRun]] = relationship(
+        back_populates=&quot;experiment&quot;,
+        cascade=&quot;all, delete-orphan&quot;,
+        order_by=&quot;ExperimentRun.created_at&quot;,
+    )
+
+    def __repr__(self) -&gt; str:
+        return f&quot;&lt;Experiment id={self.id} name={self.name!r}&gt;&quot;
+
+
+class ExperimentRun(PKMixin, TenantMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;One evaluation run inside an experiment (maps 1:1 to a Task).&quot;&quot;&quot;
+
+    __tablename__ = &quot;experiment_runs&quot;
+    __table_args__ = (
+        UniqueConstraint(&quot;experiment_id&quot;, &quot;label&quot;, name=&quot;uq_experiment_run_label&quot;),
+        Index(&quot;ix_experiment_runs_tenant&quot;, &quot;tenant_id&quot;),
+    )
+
+    experiment_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(&quot;experiments.id&quot;, ondelete=&quot;CASCADE&quot;),
+        nullable=False,
+        index=True,
+        comment=&quot;所属实验&quot;,
+    )
+    task_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(&quot;tasks.id&quot;, ondelete=&quot;CASCADE&quot;),
+</code></pre></div>
+  <div class="page-footer">第 54 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+        nullable=False,
+        index=True,
+        comment=&quot;对应评测任务&quot;,
+    )
+    label: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        comment=&quot;变体标签,如 gpt-4o / http-agent-v1&quot;,
+    )
+    agent_config: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+        comment=&quot;该 run 使用的 agent_config 快照&quot;,
+    )
+
+    experiment: Mapped[Experiment] = relationship(back_populates=&quot;runs&quot;)
+    task: Mapped[Task] = relationship()
+
+    def __repr__(self) -&gt; str:
+        return f&quot;&lt;ExperimentRun id={self.id} label={self.label!r} task={self.task_id}&gt;&quot;
+&quot;&quot;&quot;MediaAsset — uploaded multimodal files linked to tasks/suites.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from sqlalchemy import ForeignKey, Index, Integer, JSON, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.task import Task
+    from app.models.test_suite import TestSuite
+
+
+class MediaAsset(PKMixin, TenantMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;Stored multimodal artifact with extraction results.&quot;&quot;&quot;
+
+    __tablename__ = &quot;media_assets&quot;
+    __table_args__ = (
+        Index(&quot;ix_media_assets_task_id&quot;, &quot;task_id&quot;),
+        Index(&quot;ix_media_assets_suite_id&quot;, &quot;test_suite_id&quot;),
+        Index(&quot;ix_media_assets_created_by&quot;, &quot;created_by&quot;),
+        Index(&quot;ix_media_assets_kind&quot;, &quot;media_kind&quot;),
+        Index(&quot;ix_media_assets_tenant&quot;, &quot;tenant_id&quot;),
+    )
+
+    filename: Mapped[str] = mapped_column(String(512), nullable=False)
+    content_type: Mapped[str] = mapped_column(
+        String(128), nullable=False, default=&quot;application/octet-stream&quot;
+    )
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False, default=&quot;&quot;)
+    media_kind: Mapped[str] = mapped_column(String(32), nullable=False, default=&quot;other&quot;)
+
+    storage_backend: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=&quot;local&quot;
+    )
+    storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+
+    extracted_text: Mapped[str] = mapped_column(Text, nullable=False, default=&quot;&quot;)
+    features: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True, default=None
+    )
+    extract_meta: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True, default=None
+    )
+
+    task_id: Mapped[str | None] = mapped_column(
+        String(36),
+</code></pre></div>
+  <div class="page-footer">第 55 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+        ForeignKey(&quot;tasks.id&quot;, ondelete=&quot;SET NULL&quot;),
+        nullable=True,
+    )
+    test_suite_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey(&quot;test_suites.id&quot;, ondelete=&quot;SET NULL&quot;),
+        nullable=True,
+    )
+    created_by: Mapped[str] = mapped_column(
+        String(100), nullable=False, default=&quot;anonymous&quot;
+    )
+
+    task: Mapped[Task | None] = relationship()
+    test_suite: Mapped[TestSuite | None] = relationship()
+
+    def __repr__(self) -&gt; str:
+        return (
+            f&quot;&lt;MediaAsset id={self.id} kind={self.media_kind!r} file={self.filename!r}&gt;&quot;
+        )
+&quot;&quot;&quot;MetricScore model —— 单项评分指标记录.&quot;&quot;&quot;
+
+from typing import TYPE_CHECKING
+
+from sqlalchemy import Boolean, Float, ForeignKey, Index, JSON, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.trace import Trace
+
+
+class MetricScore(PKMixin, TenantMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;评测指标得分.
+
+    记录每个 Trace 在某个指标维度(如准确率、工具调用正确性等)的评分,
+    支持 LLM 自动评分与人工审核覆盖.
+    &quot;&quot;&quot;
+
+    __tablename__ = &quot;metric_scores&quot;
+    __table_args__ = (
+        Index(&quot;ix_metric_scores_trace_metric&quot;, &quot;trace_id&quot;, &quot;metric_name&quot;),
+        Index(&quot;ix_metric_scores_human_reviewed&quot;, &quot;is_human_reviewed&quot;),
+        Index(&quot;ix_metric_scores_tenant&quot;, &quot;tenant_id&quot;),
+    )
+
+    trace_id: Mapped[str] = mapped_column(
+        ForeignKey(&quot;traces.id&quot;, ondelete=&quot;CASCADE&quot;),
+        nullable=False,
+        index=True,
+        comment=&quot;FK to trace&quot;,
+    )
+    metric_name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        comment=&quot;metric name&quot;,
+    )
+    score: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        comment=&quot;score 0-100&quot;,
+    )
+    reason: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default=&quot;&quot;,
+        comment=&quot;deduction reason&quot;,
+    )
+    extra_metadata: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
+</code></pre></div>
+  <div class="page-footer">第 56 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+        comment=&quot;extra metadata&quot;,
+    )
+
+    confidence: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+        default=None,
+        comment=&quot;LLM 评分置信度 0.0 ~ 1.0&quot;,
+    )
+
+    is_human_reviewed: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment=&quot;是否经过人工审核&quot;,
+    )
+    human_score: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+        default=None,
+        comment=&quot;人工审核给出的分数(覆盖 LLM 评分)&quot;,
+    )
+    reviewer: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        default=None,
+        comment=&quot;人工审核人员标识&quot;,
+    )
+
+    trace: Mapped[&quot;Trace&quot;] = relationship(back_populates=&quot;metric_scores&quot;)
+
+    @property
+    def effective_score(self) -&gt; float:
+        &quot;&quot;&quot;返回最终有效分数:优先使用人工审核分数.&quot;&quot;&quot;
+        if self.is_human_reviewed and self.human_score is not None:
+            return self.human_score
+        return self.score
+
+    def __repr__(self) -&gt; str:
+        return f&quot;&lt;MetricScore name={self.metric_name!r} score={self.score} reviewed={self.is_human_reviewed}&gt;&quot;
+&quot;&quot;&quot;Persisted slow-task samples for diagnostics across restarts.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlalchemy import DateTime, Float, Index, JSON, String, func
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import Base, PKMixin
+
+
+class SlowTaskEvent(PKMixin, Base):
+    &quot;&quot;&quot;One slow agent/judge/pipeline sample above configured threshold.&quot;&quot;&quot;
+
+    __tablename__ = &quot;slow_task_events&quot;
+    __table_args__ = (
+        Index(&quot;ix_slow_task_created&quot;, &quot;created_at&quot;),
+        Index(&quot;ix_slow_task_stage_created&quot;, &quot;stage&quot;, &quot;created_at&quot;),
+        Index(&quot;ix_slow_task_trace&quot;, &quot;trace_id&quot;),
+        Index(&quot;ix_slow_task_actor&quot;, &quot;actor&quot;),
+    )
+
+    stage: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    duration_sec: Mapped[float] = mapped_column(Float, nullable=False)
+    threshold_sec: Mapped[float] = mapped_column(Float, nullable=False)
+    ref_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default=&quot;ok&quot;)
+    trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    actor: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    extra: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+</code></pre></div>
+  <div class="page-footer">第 57 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+&quot;&quot;&quot;Task 任务模型 —— 表示一次评测任务的顶层聚合根.&quot;&quot;&quot;
+
+import enum
+from typing import TYPE_CHECKING
+
+from sqlalchemy import Boolean, Index, JSON, Enum, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.test_suite import TestSuite
+
+
+class TaskStatus(str, enum.Enum):
+    &quot;&quot;&quot;任务状态枚举 —— 生产级状态机.
+
+    状态流转:
+        CREATED ─► QUEUED ─► RUNNING ─► JUDGING ─► COMPLETED
+                                │          │
+                                ▼          ▼
+                             FAILED     FAILED
+                                │
+                                ▼
+                           CANCELLED / TIMEOUT
+    &quot;&quot;&quot;
+
+    CREATED = &quot;created&quot;
+    QUEUED = &quot;queued&quot;
+    RUNNING = &quot;running&quot;
+    WAITING_TOOL = &quot;waiting_tool&quot;
+    JUDGING = &quot;judging&quot;
+    COMPLETED = &quot;completed&quot;
+    FAILED = &quot;failed&quot;
+    CANCELLED = &quot;cancelled&quot;
+    TIMEOUT = &quot;timeout&quot;
+
+    @classmethod
+    def allowed_transitions(cls) -&gt; dict[&quot;TaskStatus&quot;, set[&quot;TaskStatus&quot;]]:
+        &quot;&quot;&quot;返回每个状态允许流转的目标状态集合.&quot;&quot;&quot;
+        return {
+            cls.CREATED: {cls.QUEUED, cls.CANCELLED},
+            cls.QUEUED: {cls.RUNNING, cls.CANCELLED, cls.TIMEOUT},
+            cls.RUNNING: {
+                cls.WAITING_TOOL,
+                cls.JUDGING,
+                cls.FAILED,
+                cls.CANCELLED,
+                cls.TIMEOUT,
+            },
+            cls.WAITING_TOOL: {cls.RUNNING, cls.FAILED, cls.CANCELLED, cls.TIMEOUT},
+            cls.JUDGING: {cls.COMPLETED, cls.FAILED, cls.CANCELLED},
+            cls.COMPLETED: set(),
+            cls.FAILED: set(),
+            cls.CANCELLED: set(),
+            cls.TIMEOUT: set(),
+        }
+
+    def can_transition_to(self, target: &quot;TaskStatus&quot;) -&gt; bool:
+        &quot;&quot;&quot;检查是否允许从当前状态流转到目标状态.&quot;&quot;&quot;
+        return target in self.allowed_transitions().get(self, set())
+
+
+class Task(PKMixin, TenantMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;评测任务.
+
+    一个 Task 包含多个 TestSuite 测试用例,执行时逐条运行并汇总评分.
+    &quot;&quot;&quot;
+</code></pre></div>
+  <div class="page-footer">第 58 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+
+    __tablename__ = &quot;tasks&quot;
+    __table_args__ = (
+        Index(
+            &quot;ix_tasks_owner_archived_created&quot;,
+            &quot;created_by&quot;,
+            &quot;is_archived&quot;,
+            &quot;created_at&quot;,
+        ),
+        Index(&quot;ix_tasks_status_created&quot;, &quot;status&quot;, &quot;created_at&quot;),
+        Index(&quot;ix_tasks_created_by&quot;, &quot;created_by&quot;),
+        Index(&quot;ix_tasks_celery_task_id&quot;, &quot;celery_task_id&quot;),
+        Index(&quot;ix_tasks_is_archived&quot;, &quot;is_archived&quot;),
+        Index(&quot;ix_tasks_tenant_created&quot;, &quot;tenant_id&quot;, &quot;created_at&quot;),
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment=&quot;任务名称&quot;,
+    )
+    description: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default=&quot;&quot;,
+        comment=&quot;任务描述&quot;,
+    )
+    status: Mapped[TaskStatus] = mapped_column(
+        Enum(
+            TaskStatus,
+            name=&quot;task_status&quot;,
+            native_enum=False,
+            length=20,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
+        nullable=False,
+        default=TaskStatus.CREATED,
+        index=True,
+        comment=&quot;任务状态&quot;,
+    )
+    agent_config: Mapped[dict] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+        comment=&quot;Agent 配置参数(JSON 对象)&quot;,
+    )
+    celery_task_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        default=None,
+        index=True,
+        comment=&quot;Celery 异步任务 ID,用于取消和状态追踪&quot;,
+    )
+    is_archived: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        index=True,
+        comment=&quot;是否已归档(软归档,列表默认隐藏)&quot;,
+    )
+    created_by: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        default=&quot;anonymous&quot;,
+        index=True,
+        comment=&quot;创建者 actor(API Key 映射名),用于轻量多租户隔离&quot;,
+    )
+
+    test_suites: Mapped[list[&quot;TestSuite&quot;]] = relationship(
+        back_populates=&quot;task&quot;,
+        cascade=&quot;all, delete-orphan&quot;,
+    )
+</code></pre></div>
+  <div class="page-footer">第 59 页 / 共 60 页</div>
+</div>
+
+<div class="page">
+  <div class="page-header">AgentFlow-Eval Agent自动化评测工作台 V1.0</div>
+  <div class="page-content"><pre><code>
+
+    def __repr__(self) -&gt; str:
+        return f&quot;&lt;Task id={self.id} name={self.name!r} status={self.status.value}&gt;&quot;
+
+# === End of Task Model (完整单元) ===
+&quot;&quot;&quot;Enterprise multi-tenant models: tenants + membership.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+from sqlalchemy import Index, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import Base, PKMixin, TimestampMixin
+
+
+class Tenant(PKMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;Organization / workspace boundary for SaaS and private multi-team deploys.&quot;&quot;&quot;
+
+    __tablename__ = &quot;tenants&quot;
+    __table_args__ = (
+        UniqueConstraint(&quot;slug&quot;, name=&quot;uq_tenants_slug&quot;),
+        Index(&quot;ix_tenants_status&quot;, &quot;status&quot;),
+    )
+
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    slug: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=&quot;active&quot;
+    )  # active|suspended|deleted
+    plan_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+
+    def __repr__(self) -&gt; str:
+        return f&quot;&lt;Tenant {self.slug} status={self.status}&gt;&quot;
+
+
+class TenantMember(PKMixin, TimestampMixin, Base):
+    &quot;&quot;&quot;Actor membership inside a tenant (role is tenant-scoped RBAC).&quot;&quot;&quot;
+
+    __tablename__ = &quot;tenant_members&quot;
+    __table_args__ = (
+        UniqueConstraint(&quot;tenant_id&quot;, &quot;user_id&quot;, name=&quot;uq_tenant_member&quot;),
+        Index(&quot;ix_tenant_members_user&quot;, &quot;user_id&quot;),
+        Index(&quot;ix_tenant_members_tenant_role&quot;, &quot;tenant_id&quot;, &quot;role&quot;),
+    )
+
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    role: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default=&quot;member&quot;,
+    )  # tenant_admin|manager|reviewer|member|viewer
+
+    def __repr__(self) -&gt; str:
+        return f&quot;&lt;TenantMember {self.user_id}@{self.tenant_id} role={self.role}&gt;&quot;
+&quot;&quot;&quot;Trace 模型 —— 记录 Agent 执行一次测试用例的完整轨迹.&quot;&quot;&quot;
+
+import enum
+from typing import TYPE_CHECKING
+
+from sqlalchemy import Enum, Float, ForeignKey, Index, Integer, JSON, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.metric_score import MetricScore
+    from app.models.test_suite import TestSuite
+
+
+class TraceStatus(str, enum.Enum):
+    &quot;&quot;&quot;轨迹执行状态.&quot;&quot;&quot;
+</code></pre></div>
+  <div class="page-footer">第 60 页 / 共 60 页</div>
+</div>
+
+</body>
+</html>

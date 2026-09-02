@@ -1,0 +1,3515 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8">
+<title>AgentFlow-Eval 源程序鉴别材料</title>
+<style>@page{size:A4 portrait;margin:22mm 18mm 18mm 18mm}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{font-family:'Courier New',Courier,monospace;font-size:9pt;color:#000;background:#fff}
+.pg{display:flex;flex-direction:column;height:257mm;width:174mm;page-break-after:always;break-after:page;overflow:hidden}
+.pg:last-child{page-break-after:auto}
+.hd{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:3mm;border-bottom:.5pt solid #333;margin-bottom:2mm;flex-shrink:0;font-size:9pt}
+.hd .l{font-weight:bold}
+.ca{flex:1 1 auto;margin:0;padding:0;overflow:hidden;font-family:'Courier New',Courier,monospace;font-size:9pt;line-height:1.4;white-space:pre;border:none;background:transparent}
+.ft{text-align:center;padding-top:2mm;border-top:.5pt solid #999;margin-top:2mm;flex-shrink:0;font-size:8pt;color:#555}
+.tw{padding:0}
+.tt{text-align:center;font-size:14pt;font-weight:bold;margin-bottom:6mm}
+.tm{font-size:9pt;margin-bottom:5mm;line-height:1.8}
+.tm b{display:inline-block;min-width:120pt}
+.tb{width:100%;border-collapse:collapse;font-size:7.5pt}
+.tb th,.tb td{border:.5pt solid #666;padding:2pt 3pt;text-align:left;vertical-align:top}
+.tb th{background:#eee;font-weight:bold}
+.tb .c{text-align:center}
+.tn{font-size:8pt;margin-top:4mm;color:#333;line-height:1.5}
+@media print{.pg{page-break-after:always;break-after:page}.pg:last-child{page-break-after:auto}}</style></head><body>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<div class="tw"><div class="tt">AgentFlow-Eval 源程序鉴别材料 — 目录</div>
+<div class="tm">
+<b>软件名称：</b>AgentFlow-Eval<br>
+<b>版本号：</b>V1.0.0<br>
+<b>著作权人：</b>李凯昕<br>
+<b>源程序收录文件数：</b>178<br>
+<b>本文档代码页数：</b>60<br></div>
+<table class="tb"><tr><th class="c">序号</th><th>文件相对路径</th></tr>
+<tr><td class="c">1</td><td>backend/_start_api.py</td></tr>
+<tr><td class="c">2</td><td>backend/app/__init__.py</td></tr>
+<tr><td class="c">3</td><td>backend/app/api/__init__.py</td></tr>
+<tr><td class="c">4</td><td>backend/app/api/v1/__init__.py</td></tr>
+<tr><td class="c">5</td><td>backend/app/api/v1/endpoints/__init__.py</td></tr>
+<tr><td class="c">6</td><td>backend/app/api/v1/endpoints/ab.py</td></tr>
+<tr><td class="c">7</td><td>backend/app/api/v1/endpoints/agents_http.py</td></tr>
+<tr><td class="c">8</td><td>backend/app/api/v1/endpoints/audit.py</td></tr>
+<tr><td class="c">9</td><td>backend/app/api/v1/endpoints/benchmarks.py</td></tr>
+<tr><td class="c">10</td><td>backend/app/api/v1/endpoints/billing.py</td></tr>
+<tr><td class="c">11</td><td>backend/app/api/v1/endpoints/dashboard.py</td></tr>
+<tr><td class="c">12</td><td>backend/app/api/v1/endpoints/diagnosis.py</td></tr>
+<tr><td class="c">13</td><td>backend/app/api/v1/endpoints/experiments.py</td></tr>
+<tr><td class="c">14</td><td>backend/app/api/v1/endpoints/judges.py</td></tr>
+<tr><td class="c">15</td><td>backend/app/api/v1/endpoints/logs.py</td></tr>
+<tr><td class="c">16</td><td>backend/app/api/v1/endpoints/me.py</td></tr>
+<tr><td class="c">17</td><td>backend/app/api/v1/endpoints/media.py</td></tr>
+<tr><td class="c">18</td><td>backend/app/api/v1/endpoints/observability.py</td></tr>
+<tr><td class="c">19</td><td>backend/app/api/v1/endpoints/plugins.py</td></tr>
+<tr><td class="c">20</td><td>backend/app/api/v1/endpoints/reports.py</td></tr>
+<tr><td class="c">21</td><td>backend/app/api/v1/endpoints/settings.py</td></tr>
+<tr><td class="c">22</td><td>backend/app/api/v1/endpoints/tasks.py</td></tr>
+<tr><td class="c">23</td><td>backend/app/api/v1/endpoints/tenants.py</td></tr>
+<tr><td class="c">24</td><td>backend/app/api/v1/endpoints/tools.py</td></tr>
+<tr><td class="c">25</td><td>backend/app/api/v1/endpoints/traces.py</td></tr>
+<tr><td class="c">26</td><td>backend/app/api/v1/endpoints/ws.py</td></tr>
+<tr><td class="c">27</td><td>backend/app/api/v1/router.py</td></tr>
+<tr><td class="c">28</td><td>backend/app/cli/__init__.py</td></tr>
+<tr><td class="c">29</td><td>backend/app/cli/check_prod.py</td></tr>
+<tr><td class="c">30</td><td>backend/app/config.py</td></tr>
+<tr><td class="c">31</td><td>backend/app/core/__init__.py</td></tr>
+<tr><td class="c">32</td><td>backend/app/core/ab/__init__.py</td></tr>
+<tr><td class="c">33</td><td>backend/app/core/ab/assignment.py</td></tr>
+<tr><td class="c">34</td><td>backend/app/core/ab/service.py</td></tr>
+<tr><td class="c">35</td><td>backend/app/core/ab/stats.py</td></tr>
+<tr><td class="c">36</td><td>backend/app/core/adapters/__init__.py</td></tr>
+<tr><td class="c">37</td><td>backend/app/core/adapters/bus/__init__.py</td></tr>
+<tr><td class="c">38</td><td>backend/app/core/adapters/bus/inprocess.py</td></tr>
+<tr><td class="c">39</td><td>backend/app/core/adapters/bus/redis_pubsub.py</td></tr>
+<tr><td class="c">40</td><td>backend/app/core/adapters/cache/__init__.py</td></tr>
+<tr><td class="c">41</td><td>backend/app/core/adapters/cache/memory_only.py</td></tr>
+<tr><td class="c">42</td><td>backend/app/core/adapters/cache/redis_l2.py</td></tr>
+<tr><td class="c">43</td><td>backend/app/core/adapters/metering/__init__.py</td></tr>
+<tr><td class="c">44</td><td>backend/app/core/adapters/metering/noop.py</td></tr>
+<tr><td class="c">45</td><td>backend/app/core/adapters/metering/sqlalchemy_meter.py</td></tr>
+<tr><td class="c">46</td><td>backend/app/core/adapters/queue/__init__.py</td></tr>
+<tr><td class="c">47</td><td>backend/app/core/adapters/queue/celery_queue.py</td></tr>
+<tr><td class="c">48</td><td>backend/app/core/adapters/queue/eager_queue.py</td></tr>
+<tr><td class="c">49</td><td>backend/app/core/adapters/queue/memory_queue.py</td></tr>
+<tr><td class="c">50</td><td>backend/app/core/agent_runner/__init__.py</td></tr>
+<tr><td class="c">51</td><td>backend/app/core/agent_runner/base.py</td></tr>
+<tr><td class="c">52</td><td>backend/app/core/agent_runner/factory.py</td></tr>
+<tr><td class="c">53</td><td>backend/app/core/agent_runner/http_runner.py</td></tr>
+<tr><td class="c">54</td><td>backend/app/core/agent_runner/openai_runner.py</td></tr>
+<tr><td class="c">55</td><td>backend/app/core/agent_runner/parser.py</td></tr>
+<tr><td class="c">56</td><td>backend/app/core/agent_runner/protocol.py</td></tr>
+<tr><td class="c">57</td><td>backend/app/core/agent_runner/ssrf.py</td></tr>
+<tr><td class="c">58</td><td>backend/app/core/agent_runner/tool_sandbox.py</td></tr>
+<tr><td class="c">59</td><td>backend/app/core/audit.py</td></tr>
+<tr><td class="c">60</td><td>backend/app/core/benchmark/__init__.py</td></tr>
+<tr><td class="c">61</td><td>backend/app/core/benchmark/service.py</td></tr>
+<tr><td class="c">62</td><td>backend/app/core/billing/__init__.py</td></tr>
+<tr><td class="c">63</td><td>backend/app/core/billing/service.py</td></tr>
+<tr><td class="c">64</td><td>backend/app/core/billing/stripe_checkout.py</td></tr>
+<tr><td class="c">65</td><td>backend/app/core/cache/__init__.py</td></tr>
+<tr><td class="c">66</td><td>backend/app/core/cache/client.py</td></tr>
+<tr><td class="c">67</td><td>backend/app/core/cache/decorators.py</td></tr>
+<tr><td class="c">68</td><td>backend/app/core/cache/invalidation.py</td></tr>
+<tr><td class="c">69</td><td>backend/app/core/cache/keys.py</td></tr>
+<tr><td class="c">70</td><td>backend/app/core/cache/services.py</td></tr>
+<tr><td class="c">71</td><td>backend/app/core/cache/warmup.py</td></tr>
+<tr><td class="c">72</td><td>backend/app/core/celery_app/__init__.py</td></tr>
+<tr><td class="c">73</td><td>backend/app/core/celery_app/celery.py</td></tr>
+<tr><td class="c">74</td><td>backend/app/core/celery_app/tasks.py</td></tr>
+<tr><td class="c">75</td><td>backend/app/core/db/__init__.py</td></tr>
+<tr><td class="c">76</td><td>backend/app/core/db/queries.py</td></tr>
+<tr><td class="c">77</td><td>backend/app/core/dependencies.py</td></tr>
+<tr><td class="c">78</td><td>backend/app/core/diagnosis/__init__.py</td></tr>
+<tr><td class="c">79</td><td>backend/app/core/diagnosis/engine.py</td></tr>
+<tr><td class="c">80</td><td>backend/app/core/evaluation/__init__.py</td></tr>
+<tr><td class="c">81</td><td>backend/app/core/evaluation/compare.py</td></tr>
+<tr><td class="c">82</td><td>backend/app/core/evaluation/pipeline.py</td></tr>
+<tr><td class="c">83</td><td>backend/app/core/events.py</td></tr>
+<tr><td class="c">84</td><td>backend/app/core/judge_engine/__init__.py</td></tr>
+<tr><td class="c">85</td><td>backend/app/core/judge_engine/base.py</td></tr>
+<tr><td class="c">86</td><td>backend/app/core/judge_engine/llm_judge.py</td></tr>
+<tr><td class="c">87</td><td>backend/app/core/judge_engine/metrics.py</td></tr>
+<tr><td class="c">88</td><td>backend/app/core/judge_engine/scorecard.py</td></tr>
+<tr><td class="c">89</td><td>backend/app/core/middleware.py</td></tr>
+<tr><td class="c">90</td><td>backend/app/core/multimodal/__init__.py</td></tr>
+<tr><td class="c">91</td><td>backend/app/core/multimodal/evaluator.py</td></tr>
+<tr><td class="c">92</td><td>backend/app/core/multimodal/extractors/__init__.py</td></tr>
+<tr><td class="c">93</td><td>backend/app/core/multimodal/extractors/image.py</td></tr>
+<tr><td class="c">94</td><td>backend/app/core/multimodal/extractors/pdf.py</td></tr>
+<tr><td class="c">95</td><td>backend/app/core/multimodal/extractors/spreadsheet.py</td></tr>
+<tr><td class="c">96</td><td>backend/app/core/multimodal/extractors/text.py</td></tr>
+<tr><td class="c">97</td><td>backend/app/core/multimodal/registry.py</td></tr>
+<tr><td class="c">98</td><td>backend/app/core/multimodal/storage.py</td></tr>
+<tr><td class="c">99</td><td>backend/app/core/multimodal/types.py</td></tr>
+<tr><td class="c">100</td><td>backend/app/core/observability/__init__.py</td></tr>
+<tr><td class="c">101</td><td>backend/app/core/observability/aols/__init__.py</td></tr>
+<tr><td class="c">102</td><td>backend/app/core/observability/aols/context.py</td></tr>
+<tr><td class="c">103</td><td>backend/app/core/observability/aols/emit.py</td></tr>
+<tr><td class="c">104</td><td>backend/app/core/observability/aols/events.py</td></tr>
+<tr><td class="c">105</td><td>backend/app/core/observability/aols/logger.py</td></tr>
+<tr><td class="c">106</td><td>backend/app/core/observability/aols/redaction.py</td></tr>
+<tr><td class="c">107</td><td>backend/app/core/observability/aols/sinks/__init__.py</td></tr>
+<tr><td class="c">108</td><td>backend/app/core/observability/aols/sinks/db.py</td></tr>
+<tr><td class="c">109</td><td>backend/app/core/observability/business_kpis.py</td></tr>
+<tr><td class="c">110</td><td>backend/app/core/observability/metrics.py</td></tr>
+<tr><td class="c">111</td><td>backend/app/core/observability/slow_tasks.py</td></tr>
+<tr><td class="c">112</td><td>backend/app/core/observability/timeseries.py</td></tr>
+<tr><td class="c">113</td><td>backend/app/core/observability/tracing.py</td></tr>
+<tr><td class="c">114</td><td>backend/app/core/plugins/__init__.py</td></tr>
+<tr><td class="c">115</td><td>backend/app/core/plugins/base.py</td></tr>
+<tr><td class="c">116</td><td>backend/app/core/plugins/commerce.py</td></tr>
+<tr><td class="c">117</td><td>backend/app/core/plugins/entitlement.py</td></tr>
+<tr><td class="c">118</td><td>backend/app/core/plugins/hooks.py</td></tr>
+<tr><td class="c">119</td><td>backend/app/core/plugins/loader.py</td></tr>
+<tr><td class="c">120</td><td>backend/app/core/plugins/manager.py</td></tr>
+<tr><td class="c">121</td><td>backend/app/core/plugins/market.py</td></tr>
+<tr><td class="c">122</td><td>backend/app/core/plugins/registry.py</td></tr>
+<tr><td class="c">123</td><td>backend/app/core/plugins/sandbox.py</td></tr>
+<tr><td class="c">124</td><td>backend/app/core/plugins/signature.py</td></tr>
+<tr><td class="c">125</td><td>backend/app/core/plugins/versioning.py</td></tr>
+<tr><td class="c">126</td><td>backend/app/core/ports/__init__.py</td></tr>
+<tr><td class="c">127</td><td>backend/app/core/ports/cache.py</td></tr>
+<tr><td class="c">128</td><td>backend/app/core/ports/event_bus.py</td></tr>
+<tr><td class="c">129</td><td>backend/app/core/ports/metering.py</td></tr>
+<tr><td class="c">130</td><td>backend/app/core/ports/task_queue.py</td></tr>
+<tr><td class="c">131</td><td>backend/app/core/profiles/__init__.py</td></tr>
+<tr><td class="c">132</td><td>backend/app/core/rbac.py</td></tr>
+<tr><td class="c">133</td><td>backend/app/core/resilience/__init__.py</td></tr>
+<tr><td class="c">134</td><td>backend/app/core/resilience/circuit_breaker.py</td></tr>
+<tr><td class="c">135</td><td>backend/app/core/resilience/policy.py</td></tr>
+<tr><td class="c">136</td><td>backend/app/core/resilience/retry.py</td></tr>
+<tr><td class="c">137</td><td>backend/app/core/resilience/timeout.py</td></tr>
+<tr><td class="c">138</td><td>backend/app/core/security.py</td></tr>
+<tr><td class="c">139</td><td>backend/app/core/seed.py</td></tr>
+<tr><td class="c">140</td><td>backend/app/core/settings_guard.py</td></tr>
+<tr><td class="c">141</td><td>backend/app/core/tenancy.py</td></tr>
+<tr><td class="c">142</td><td>backend/app/core/tenant_context.py</td></tr>
+<tr><td class="c">143</td><td>backend/app/core/ws_hub.py</td></tr>
+<tr><td class="c">144</td><td>backend/app/main.py</td></tr>
+<tr><td class="c">145</td><td>backend/app/models/__init__.py</td></tr>
+<tr><td class="c">146</td><td>backend/app/models/ab_test.py</td></tr>
+<tr><td class="c">147</td><td>backend/app/models/agent_log.py</td></tr>
+<tr><td class="c">148</td><td>backend/app/models/audit_log.py</td></tr>
+<tr><td class="c">149</td><td>backend/app/models/base.py</td></tr>
+<tr><td class="c">150</td><td>backend/app/models/benchmark.py</td></tr>
+<tr><td class="c">151</td><td>backend/app/models/billing.py</td></tr>
+<tr><td class="c">152</td><td>backend/app/models/experiment.py</td></tr>
+<tr><td class="c">153</td><td>backend/app/models/media_asset.py</td></tr>
+<tr><td class="c">154</td><td>backend/app/models/metric_score.py</td></tr>
+<tr><td class="c">155</td><td>backend/app/models/slow_task.py</td></tr>
+<tr><td class="c">156</td><td>backend/app/models/task.py</td></tr>
+<tr><td class="c">157</td><td>backend/app/models/tenant.py</td></tr>
+<tr><td class="c">158</td><td>backend/app/models/test_suite.py</td></tr>
+<tr><td class="c">159</td><td>backend/app/models/trace.py</td></tr>
+<tr><td class="c">160</td><td>backend/app/plugins/__init__.py</td></tr>
+<tr><td class="c">161</td><td>backend/app/plugins/examples/__init__.py</td></tr>
+<tr><td class="c">162</td><td>backend/app/plugins/examples/audit_hooks.py</td></tr>
+<tr><td class="c">163</td><td>backend/app/plugins/examples/echo_runner.py</td></tr>
+<tr><td class="c">164</td><td>backend/app/plugins/examples/echo_tool.py</td></tr>
+<tr><td class="c">165</td><td>backend/app/plugins/examples/length_judge.py</td></tr>
+<tr><td class="c">166</td><td>backend/app/schemas/__init__.py</td></tr>
+<tr><td class="c">167</td><td>backend/app/schemas/ab_test.py</td></tr>
+<tr><td class="c">168</td><td>backend/app/schemas/experiment.py</td></tr>
+<tr><td class="c">169</td><td>backend/app/schemas/media.py</td></tr>
+<tr><td class="c">170</td><td>backend/app/schemas/task.py</td></tr>
+<tr><td class="c">171</td><td>backend/app/schemas/trace.py</td></tr>
+<tr><td class="c">172</td><td>backend/app/utils/__init__.py</td></tr>
+<tr><td class="c">173</td><td>backend/app/utils/cost.py</td></tr>
+<tr><td class="c">174</td><td>backend/app/utils/exceptions.py</td></tr>
+<tr><td class="c">175</td><td>backend/app/utils/logger.py</td></tr>
+<tr><td class="c">176</td><td>backend/scripts/backfill_created_by.py</td></tr>
+<tr><td class="c">177</td><td>backend/scripts/export_openapi.py</td></tr>
+<tr><td class="c">178</td><td>backend/scripts_local_api_test.py</td></tr>
+</table>
+<div class="tn">前30页+后30页，共60页。</div>
+</div><div class="ft">目录</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+// ==== FILE: backend/_start_api.py ====
+﻿import os, subprocess, sys
+from pathlib import Path
+env = os.environ.copy()
+# parse .env.docker
+p = Path(&quot;backend/.env.docker&quot;) if Path(&quot;backend/.env.docker&quot;).exists() else Path(&quot;.env.docker&quot;)
+for line in p.read_text(encoding=&quot;utf-8&quot;).splitlines():
+line=line.strip()
+if not line or line.startswith(&quot;#&quot;) or &quot;=&quot; not in line: continue
+k,v=line.split(&quot;=&quot;,1)
+env[k.strip()]=v.strip()
+# force host connectivity to docker published ports
+pu=env.get(&quot;POSTGRES_USER&quot;,&quot;agentflow&quot;)
+pp=env.get(&quot;POSTGRES_PASSWORD&quot;,&quot;&quot;)
+pd=env.get(&quot;POSTGRES_DB&quot;,&quot;agentflow_eval&quot;)
+env[&quot;DATABASE_URL&quot;]=f&quot;postgresql+asyncpg://{pu}:{pp}@127.0.0.1:5432/{pd}&quot;
+env[&quot;REDIS_URL&quot;]=&quot;redis://127.0.0.1:6379/0&quot;
+env[&quot;CELERY_BROKER_URL&quot;]=env[&quot;REDIS_URL&quot;]
+env[&quot;CELERY_RESULT_BACKEND&quot;]=env[&quot;REDIS_URL&quot;]
+env[&quot;CELERY_TASK_ALWAYS_EAGER&quot;]=&quot;true&quot;
+env[&quot;TASK_QUEUE_BACKEND&quot;]=&quot;eager&quot;
+env[&quot;DEPLOY_PROFILE&quot;]=&quot;lite&quot;
+env[&quot;ENV&quot;]=&quot;dev&quot;
+env[&quot;DEBUG&quot;]=&quot;true&quot;
+env[&quot;AUTH_ENABLED&quot;]=&quot;false&quot;
+env[&quot;BILLING_ENABLED&quot;]=&quot;false&quot;
+env[&quot;LOG_DB_SINK&quot;]=&quot;true&quot;
+env[&quot;PYTHONPATH&quot;]=str(Path(&quot;.&quot;).resolve())
+os.chdir(str(Path(&quot;.&quot;).resolve()))
+log=open(&quot;uvicorn_docker_db.log&quot;,&quot;w&quot;,encoding=&quot;utf-8&quot;)
+proc=subprocess.Popen([sys.executable,&quot;-m&quot;,&quot;uvicorn&quot;,&quot;app.main:app&quot;,&quot;--host&quot;,&quot;127.0.0.1&quot;,&quot;--port&quot;,&quot;8000&quot;], env=env, stdout=log, stderr=subprocess.STDOUT)
+print(proc.pid)
+// ==== FILE: backend/app/__init__.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;AgentFlow-Eval 后端应用包。&quot;&quot;&quot;
+// ==== FILE: backend/app/api/v1/endpoints/ab.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Online A/B testing REST API.&quot;&quot;&quot;
+from __future__ import annotations
+from typing import Any
+from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from app.core.ab import service as ab_service
+from app.core.ab.service import utcnow
+from app.core.audit import write_audit
+from app.core.dependencies import get_db
+from app.core.rbac import Permission, require_permission
+from app.models.ab_test import ABExperiment, ABStatus, ABVariant
+</pre>
+<div class="ft">第 1 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+from app.schemas.ab_test import (
+ABAssignRequest,
+ABAssignResponse,
+ABExperimentCreate,
+ABExperimentListResponse,
+ABExperimentResponse,
+ABSampleSizeRequest,
+ABStatusUpdate,
+ABTrackRequest,
+ABVariantCreate,
+ABVariantResponse,
+)
+from app.utils.exceptions import BusinessError, NotFoundError
+router = APIRouter()
+def _actor(request: Request) -&amp;gt; str:
+return getattr(request.state, &quot;actor&quot;, None) or &quot;anonymous&quot;
+def _to_response(exp: ABExperiment) -&amp;gt; ABExperimentResponse:
+return ABExperimentResponse(
+id=exp.id,
+key=exp.key,
+name=exp.name,
+description=exp.description or &quot;&quot;,
+status=exp.status,
+alpha=float(exp.alpha or 0.05),
+min_sample_size=int(exp.min_sample_size or 100),
+primary_metric=exp.primary_metric or &quot;conversion&quot;,
+control_variant_key=exp.control_variant_key,
+source_experiment_id=exp.source_experiment_id,
+config=exp.config or {},
+created_by=exp.created_by or &quot;anonymous&quot;,
+started_at=exp.started_at,
+ended_at=exp.ended_at,
+winner_variant_key=exp.winner_variant_key,
+created_at=exp.created_at,
+variants=[
+ABVariantResponse(
+id=v.id,
+key=v.key,
+name=v.name or v.key,
+weight=float(v.weight or 1),
+is_control=bool(v.is_control),
+payload=v.payload or {},
+description=v.description or &quot;&quot;,
+)
+for v in (exp.variants or [])
+],
+)
+@router.post(&quot;&quot;, response_model=ABExperimentResponse, status_code=201)
+@require_permission(Permission.TASK_CREATE)
+async def create_ab_experiment(
+</pre>
+<div class="ft">第 2 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+body: ABExperimentCreate,
+request: Request,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; ABExperimentResponse:
+&quot;&quot;&quot;Create an online A/B experiment with ≥2 variants.&quot;&quot;&quot;
+actor = _actor(request)
+existing = (
+await session.execute(select(ABExperiment).where(ABExperiment.key == body.key))
+).scalar_one_or_none()
+if existing:
+raise BusinessError(f&quot;Experiment key already exists: {body.key}&quot;)
+controls = [v for v in body.variants if v.is_control]
+control_key = controls[0].key if controls else body.variants[0].key
+exp = ABExperiment(
+key=body.key,
+name=body.name,
+description=body.description or &quot;&quot;,
+status=ABStatus.RUNNING.value
+if body.start_immediately
+else ABStatus.DRAFT.value,
+alpha=body.alpha,
+min_sample_size=body.min_sample_size,
+primary_metric=body.primary_metric,
+control_variant_key=control_key,
+source_experiment_id=body.source_experiment_id,
+config=body.config or {},
+created_by=actor,
+started_at=utcnow() if body.start_immediately else None,
+)
+session.add(exp)
+await session.flush()
+for i, v in enumerate(body.variants):
+is_ctrl = v.is_control or (not controls and i == 0)
+session.add(
+ABVariant(
+experiment_id=exp.id,
+key=v.key,
+name=v.name or v.key,
+weight=v.weight,
+is_control=is_ctrl,
+payload=v.payload or {},
+description=v.description or &quot;&quot;,
+)
+)
+await write_audit(
+session,
+action=&quot;ab.create&quot;,
+resource_type=&quot;ab_experiment&quot;,
+resource_id=exp.id,
+actor=actor,
+</pre>
+<div class="ft">第 3 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+detail={&quot;key&quot;: body.key, &quot;variants&quot;: [v.key for v in body.variants]},
+)
+await session.commit()
+exp = await ab_service.get_experiment_by_id(session, exp.id)
+return _to_response(exp)
+@router.get(&quot;&quot;, response_model=ABExperimentListResponse)
+@require_permission(Permission.TASK_READ)
+async def list_ab_experiments(
+request: Request,
+page: int = Query(1, ge=1),
+page_size: int = Query(20, ge=1, le=100),
+status: str | None = Query(None),
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; ABExperimentListResponse:
+actor = _actor(request)
+q = select(ABExperiment).options(selectinload(ABExperiment.variants))
+cq = select(func.count(ABExperiment.id))
+from app.core.tenancy import is_admin, tenancy_enforced
+if tenancy_enforced() and not is_admin(actor):
+q = q.where(ABExperiment.created_by == actor)
+cq = cq.where(ABExperiment.created_by == actor)
+if status:
+q = q.where(ABExperiment.status == status)
+cq = cq.where(ABExperiment.status == status)
+total = int((await session.execute(cq)).scalar() or 0)
+rows = (
+(
+await session.execute(
+q.order_by(ABExperiment.created_at.desc())
+.offset((page - 1) * page_size)
+.limit(page_size)
+)
+)
+.scalars()
+.all()
+)
+return ABExperimentListResponse(
+items=[_to_response(r) for r in rows],
+total=total,
+page=page,
+page_size=page_size,
+)
+@router.post(&quot;/sample-size&quot;)
+@require_permission(Permission.TASK_READ)
+async def sample_size(
+body: ABSampleSizeRequest,
+request: Request,
+) -&amp;gt; dict[str, Any]:
+&quot;&quot;&quot;Recommend per-variant sample size for conversion-rate A/B tests.&quot;&quot;&quot;
+return await ab_service.recommend_sample_size(
+</pre>
+<div class="ft">第 4 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+baseline_rate=body.baseline_rate,
+mde=body.mde,
+alpha=body.alpha,
+power=body.power,
+)
+@router.post(
+&quot;/from-offline/{experiment_id}&quot;,
+response_model=ABExperimentResponse,
+status_code=201,
+)
+@require_permission(Permission.TASK_CREATE)
+async def create_ab_from_offline_experiment(
+experiment_id: str,
+request: Request,
+key: str = Query(..., min_length=1, max_length=100),
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; ABExperimentResponse:
+&quot;&quot;&quot;Promote an offline Experiment's runs into an online A/B draft.&quot;&quot;&quot;
+from app.models.experiment import Experiment
+actor = _actor(request)
+offline = (
+await session.execute(
+select(Experiment)
+.options(selectinload(Experiment.runs))
+.where(Experiment.id == experiment_id)
+)
+).scalar_one_or_none()
+if offline is None:
+raise NotFoundError(&quot;Experiment&quot;, experiment_id)
+if not offline.runs or len(offline.runs) &amp;lt; 2:
+raise BusinessError(&quot;Offline experiment needs at least 2 runs to create A/B&quot;)
+existing = (
+await session.execute(select(ABExperiment).where(ABExperiment.key == key))
+).scalar_one_or_none()
+if existing:
+raise BusinessError(f&quot;Experiment key already exists: {key}&quot;)
+variants = [
+ABVariantCreate(
+key=r.label,
+name=r.label,
+weight=1.0,
+is_control=(i == 0),
+payload={&quot;agent_config&quot;: r.agent_config or {}},
+)
+for i, r in enumerate(offline.runs)
+]
+exp = ABExperiment(
+key=key,
+name=f&quot;AB from {offline.name}&quot;,
+description=f&quot;Promoted from offline experiment {offline.id}&quot;,
+</pre>
+<div class="ft">第 5 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+status=ABStatus.DRAFT.value,
+control_variant_key=variants[0].key,
+source_experiment_id=offline.id,
+created_by=actor,
+config={},
+)
+session.add(exp)
+await session.flush()
+for i, v in enumerate(variants):
+session.add(
+ABVariant(
+experiment_id=exp.id,
+key=v.key,
+name=v.name,
+weight=v.weight,
+is_control=v.is_control or i == 0,
+payload=v.payload,
+)
+)
+await session.commit()
+exp = await ab_service.get_experiment_by_id(session, exp.id)
+return _to_response(exp)
+@router.get(&quot;/{experiment_id}&quot;, response_model=ABExperimentResponse)
+@require_permission(Permission.TASK_READ)
+async def get_ab_experiment(
+experiment_id: str,
+request: Request,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; ABExperimentResponse:
+exp = await ab_service.get_experiment_by_id(session, experiment_id)
+return _to_response(exp)
+@router.patch(&quot;/{experiment_id}/status&quot;, response_model=ABExperimentResponse)
+@require_permission(Permission.TASK_UPDATE)
+async def update_ab_status(
+experiment_id: str,
+body: ABStatusUpdate,
+request: Request,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; ABExperimentResponse:
+exp = await ab_service.get_experiment_by_id(session, experiment_id)
+new_status = body.status
+if new_status == ABStatus.RUNNING.value and exp.status != ABStatus.RUNNING.value:
+exp.started_at = exp.started_at or utcnow()
+exp.ended_at = None
+if new_status in {ABStatus.COMPLETED.value, ABStatus.ARCHIVED.value}:
+exp.ended_at = utcnow()
+exp.status = new_status
+await session.commit()
+exp = await ab_service.get_experiment_by_id(session, experiment_id)
+return _to_response(exp)
+</pre>
+<div class="ft">第 6 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+@router.post(&quot;/{experiment_key}/assign&quot;, response_model=ABAssignResponse)
+@require_permission(Permission.TASK_READ)
+async def assign_unit(
+experiment_key: str,
+body: ABAssignRequest,
+request: Request,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; ABAssignResponse:
+&quot;&quot;&quot;Sticky assign a unit to a variant (and optionally log exposure).&quot;&quot;&quot;
+payload = await ab_service.assign(
+session,
+experiment_key=experiment_key,
+unit_id=body.unit_id,
+context=body.context,
+record_exposure=body.record_exposure,
+)
+return ABAssignResponse(**payload)
+@router.post(&quot;/{experiment_key}/track&quot;)
+@require_permission(Permission.TASK_UPDATE)
+async def track_event(
+experiment_key: str,
+body: ABTrackRequest,
+request: Request,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+&quot;&quot;&quot;Track exposure / conversion / metric for a unit.&quot;&quot;&quot;
+return await ab_service.track_event(
+session,
+experiment_key=experiment_key,
+unit_id=body.unit_id,
+event_type=body.event_type,
+metric_name=body.metric_name,
+metric_value=body.metric_value,
+properties=body.properties,
+auto_assign=body.auto_assign,
+)
+@router.get(&quot;/{experiment_id}/results&quot;)
+@require_permission(Permission.EVALUATION_READ)
+async def ab_results(
+experiment_id: str,
+request: Request,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+&quot;&quot;&quot;Statistical analysis: conversion rates, lift, p-values, optional winner.&quot;&quot;&quot;
+return await ab_service.analyze(session, experiment_id)
+// ==== FILE: backend/app/api/v1/endpoints/agents_http.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;HTTP Agent product APIs — contract docs + probe (Phase 1).&quot;&quot;&quot;
+from __future__ import annotations
+import time
+</pre>
+<div class="ft">第 7 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+from typing import Any
+import httpx
+from fastapi import APIRouter, Request
+from pydantic import BaseModel, Field
+from app.config import settings
+from app.core.agent_runner.protocol import (
+PROTOCOL_VERSION,
+build_http_request_payload,
+coerce_http_response,
+failed_http_result,
+)
+from app.core.agent_runner.ssrf import SsrfBlockedError, validate_http_agent_url
+from app.core.rbac import Permission, require_permission
+router = APIRouter()
+class HttpAgentProbeRequest(BaseModel):
+&quot;&quot;&quot;Probe an external HTTP agent endpoint.&quot;&quot;&quot;
+endpoint_url: str = Field(..., min_length=1, description=&quot;Absolute http(s) URL&quot;)
+timeout_sec: float = Field(default=10.0, ge=1.0, le=120.0)
+headers: dict[str, str] = Field(default_factory=dict)
+method: str = Field(default=&quot;POST&quot;)
+query: str = Field(default=&quot;ping&quot;, description=&quot;Probe query string&quot;)
+context: dict[str, Any] = Field(default_factory=dict)
+verify_ssl: bool = True
+class HttpAgentProbeResponse(BaseModel):
+&quot;&quot;&quot;Probe result — always JSON (use ok/reachable for UX, not only HTTP status).&quot;&quot;&quot;
+ok: bool = False
+reachable: bool = False
+protocol_compatible: bool = False
+ssrf_blocked: bool = False
+latency_ms: int | None = None
+http_status: int | None = None
+endpoint: str = &quot;&quot;
+protocol_version: str = PROTOCOL_VERSION
+final_answer_preview: str = &quot;&quot;
+steps_count: int = 0
+normalized_status: str = &quot;&quot;
+error: str | None = None
+detail: dict[str, Any] = Field(default_factory=dict)
+@router.get(&quot;/contract&quot;)
+@require_permission(Permission.TASK_READ)
+async def http_agent_contract(request: Request) -&amp;gt; dict[str, Any]:
+&quot;&quot;&quot;Return agentflow.http.v1 contract summary for UI / integrators.&quot;&quot;&quot;
+return {
+&quot;protocol_version&quot;: PROTOCOL_VERSION,
+&quot;request&quot;: {
+&quot;method&quot;: &quot;POST&quot;,
+&quot;content_type&quot;: &quot;application/json&quot;,
+&quot;body&quot;: {
+&quot;protocol_version&quot;: PROTOCOL_VERSION,
+&quot;query&quot;: &quot;string&quot;,
+</pre>
+<div class="ft">第 8 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+&quot;tools&quot;: [&quot;string&quot;],
+&quot;context&quot;: {},
+&quot;meta&quot;: {},
+},
+},
+&quot;response_accepted&quot;: [
+{
+&quot;name&quot;: &quot;full&quot;,
+&quot;example&quot;: {
+&quot;status&quot;: &quot;success&quot;,
+&quot;final_answer&quot;: &quot;...&quot;,
+&quot;steps&quot;: [],
+&quot;total_tokens&quot;: 0,
+&quot;response_time_ms&quot;: 0,
+},
+},
+{&quot;name&quot;: &quot;short&quot;, &quot;example&quot;: {&quot;answer&quot;: &quot;...&quot;}},
+{&quot;name&quot;: &quot;plain_text&quot;, &quot;example&quot;: &quot;raw answer body&quot;},
+],
+&quot;agent_config_fields&quot;: {
+&quot;runner&quot;: &quot;http | http_agent | remote | webhook&quot;,
+&quot;endpoint_url&quot;: &quot;https://agent.example.com/v1/invoke&quot;,
+&quot;timeout_sec&quot;: 60,
+&quot;headers&quot;: {&quot;Authorization&quot;: &quot;Bearer ...&quot;},
+&quot;method&quot;: &quot;POST&quot;,
+&quot;context&quot;: {},
+&quot;verify_ssl&quot;: True,
+},
+&quot;docs&quot;: &quot;docs/http-agent-protocol.md&quot;,
+}
+@router.post(&quot;/probe&quot;, response_model=HttpAgentProbeResponse)
+@require_permission(Permission.TASK_CREATE, Permission.TASK_EXECUTE)
+async def probe_http_agent(
+body: HttpAgentProbeRequest,
+request: Request,
+) -&amp;gt; HttpAgentProbeResponse:
+&quot;&quot;&quot;Probe an external HTTP agent: SSRF check, reachability, protocol normalize.&quot;&quot;&quot;
+allow_private = bool(getattr(settings, &quot;HTTP_AGENT_ALLOW_PRIVATE_IP&quot;, False))
+endpoint = (body.endpoint_url or &quot;&quot;).strip()
+try:
+endpoint = validate_http_agent_url(endpoint, allow_private=allow_private)
+except SsrfBlockedError as exc:
+return HttpAgentProbeResponse(
+ok=False,
+reachable=False,
+protocol_compatible=False,
+ssrf_blocked=True,
+endpoint=endpoint or body.endpoint_url,
+error=str(exc),
+detail={&quot;code&quot;: &quot;ssrf_blocked&quot;},
+</pre>
+<div class="ft">第 9 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+)
+method = (body.method or &quot;POST&quot;).upper()
+payload = build_http_request_payload(
+body.query or &quot;ping&quot;,
+tools=[],
+context=body.context or {},
+meta={&quot;probe&quot;: True},
+)
+headers = {&quot;Content-Type&quot;: &quot;application/json&quot;, **(body.headers or {})}
+t0 = time.monotonic()
+try:
+async with httpx.AsyncClient(
+timeout=float(body.timeout_sec),
+verify=bool(body.verify_ssl),
+) as client:
+resp = await client.request(
+method,
+endpoint,
+json=payload if method in {&quot;POST&quot;, &quot;PUT&quot;, &quot;PATCH&quot;} else None,
+params=payload if method == &quot;GET&quot; else None,
+headers=headers,
+)
+latency = int((time.monotonic() - t0) * 1000)
+except httpx.TimeoutException as exc:
+return HttpAgentProbeResponse(
+ok=False,
+reachable=False,
+protocol_compatible=False,
+latency_ms=int((time.monotonic() - t0) * 1000),
+endpoint=endpoint,
+error=f&quot;Timeout after {body.timeout_sec}s: {exc}&quot;,
+detail={&quot;code&quot;: &quot;timeout&quot;},
+)
+except httpx.HTTPError as exc:
+return HttpAgentProbeResponse(
+ok=False,
+reachable=False,
+protocol_compatible=False,
+latency_ms=int((time.monotonic() - t0) * 1000),
+endpoint=endpoint,
+error=f&quot;HTTP request failed: {exc}&quot;,
+detail={&quot;code&quot;: &quot;http_error&quot;},
+)
+# Normalize via Phase-0 protocol
+if resp.status_code &amp;gt;= 400:
+normalized = failed_http_result(
+query=body.query or &quot;ping&quot;,
+error=f&quot;HTTP {resp.status_code}: {(resp.text or '')[:300]}&quot;,
+elapsed_ms=latency,
+endpoint=endpoint,
+</pre>
+<div class="ft">第 10 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+)
+return HttpAgentProbeResponse(
+ok=False,
+reachable=True,
+protocol_compatible=False,
+latency_ms=latency,
+http_status=resp.status_code,
+endpoint=endpoint,
+error=normalized.get(&quot;error_message&quot;) or f&quot;HTTP {resp.status_code}&quot;,
+normalized_status=&quot;failed&quot;,
+detail={&quot;code&quot;: &quot;http_status&quot;, &quot;body_preview&quot;: (resp.text or &quot;&quot;)[:200]},
+)
+ct = (resp.headers.get(&quot;content-type&quot;) or &quot;&quot;).lower()
+data: Any
+if &quot;application/json&quot; in ct or (resp.text or &quot;&quot;).lstrip().startswith((&quot;{&quot;, &quot;[&quot;)):
+try:
+data = resp.json()
+except ValueError:
+data = {&quot;answer&quot;: resp.text}
+else:
+data = {&quot;answer&quot;: resp.text or &quot;&quot;}
+normalized = coerce_http_response(
+data, query=body.query or &quot;ping&quot;, elapsed_ms=latency, endpoint=endpoint
+)
+status = str(normalized.get(&quot;status&quot;) or &quot;&quot;)
+final = str(normalized.get(&quot;final_answer&quot;) or &quot;&quot;)
+steps = normalized.get(&quot;steps&quot;) or []
+# Compatible if we got success (or max_iter) with any answer/steps structure
+compatible = status in {&quot;success&quot;, &quot;max_iterations_reached&quot;} and (
+bool(final) or bool(steps)
+)
+# Also accept failed with structured body as &quot;reachable + protocol parseable&quot;
+parseable = bool(normalized.get(&quot;runner&quot;) == &quot;http&quot;)
+return HttpAgentProbeResponse(
+ok=compatible,
+reachable=True,
+protocol_compatible=compatible or parseable,
+latency_ms=latency,
+http_status=resp.status_code,
+endpoint=endpoint,
+final_answer_preview=final[:200],
+steps_count=len(steps) if isinstance(steps, list) else 0,
+normalized_status=status,
+error=None if compatible else (normalized.get(&quot;error_message&quot;) or &quot;No usable answer&quot;),
+detail={
+&quot;code&quot;: &quot;ok&quot; if compatible else &quot;protocol_partial&quot;,
+&quot;total_tokens&quot;: normalized.get(&quot;total_tokens&quot;),
+},
+)
+// ==== FILE: backend/app/api/v1/endpoints/audit.py ====
+</pre>
+<div class="ft">第 11 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Audit log query API.&quot;&quot;&quot;
+from __future__ import annotations
+from typing import Any
+from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.dependencies import get_db
+from app.core.rbac import Permission, require_permission
+from app.models.audit_log import AuditLog
+router = APIRouter()
+@router.get(&quot;&quot;)
+@require_permission(Permission.AUDIT_READ)
+async def list_audit_logs(
+request: Request,
+page: int = Query(1, ge=1),
+page_size: int = Query(20, ge=1, le=100),
+action: str | None = Query(None, description=&quot;Filter by action&quot;),
+resource_type: str | None = Query(None),
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+&quot;&quot;&quot;List recent audit events (newest first). Requires audit:read.&quot;&quot;&quot;
+query = select(AuditLog)
+count_query = select(func.count(AuditLog.id))
+if action:
+query = query.where(AuditLog.action == action)
+count_query = count_query.where(AuditLog.action == action)
+if resource_type:
+query = query.where(AuditLog.resource_type == resource_type)
+count_query = count_query.where(AuditLog.resource_type == resource_type)
+total = (await session.execute(count_query)).scalar() or 0
+result = await session.execute(
+query.order_by(AuditLog.created_at.desc())
+.offset((page - 1) * page_size)
+.limit(page_size)
+)
+rows = result.scalars().all()
+items = [
+{
+&quot;id&quot;: r.id,
+&quot;actor&quot;: r.actor,
+&quot;action&quot;: r.action,
+&quot;resource_type&quot;: r.resource_type,
+&quot;resource_id&quot;: r.resource_id,
+&quot;detail&quot;: r.detail,
+&quot;request_id&quot;: r.request_id,
+&quot;ip_address&quot;: r.ip_address,
+&quot;created_at&quot;: r.created_at.isoformat() if r.created_at else None,
+}
+for r in rows
+</pre>
+<div class="ft">第 12 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+]
+return {&quot;items&quot;: items, &quot;total&quot;: total, &quot;page&quot;: page, &quot;page_size&quot;: page_size}
+// ==== FILE: backend/app/api/v1/endpoints/benchmarks.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Benchmark platform API.&quot;&quot;&quot;
+from __future__ import annotations
+from typing import Any
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.benchmark.service import get_benchmark_service
+from app.core.dependencies import get_db
+from app.core.rbac import Permission, require_permission
+from app.core.tenant_context import (
+current_tenant_id,
+extract_tenant_header,
+resolve_tenant_context,
+)
+from app.utils.exceptions import AgentFlowError
+router = APIRouter()
+def _actor(request: Request) -&amp;gt; str:
+return getattr(request.state, &quot;actor&quot;, None) or &quot;anonymous&quot;
+async def _bind_tenant(request: Request, session: AsyncSession) -&amp;gt; str | None:
+role = getattr(request.state, &quot;role&quot;, None)
+role_s = role.value if hasattr(role, &quot;value&quot;) else str(role or &quot;&quot;)
+await resolve_tenant_context(
+session,
+actor=_actor(request),
+header_value=extract_tenant_header(request),
+system_role=role_s,
+)
+return current_tenant_id()
+class BenchmarkCreate(BaseModel):
+name: str = Field(..., min_length=1, max_length=255)
+description: str = &quot;&quot;
+tags: list[str] = Field(default_factory=list)
+cases: list[dict[str, Any]] = Field(default_factory=list)
+version: str = Field(default=&quot;1.0&quot;, max_length=64)
+scorecard: dict[str, Any] | None = Field(
+default=None, description=&quot;Optional Scorecard JSON (Phase 3)&quot;
+)
+source_task_id: str | None = Field(
+default=None, description=&quot;If set, clone suites from this Task as cases&quot;
+)
+class BenchmarkRunBody(BaseModel):
+label: str = &quot;default&quot;
+agent_config: dict[str, Any] = Field(
+default_factory=lambda: {
+&quot;runner&quot;: &quot;openai&quot;,
+&quot;model&quot;: &quot;gpt-4o-mini&quot;,
+</pre>
+<div class="ft">第 13 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+&quot;temperature&quot;: 0,
+}
+)
+enqueue: bool = True
+class ImportBody(BaseModel):
+format: str = Field(&quot;json&quot;, description=&quot;json | csv&quot;)
+content: str = Field(..., min_length=1)
+class CompareRunsBody(BaseModel):
+&quot;&quot;&quot;Compare current run against a baseline (defaults to previous completed run).&quot;&quot;&quot;
+current_run_id: str
+baseline_run_id: str | None = Field(
+default=None,
+description=&quot;If omitted, use the previous completed run before current&quot;,
+)
+score_stable_eps: float = Field(
+default=1.0, ge=0, description=&quot;|Δscore| below this → stable&quot;
+)
+def _bm_dict(bm, *, case_count: int | None = None) -&amp;gt; dict[str, Any]:
+meta = dict(bm.meta or {})
+return {
+&quot;id&quot;: bm.id,
+&quot;name&quot;: bm.name,
+&quot;description&quot;: bm.description,
+&quot;status&quot;: bm.status,
+&quot;created_by&quot;: bm.created_by,
+&quot;tags&quot;: bm.tags or [],
+&quot;tenant_id&quot;: bm.tenant_id,
+&quot;version&quot;: meta.get(&quot;version&quot;) or &quot;1.0&quot;,
+&quot;scorecard&quot;: meta.get(&quot;scorecard&quot;),
+&quot;source_task_id&quot;: meta.get(&quot;source_task_id&quot;),
+&quot;case_count&quot;: case_count
+if case_count is not None
+else (len(bm.cases) if getattr(bm, &quot;cases&quot;, None) is not None else None),
+&quot;created_at&quot;: bm.created_at.isoformat() if bm.created_at else None,
+}
+def _run_dict(run) -&amp;gt; dict[str, Any]:
+return {
+&quot;id&quot;: run.id,
+&quot;benchmark_id&quot;: run.benchmark_id,
+&quot;task_id&quot;: run.task_id,
+&quot;label&quot;: run.label,
+&quot;status&quot;: run.status,
+&quot;agent_config&quot;: run.agent_config or {},
+&quot;summary&quot;: run.summary or {},
+&quot;created_by&quot;: run.created_by,
+&quot;created_at&quot;: run.created_at.isoformat() if run.created_at else None,
+&quot;started_at&quot;: run.started_at.isoformat() if run.started_at else None,
+&quot;finished_at&quot;: run.finished_at.isoformat() if run.finished_at else None,
+}
+@router.get(&quot;&quot;)
+</pre>
+<div class="ft">第 14 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+@require_permission(Permission.BENCHMARK_READ, Permission.TASK_READ, require_all=False)
+async def list_benchmarks(
+request: Request,
+limit: int = Query(50, ge=1, le=200),
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+tenant_id = await _bind_tenant(request, session)
+svc = get_benchmark_service()
+items = await svc.list_benchmarks(
+session, actor=_actor(request), tenant_id=tenant_id, limit=limit
+)
+out = []
+for bm in items:
+full = await svc.get_benchmark(session, bm.id, with_cases=True)
+out.append(_bm_dict(full, case_count=len(full.cases)))
+return {&quot;items&quot;: out, &quot;total&quot;: len(out)}
+@router.post(&quot;&quot;, status_code=201)
+@require_permission(
+Permission.BENCHMARK_CREATE, Permission.TASK_CREATE, require_all=False
+)
+async def create_benchmark(
+body: BenchmarkCreate,
+request: Request,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+tenant_id = await _bind_tenant(request, session)
+svc = get_benchmark_service()
+if body.source_task_id:
+bm = await svc.create_from_task(
+session,
+task_id=body.source_task_id,
+name=body.name,
+description=body.description,
+version=body.version,
+created_by=_actor(request),
+tenant_id=tenant_id,
+scorecard=body.scorecard,
+)
+if body.cases:
+await svc.add_cases(
+session, bm, body.cases, tenant_id=tenant_id
+)
+else:
+bm = await svc.create_benchmark(
+session,
+name=body.name,
+description=body.description,
+created_by=_actor(request),
+tenant_id=tenant_id,
+tags=body.tags,
+</pre>
+<div class="ft">第 15 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+cases=body.cases,
+version=body.version,
+scorecard=body.scorecard,
+)
+await session.commit()
+full = await svc.get_benchmark(session, bm.id, with_cases=True)
+return {
+**_bm_dict(full, case_count=len(full.cases)),
+&quot;cases&quot;: [
+{
+&quot;id&quot;: c.id,
+&quot;name&quot;: c.name,
+&quot;user_query&quot;: c.user_query,
+&quot;expected_output&quot;: c.expected_output,
+&quot;expected_tools&quot;: c.expected_tools,
+&quot;weight&quot;: c.weight,
+}
+for c in full.cases
+],
+}
+@router.get(&quot;/{benchmark_id}&quot;)
+@require_permission(Permission.BENCHMARK_READ, Permission.TASK_READ, require_all=False)
+async def get_benchmark(
+benchmark_id: str,
+request: Request,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+await _bind_tenant(request, session)
+svc = get_benchmark_service()
+bm = await svc.get_benchmark(session, benchmark_id, with_cases=True)
+return {
+**_bm_dict(bm, case_count=len(bm.cases)),
+&quot;cases&quot;: [
+{
+&quot;id&quot;: c.id,
+&quot;name&quot;: c.name,
+&quot;user_query&quot;: c.user_query,
+&quot;expected_output&quot;: c.expected_output,
+&quot;expected_tools&quot;: c.expected_tools,
+&quot;weight&quot;: c.weight,
+}
+for c in bm.cases
+],
+}
+@router.post(&quot;/{benchmark_id}/import&quot;)
+@require_permission(
+Permission.BENCHMARK_CREATE, Permission.TASK_CREATE, require_all=False
+)
+async def import_cases(
+benchmark_id: str,
+</pre>
+<div class="ft">第 16 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+body: ImportBody,
+request: Request,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+tenant_id = await _bind_tenant(request, session)
+svc = get_benchmark_service()
+bm = await svc.get_benchmark(session, benchmark_id, with_cases=False)
+try:
+cases = svc.parse_import_payload(content=body.content, fmt=body.format)
+except AgentFlowError:
+raise
+except Exception as exc:
+raise AgentFlowError(f&quot;import parse failed: {exc}&quot;, status_code=422) from exc
+created = await svc.add_cases(session, bm, cases, tenant_id=tenant_id)
+await session.commit()
+return {&quot;imported&quot;: len(created), &quot;benchmark_id&quot;: bm.id}
+@router.post(&quot;/{benchmark_id}/import/file&quot;)
+@require_permission(
+Permission.BENCHMARK_CREATE, Permission.TASK_CREATE, require_all=False
+)
+async def import_cases_file(
+benchmark_id: str,
+request: Request,
+file: UploadFile = File(...),
+format: str = Query(&quot;json&quot;, description=&quot;json | csv&quot;),
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+tenant_id = await _bind_tenant(request, session)
+raw = await file.read()
+content = raw.decode(&quot;utf-8&quot;, errors=&quot;replace&quot;)
+name = (file.filename or &quot;&quot;).lower()
+fmt = format
+if name.endswith(&quot;.csv&quot;):
+fmt = &quot;csv&quot;
+elif name.endswith(&quot;.json&quot;):
+fmt = &quot;json&quot;
+svc = get_benchmark_service()
+bm = await svc.get_benchmark(session, benchmark_id, with_cases=False)
+cases = svc.parse_import_payload(content=content, fmt=fmt)
+created = await svc.add_cases(session, bm, cases, tenant_id=tenant_id)
+await session.commit()
+return {&quot;imported&quot;: len(created), &quot;benchmark_id&quot;: bm.id, &quot;format&quot;: fmt}
+@router.post(&quot;/{benchmark_id}/run&quot;, status_code=201)
+@require_permission(
+Permission.BENCHMARK_CREATE, Permission.TASK_EXECUTE, require_all=False
+)
+async def run_benchmark(
+benchmark_id: str,
+body: BenchmarkRunBody,
+request: Request,
+</pre>
+<div class="ft">第 17 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+&quot;&quot;&quot;Run benchmark through Evaluation Engine (creates Task + enqueues).&quot;&quot;&quot;
+tenant_id = await _bind_tenant(request, session)
+svc = get_benchmark_service()
+try:
+run = await svc.run_benchmark(
+session,
+benchmark_id=benchmark_id,
+actor=_actor(request),
+agent_config=body.agent_config,
+label=body.label,
+tenant_id=tenant_id,
+enqueue=body.enqueue,
+)
+except AgentFlowError:
+raise
+await session.commit()
+return {&quot;run&quot;: _run_dict(run)}
+@router.get(&quot;/{benchmark_id}/runs&quot;)
+@require_permission(Permission.BENCHMARK_READ, Permission.TASK_READ, require_all=False)
+async def list_runs(
+benchmark_id: str,
+request: Request,
+limit: int = Query(50, ge=1, le=200),
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+&quot;&quot;&quot;History of regression evaluation runs for continuous evaluation.&quot;&quot;&quot;
+await _bind_tenant(request, session)
+svc = get_benchmark_service()
+runs = await svc.list_runs(session, benchmark_id, limit=limit)
+await session.commit()
+return {
+&quot;benchmark_id&quot;: benchmark_id,
+&quot;items&quot;: [_run_dict(r) for r in runs],
+&quot;total&quot;: len(runs),
+}
+@router.post(&quot;/{benchmark_id}/runs/{run_id}/finalize&quot;)
+@require_permission(Permission.BENCHMARK_READ, Permission.TASK_READ, require_all=False)
+async def finalize_run(
+benchmark_id: str,
+run_id: str,
+request: Request,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+await _bind_tenant(request, session)
+svc = get_benchmark_service()
+run = await svc.finalize_run(session, run_id)
+if run.benchmark_id != benchmark_id:
+raise AgentFlowError(&quot;Run does not belong to benchmark&quot;, status_code=400)
+</pre>
+<div class="ft">第 18 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+await session.commit()
+return {&quot;run&quot;: _run_dict(run)}
+@router.post(&quot;/{benchmark_id}/compare&quot;)
+@require_permission(Permission.BENCHMARK_READ, Permission.TASK_READ, require_all=False)
+async def compare_runs(
+benchmark_id: str,
+body: CompareRunsBody,
+request: Request,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+&quot;&quot;&quot;Compare two runs (or current vs previous) for regression detection.&quot;&quot;&quot;
+await _bind_tenant(request, session)
+svc = get_benchmark_service()
+await svc.get_benchmark(session, benchmark_id, with_cases=False)
+current = await svc.get_run(session, body.current_run_id)
+if current.benchmark_id != benchmark_id:
+raise AgentFlowError(&quot;current_run_id not in this benchmark&quot;, status_code=400)
+if body.baseline_run_id:
+baseline = await svc.get_run(session, body.baseline_run_id)
+if baseline.benchmark_id != benchmark_id:
+raise AgentFlowError(
+&quot;baseline_run_id not in this benchmark&quot;, status_code=400
+)
+else:
+# Previous completed run before current (by created_at)
+history = await svc.list_runs(session, benchmark_id, limit=100)
+baseline = None
+for r in history:
+if r.id == current.id:
+continue
+if r.created_at and current.created_at and r.created_at &amp;gt;= current.created_at:
+continue
+if r.status == &quot;completed&quot; or (r.summary or {}).get(&quot;score&quot;) is not None:
+baseline = r
+break
+if baseline is None:
+raise AgentFlowError(
+&quot;No baseline run found — provide baseline_run_id or complete a prior run&quot;,
+status_code=400,
+)
+result = svc.compare_runs(
+current, baseline, score_stable_eps=body.score_stable_eps
+)
+await session.commit()
+return {&quot;benchmark_id&quot;: benchmark_id, **result}
+@router.get(&quot;/{benchmark_id}/leaderboard&quot;)
+@require_permission(Permission.BENCHMARK_READ, Permission.TASK_READ, require_all=False)
+async def leaderboard(
+benchmark_id: str,
+request: Request,
+</pre>
+<div class="ft">第 19 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+await _bind_tenant(request, session)
+svc = get_benchmark_service()
+# ensure benchmark exists
+await svc.get_benchmark(session, benchmark_id, with_cases=False)
+board = await svc.leaderboard(session, benchmark_id)
+await session.commit()
+return {
+&quot;benchmark_id&quot;: benchmark_id,
+&quot;items&quot;: board,
+&quot;total&quot;: len(board),
+&quot;metrics&quot;: [
+&quot;score&quot;,
+&quot;success_rate&quot;,
+&quot;score_coverage&quot;,
+&quot;accuracy&quot;,
+&quot;quality&quot;,
+&quot;latency_ms&quot;,
+&quot;cost&quot;,
+&quot;tokens&quot;,
+],
+}
+// ==== FILE: backend/app/api/v1/endpoints/billing.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Billing / subscription / usage APIs (BILLING_ENABLED optional).&quot;&quot;&quot;
+from __future__ import annotations
+import json
+from typing import Any
+from fastapi import APIRouter, Depends, Query, Request  # Query used by rollover
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.billing.service import billing_enabled, get_billing_service
+from app.core.dependencies import get_db
+from app.core.rbac import Permission, require_permission
+from app.utils.exceptions import AgentFlowError
+router = APIRouter()
+def _actor(request: Request) -&amp;gt; str:
+return getattr(request.state, &quot;actor&quot;, None) or &quot;anonymous&quot;
+class SubscribeBody(BaseModel):
+plan_code: str = Field(..., description=&quot;free | pro | enterprise&quot;)
+def _plan_dict(p) -&amp;gt; dict[str, Any]:
+return {
+&quot;id&quot;: p.id,
+&quot;code&quot;: p.code,
+&quot;name&quot;: p.name,
+&quot;description&quot;: p.description,
+&quot;price_month_cents&quot;: p.price_month_cents,
+&quot;billing_cycle&quot;: getattr(p, &quot;billing_cycle&quot;, None) or &quot;monthly&quot;,
+&quot;token_quota&quot;: p.token_quota,
+</pre>
+<div class="ft">第 20 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+&quot;task_quota&quot;: p.task_quota,
+&quot;storage_quota_mb&quot;: getattr(p, &quot;storage_quota_mb&quot;, None),
+&quot;plugin_quota&quot;: getattr(p, &quot;plugin_quota&quot;, None),
+&quot;features&quot;: p.features or {},
+&quot;limits&quot;: (p.features or {}).get(&quot;limits&quot;)
+or {
+&quot;tasks&quot;: p.task_quota,
+&quot;tokens&quot;: p.token_quota,
+&quot;storage_mb&quot;: getattr(p, &quot;storage_quota_mb&quot;, None),
+&quot;plugins&quot;: getattr(p, &quot;plugin_quota&quot;, None),
+},
+&quot;is_public&quot;: p.is_public,
+}
+@router.get(&quot;/plans&quot;)
+@require_permission(Permission.BILLING_READ, Permission.TASK_READ, require_all=False)
+async def list_plans(
+request: Request,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+svc = get_billing_service()
+await svc.ensure_default_plans(session)
+plans = await svc.list_plans(session, public_only=True)
+return {
+&quot;items&quot;: [_plan_dict(p) for p in plans],
+&quot;total&quot;: len(plans),
+&quot;billing_enabled&quot;: billing_enabled(),
+}
+@router.get(&quot;/plan&quot;)
+@require_permission(Permission.BILLING_READ, Permission.TASK_READ, require_all=False)
+async def get_current_plan(
+request: Request,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+&quot;&quot;&quot;Current actor plan + quota (enterprise contract alias).&quot;&quot;&quot;
+actor = _actor(request)
+svc = get_billing_service()
+return await svc.get_current_plan(session, actor)
+@router.get(&quot;/quota&quot;)
+@require_permission(Permission.BILLING_READ, Permission.TASK_READ, require_all=False)
+async def get_quota(
+request: Request,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+actor = _actor(request)
+svc = get_billing_service()
+return await svc.get_quota(session, actor)
+@router.get(&quot;/usage&quot;)
+@require_permission(Permission.BILLING_READ, Permission.TASK_READ, require_all=False)
+async def list_usage(
+request: Request,
+</pre>
+<div class="ft">第 21 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+limit: int = Query(50, ge=1, le=500),
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+actor = _actor(request)
+svc = get_billing_service()
+rows = await svc.list_usage(session, actor, limit=limit)
+return {
+&quot;items&quot;: [
+{
+&quot;id&quot;: r.id,
+&quot;metric&quot;: r.metric,
+&quot;quantity&quot;: r.quantity,
+&quot;ref_type&quot;: r.ref_type,
+&quot;ref_id&quot;: r.ref_id,
+&quot;trace_id&quot;: r.trace_id,
+&quot;created_at&quot;: r.created_at.isoformat() if r.created_at else None,
+}
+for r in rows
+],
+&quot;total&quot;: len(rows),
+&quot;billing_enabled&quot;: billing_enabled(),
+}
+class CheckoutBody(BaseModel):
+plan_code: str = Field(..., description=&quot;pro | enterprise (not free)&quot;)
+success_url: str | None = None
+cancel_url: str | None = None
+class MockConfirmBody(BaseModel):
+session_id: str
+plan_code: str
+actor: str | None = None
+@router.post(&quot;/subscribe&quot;)
+@require_permission(
+Permission.BILLING_MANAGE, Permission.SYSTEM_CONFIG, require_all=False
+)
+async def subscribe(
+request: Request,
+body: SubscribeBody,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+&quot;&quot;&quot;Direct subscribe (ops / free tier / mock without payment).
+Paid plans in production should use ``POST /billing/checkout``.
+&quot;&quot;&quot;
+actor = _actor(request)
+svc = get_billing_service()
+await svc.ensure_default_plans(session)
+try:
+sub = await svc.subscribe(session, actor=actor, plan_code=body.plan_code)
+except AgentFlowError:
+raise
+except Exception as exc:
+</pre>
+<div class="ft">第 22 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+raise AgentFlowError(f&quot;subscribe failed: {exc}&quot;, status_code=400) from exc
+await session.commit()
+return {
+&quot;subscription&quot;: {
+&quot;id&quot;: sub.id,
+&quot;actor&quot;: sub.actor,
+&quot;plan_id&quot;: sub.plan_id,
+&quot;status&quot;: sub.status,
+}
+}
+@router.post(&quot;/checkout&quot;)
+@require_permission(
+Permission.BILLING_MANAGE, Permission.SYSTEM_CONFIG, require_all=False
+)
+async def create_checkout(
+request: Request,
+body: CheckoutBody,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+&quot;&quot;&quot;Create Stripe Checkout session (mock by default).
+Returns ``url`` to redirect the browser. In mock mode, complete with
+``POST /billing/checkout/mock-confirm``.
+&quot;&quot;&quot;
+from app.core.billing.stripe_checkout import create_checkout_session, stripe_mode
+actor = _actor(request)
+svc = get_billing_service()
+await svc.ensure_default_plans(session)
+plan = await svc.get_plan_by_code(session, body.plan_code)
+if plan is None:
+raise AgentFlowError(f&quot;Unknown plan: {body.plan_code}&quot;, status_code=404)
+if plan.code == &quot;free&quot; or plan.price_month_cents &amp;lt;= 0:
+# Free: subscribe immediately
+sub = await svc.subscribe(session, actor=actor, plan_code=&quot;free&quot;)
+await session.commit()
+return {
+&quot;mode&quot;: &quot;direct&quot;,
+&quot;url&quot;: None,
+&quot;subscription&quot;: {
+&quot;id&quot;: sub.id,
+&quot;actor&quot;: sub.actor,
+&quot;plan_id&quot;: sub.plan_id,
+&quot;status&quot;: sub.status,
+},
+}
+try:
+session_out = create_checkout_session(
+actor=actor,
+plan_code=plan.code,
+plan_name=plan.name,
+amount_cents=plan.price_month_cents,
+</pre>
+<div class="ft">第 23 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+success_url=body.success_url,
+cancel_url=body.cancel_url,
+)
+except Exception as exc:
+raise AgentFlowError(f&quot;checkout failed: {exc}&quot;, status_code=400) from exc
+return {
+&quot;checkout&quot;: session_out,
+&quot;stripe_mode&quot;: stripe_mode(),
+&quot;billing_enabled&quot;: billing_enabled(),
+}
+@router.post(&quot;/checkout/mock-confirm&quot;)
+@require_permission(
+Permission.BILLING_MANAGE, Permission.SYSTEM_CONFIG, require_all=False
+)
+async def mock_confirm_checkout(
+request: Request,
+body: MockConfirmBody,
+session: AsyncSession = Depends(get_db),
+) -&amp;gt; dict[str, Any]:
+&quot;&quot;&quot;Complete a mock Checkout session and activate the subscription.&quot;&quot;&quot;
+from app.core.billing.stripe_checkout import (
+build_mock_completed_event,
+parse_checkout_completed_event,
+stripe_mode,
+)
+if stripe_mode() != &quot;mock&quot;:
+raise AgentFlowError(
+&quot;mock-confirm only available when STRIPE_MODE=mock&quot;,
+status_code=400,
+)
+actor = body.actor or _actor(request)
+event = build_mock_completed_event(
+actor=actor,
+plan_code=body.plan_code,
+session_id=body.session_id,
+)
+parsed = parse_checkout_completed_event(event)
+if not parsed:
+raise AgentFlowError(&quot;invalid mock session&quot;, status_code=400)
+svc = get_billing_service()
+await svc.ensure_default_plans(session)
+try:
+sub = await svc.subscribe(
+session, actor=parsed[&quot;actor&quot;], plan_code=parsed[&quot;plan_code&quot;]
+)
+sub.external_ref = parsed.get(&quot;external_ref&quot;) or body.session_id
+except Exception as exc:
+raise AgentFlowError(f&quot;activate failed: {exc}&quot;, status_code=400) from exc
+await session.commit()
+return {
+</pre>
+<div class="ft">第 24 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+&quot;ok&quot;: True,
+&quot;mode&quot;: &quot;mock&quot;,
+&quot;subscription&quot;: {
+&quot;id&quot;: sub.id,
+&quot;actor&quot;: sub.actor,
+&quot;plan_id&quot;: sub.plan_id,
+&quot;status&quot;: sub.status,
+&quot;external_ref&quot;: sub.external_ref,
+},
+}
+async def _handle_stripe_webhook(
+request: Request,
+session: AsyncSession,
+) -&amp;gt; dict[str, Any]:
+&quot;&quot;&quot;Shared Stripe/mock webhook body (public — signature verified).&quot;&quot;&quot;
+from app.core.billing.stripe_checkout import (
+parse_checkout_completed_event,
+verify_webhook_signature,
+)
+payload = await request.body()
+sig = request.headers.get(&quot;stripe-signature&quot;) or request.headers.get(
+&quot;Stripe-Signature&quot;
+)
+if not verify_webhook_signature(payload, sig):
+raise AgentFlowError(&quot;invalid webhook signature&quot;, status_code=400)
+try:
+event = json.loads(payload.decode(&quot;utf-8&quot;) or &quot;{}&quot;)
+except Exception as exc:
+raise AgentFlowError(f&quot;invalid JSON: {exc}&quot;, status_code=400) from exc
+parsed = parse_checkout_completed_event(event)
+if not parsed:
+return {&quot;received&quot;: True, &quot;handled&quot;: False, &quot;reason&quot;: &quot;ignored_event&quot;}
+svc = get_billing_service()
+await svc.ensure_default_plans(session)
+try:
+sub = await svc.subscribe(
+session,
+actor=parsed[&quot;actor&quot;],
+plan_code=parsed[&quot;plan_code&quot;],
+)
+if parsed.get(&quot;external_ref&quot;):
+sub.external_ref = parsed[&quot;external_ref&quot;]
+await session.commit()
+except Exception as exc:
+await session.rollback()
+raise AgentFlowError(
+f&quot;webhook activate failed: {exc}&quot;, status_code=400
+) from exc
+try:
+from app.core.audit import write_audit
+</pre>
+<div class="ft">第 25 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+await write_audit(
+session,
+action=&quot;billing.checkout_completed&quot;,
+resource_type=&quot;subscription&quot;,
+resource_id=sub.id,
+actor=parsed[&quot;actor&quot;],
+detail={
+&quot;plan_code&quot;: parsed[&quot;plan_code&quot;],
+&quot;session_id&quot;: parsed.get(&quot;session_id&quot;),
+&quot;source&quot;: &quot;stripe_webhook&quot;,
+},
+)
+await session.commit()
+except Exception:
+pass
+return {
+&quot;received&quot;: True,
+&quot;handled&quot;: True,
+&quot;actor&quot;: parsed[&quot;actor&quot;],
+&quot;plan_code&quot;: parsed[&quot;plan_code&quot;],
+&quot;subscription_id&quot;: sub.id,
+# ---- 关系 ----
+trace: Mapped[&quot;Trace&quot;] = relationship(back_populates=&quot;metric_scores&quot;)
+@property
+def effective_score(self) -&amp;gt; float:
+&quot;&quot;&quot;返回最终有效分数：优先使用人工审核分数。&quot;&quot;&quot;
+if self.is_human_reviewed and self.human_score is not None:
+return self.human_score
+return self.score
+def __repr__(self) -&amp;gt; str:
+return f&quot;&amp;lt;MetricScore name={self.metric_name!r} score={self.score} reviewed={self.is_human_reviewed}&amp;gt;&quot;
+// ==== FILE: backend/app/models/slow_task.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Persisted slow-task samples for diagnostics across restarts.&quot;&quot;&quot;
+from __future__ import annotations
+from datetime import datetime
+from sqlalchemy import DateTime, Float, Index, JSON, String, func
+from sqlalchemy.orm import Mapped, mapped_column
+from app.models.base import Base, PKMixin
+class SlowTaskEvent(PKMixin, Base):
+&quot;&quot;&quot;One slow agent/judge/pipeline sample above configured threshold.&quot;&quot;&quot;
+__tablename__ = &quot;slow_task_events&quot;
+__table_args__ = (
+Index(&quot;ix_slow_task_created&quot;, &quot;created_at&quot;),
+Index(&quot;ix_slow_task_stage_created&quot;, &quot;stage&quot;, &quot;created_at&quot;),
+Index(&quot;ix_slow_task_trace&quot;, &quot;trace_id&quot;),
+Index(&quot;ix_slow_task_actor&quot;, &quot;actor&quot;),
+)
+stage: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+duration_sec: Mapped[float] = mapped_column(Float, nullable=False)
+</pre>
+<div class="ft">第 26 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+threshold_sec: Mapped[float] = mapped_column(Float, nullable=False)
+ref_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+status: Mapped[str] = mapped_column(String(32), nullable=False, default=&quot;ok&quot;)
+trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+actor: Mapped[str | None] = mapped_column(String(100), nullable=True)
+extra: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+created_at: Mapped[datetime] = mapped_column(
+DateTime(timezone=True),
+server_default=func.now(),
+nullable=False,
+)
+// ==== FILE: backend/app/models/task.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Task 任务模型 —— 表示一次评测任务的顶层聚合根。&quot;&quot;&quot;
+import enum
+from typing import TYPE_CHECKING
+from sqlalchemy import Boolean, Index, JSON, Enum, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
+if TYPE_CHECKING:
+from app.models.test_suite import TestSuite
+class TaskStatus(str, enum.Enum):
+&quot;&quot;&quot;任务状态枚举 —— 生产级状态机。
+状态流转:
+CREATED ─► QUEUED ─► RUNNING ─► JUDGING ─► COMPLETED
+│          │
+▼          ▼
+FAILED     FAILED
+│
+▼
+CANCELLED / TIMEOUT
+&quot;&quot;&quot;
+CREATED = &quot;created&quot;
+QUEUED = &quot;queued&quot;
+RUNNING = &quot;running&quot;
+WAITING_TOOL = &quot;waiting_tool&quot;
+JUDGING = &quot;judging&quot;
+COMPLETED = &quot;completed&quot;
+FAILED = &quot;failed&quot;
+CANCELLED = &quot;cancelled&quot;
+TIMEOUT = &quot;timeout&quot;
+# ---- 合法流转矩阵 ----
+@classmethod
+def allowed_transitions(cls) -&amp;gt; dict[&quot;TaskStatus&quot;, set[&quot;TaskStatus&quot;]]:
+&quot;&quot;&quot;返回每个状态允许流转的目标状态集合。&quot;&quot;&quot;
+return {
+cls.CREATED: {cls.QUEUED, cls.CANCELLED},
+cls.QUEUED: {cls.RUNNING, cls.CANCELLED, cls.TIMEOUT},
+cls.RUNNING: {
+cls.WAITING_TOOL,
+</pre>
+<div class="ft">第 27 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+cls.JUDGING,
+cls.FAILED,
+cls.CANCELLED,
+cls.TIMEOUT,
+},
+cls.WAITING_TOOL: {cls.RUNNING, cls.FAILED, cls.CANCELLED, cls.TIMEOUT},
+cls.JUDGING: {cls.COMPLETED, cls.FAILED, cls.CANCELLED},
+cls.COMPLETED: set(),
+cls.FAILED: set(),
+cls.CANCELLED: set(),
+cls.TIMEOUT: set(),
+}
+def can_transition_to(self, target: &quot;TaskStatus&quot;) -&amp;gt; bool:
+&quot;&quot;&quot;检查是否允许从当前状态流转到目标状态。&quot;&quot;&quot;
+return target in self.allowed_transitions().get(self, set())
+class Task(PKMixin, TenantMixin, TimestampMixin, Base):
+&quot;&quot;&quot;评测任务。
+一个 Task 包含多个 TestSuite 测试用例，执行时逐条运行并汇总评分。
+&quot;&quot;&quot;
+__tablename__ = &quot;tasks&quot;
+__table_args__ = (
+# List: WHERE created_by=? AND is_archived=0 ORDER BY created_at DESC
+Index(
+&quot;ix_tasks_owner_archived_created&quot;,
+&quot;created_by&quot;,
+&quot;is_archived&quot;,
+&quot;created_at&quot;,
+),
+# Dashboard: WHERE status=? ORDER BY created_at DESC
+Index(&quot;ix_tasks_status_created&quot;, &quot;status&quot;, &quot;created_at&quot;),
+Index(&quot;ix_tasks_created_by&quot;, &quot;created_by&quot;),
+Index(&quot;ix_tasks_celery_task_id&quot;, &quot;celery_task_id&quot;),
+Index(&quot;ix_tasks_is_archived&quot;, &quot;is_archived&quot;),
+Index(&quot;ix_tasks_tenant_created&quot;, &quot;tenant_id&quot;, &quot;created_at&quot;),
+)
+name: Mapped[str] = mapped_column(
+String(255),
+nullable=False,
+comment=&quot;任务名称&quot;,
+)
+description: Mapped[str] = mapped_column(
+Text,
+nullable=False,
+default=&quot;&quot;,
+comment=&quot;任务描述&quot;,
+)
+status: Mapped[TaskStatus] = mapped_column(
+Enum(
+TaskStatus,
+name=&quot;task_status&quot;,
+</pre>
+<div class="ft">第 28 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+native_enum=False,
+length=20,
+values_callable=lambda enum_cls: [e.value for e in enum_cls],
+),
+nullable=False,
+default=TaskStatus.CREATED,
+comment=&quot;任务状态&quot;,
+)
+agent_config: Mapped[dict] = mapped_column(
+JSON,
+nullable=False,
+default=dict,
+comment=&quot;Agent 配置参数（JSON 对象）&quot;,
+)
+celery_task_id: Mapped[str | None] = mapped_column(
+String(255),
+nullable=True,
+default=None,
+comment=&quot;Celery 异步任务 ID，用于取消和状态追踪&quot;,
+)
+is_archived: Mapped[bool] = mapped_column(
+Boolean,
+nullable=False,
+default=False,
+comment=&quot;是否已归档（软归档，列表默认隐藏）&quot;,
+)
+created_by: Mapped[str] = mapped_column(
+String(100),
+nullable=False,
+default=&quot;anonymous&quot;,
+comment=&quot;创建者 actor（API Key 映射名），用于轻量多租户隔离&quot;,
+)
+# ---- 关系 ----
+test_suites: Mapped[list[&quot;TestSuite&quot;]] = relationship(
+back_populates=&quot;task&quot;,
+cascade=&quot;all, delete-orphan&quot;,
+)
+def __repr__(self) -&amp;gt; str:
+return f&quot;&amp;lt;Task id={self.id} name={self.name!r} status={self.status.value}&amp;gt;&quot;
+// ==== FILE: backend/app/models/tenant.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Enterprise multi-tenant models: tenants + membership.&quot;&quot;&quot;
+from __future__ import annotations
+from sqlalchemy import Index, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column
+from app.models.base import Base, PKMixin, TimestampMixin
+class Tenant(PKMixin, TimestampMixin, Base):
+&quot;&quot;&quot;Organization / workspace boundary for SaaS and private multi-team deploys.&quot;&quot;&quot;
+__tablename__ = &quot;tenants&quot;
+__table_args__ = (
+</pre>
+<div class="ft">第 29 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+UniqueConstraint(&quot;slug&quot;, name=&quot;uq_tenants_slug&quot;),
+Index(&quot;ix_tenants_status&quot;, &quot;status&quot;),
+)
+name: Mapped[str] = mapped_column(String(200), nullable=False)
+slug: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+status: Mapped[str] = mapped_column(
+String(32), nullable=False, default=&quot;active&quot;
+)  # active|suspended|deleted
+plan_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+def __repr__(self) -&amp;gt; str:
+return f&quot;&amp;lt;Tenant {self.slug} status={self.status}&amp;gt;&quot;
+class TenantMember(PKMixin, TimestampMixin, Base):
+&quot;&quot;&quot;Actor membership inside a tenant (role is tenant-scoped RBAC).&quot;&quot;&quot;
+__tablename__ = &quot;tenant_members&quot;
+__table_args__ = (
+UniqueConstraint(&quot;tenant_id&quot;, &quot;user_id&quot;, name=&quot;uq_tenant_member&quot;),
+Index(&quot;ix_tenant_members_user&quot;, &quot;user_id&quot;),
+Index(&quot;ix_tenant_members_tenant_role&quot;, &quot;tenant_id&quot;, &quot;role&quot;),
+)
+tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+# Maps to API-key actor name (no separate users table in v1)
+user_id: Mapped[str] = mapped_column(String(100), nullable=False)
+role: Mapped[str] = mapped_column(
+String(32),
+nullable=False,
+default=&quot;member&quot;,
+)  # tenant_admin|manager|reviewer|member|viewer
+def __repr__(self) -&amp;gt; str:
+return f&quot;&amp;lt;TenantMember {self.user_id}@{self.tenant_id} role={self.role}&amp;gt;&quot;
+// ==== FILE: backend/app/models/trace.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Trace 模型 —— 记录 Agent 执行一次测试用例的完整轨迹。&quot;&quot;&quot;
+import enum
+from typing import TYPE_CHECKING
+from sqlalchemy import Enum, Float, ForeignKey, Index, Integer, JSON, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
+if TYPE_CHECKING:
+from app.models.metric_score import MetricScore
+from app.models.test_suite import TestSuite
+class TraceStatus(str, enum.Enum):
+&quot;&quot;&quot;轨迹执行状态。&quot;&quot;&quot;
+SUCCESS = &quot;success&quot;
+FAILED = &quot;failed&quot;
+class Trace(PKMixin, TenantMixin, TimestampMixin, Base):
+&quot;&quot;&quot;执行轨迹。
+保存 Agent 运行一次测试用例的完整 ReAct 步骤、Token 消耗和响应时间，
+是评分和链路可视化的核心数据源。
+&quot;&quot;&quot;
+__tablename__ = &quot;traces&quot;
+</pre>
+<div class="ft">第 30 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+__table_args__ = (
+# List traces for a suite ordered by time
+Index(&quot;ix_traces_suite_created&quot;, &quot;test_suite_id&quot;, &quot;created_at&quot;),
+Index(&quot;ix_traces_created_at&quot;, &quot;created_at&quot;),
+Index(&quot;ix_traces_tenant_created&quot;, &quot;tenant_id&quot;, &quot;created_at&quot;),
+)
+test_suite_id: Mapped[str] = mapped_column(
+ForeignKey(&quot;test_suites.id&quot;, ondelete=&quot;CASCADE&quot;),
+nullable=False,
+index=True,
+comment=&quot;所属测试用例 ID&quot;,
+)
+user_query: Mapped[str] = mapped_column(
+Text,
+nullable=False,
+comment=&quot;本次执行使用的用户指令（快照）&quot;,
+)
+steps: Mapped[list] = mapped_column(
+JSON,
+nullable=False,
+default=list,
+comment=&quot;ReAct 步骤数组，每步包含 thought/action/observation 等字段&quot;,
+)
+total_tokens: Mapped[int] = mapped_column(
+Integer,
+nullable=False,
+default=0,
+comment=&quot;本次执行消耗的总 Token 数&quot;,
+)
+response_time_ms: Mapped[int] = mapped_column(
+Integer,
+nullable=False,
+default=0,
+comment=&quot;执行耗时（毫秒）&quot;,
+)
+status: Mapped[TraceStatus] = mapped_column(
+Enum(
+TraceStatus,
+name=&quot;trace_status&quot;,
+values_callable=lambda enum_cls: [e.value for e in enum_cls],
+),
+nullable=False,
+default=TraceStatus.SUCCESS,
+comment=&quot;执行状态：success / failed&quot;,
+)
+# ---- v1.0 新增：Token 分拆与成本追踪 ----
+prompt_tokens: Mapped[int] = mapped_column(
+Integer,
+nullable=False,
+default=0,
+</pre>
+<div class="ft">第 31 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+comment=&quot;输入 Prompt Token 数&quot;,
+)
+completion_tokens: Mapped[int] = mapped_column(
+Integer,
+nullable=False,
+default=0,
+comment=&quot;输出 Completion Token 数&quot;,
+)
+cost: Mapped[float] = mapped_column(
+Float,
+nullable=False,
+default=0.0,
+comment=&quot;本次执行费用（USD）&quot;,
+)
+# ---- v1.0 新增：版本追踪，确保可复现 ----
+agent_version: Mapped[str | None] = mapped_column(
+String(100),
+nullable=True,
+default=None,
+comment=&quot;Agent 实现版本号&quot;,
+)
+prompt_version: Mapped[str | None] = mapped_column(
+String(100),
+nullable=True,
+default=None,
+comment=&quot;Prompt 模板版本号&quot;,
+)
+model_version: Mapped[str | None] = mapped_column(
+String(100),
+nullable=True,
+default=None,
+comment=&quot;LLM 模型版本（如 gpt-4o-2024-05-13）&quot;,
+)
+tool_version: Mapped[str | None] = mapped_column(
+String(100),
+nullable=True,
+default=None,
+comment=&quot;工具集版本号&quot;,
+)
+# ---- 关系 ----
+test_suite: Mapped[&quot;TestSuite&quot;] = relationship(back_populates=&quot;traces&quot;)
+metric_scores: Mapped[list[&quot;MetricScore&quot;]] = relationship(
+back_populates=&quot;trace&quot;,
+cascade=&quot;all, delete-orphan&quot;,
+)
+def __repr__(self) -&amp;gt; str:
+return f&quot;&amp;lt;Trace id={self.id} status={self.status.value} tokens={self.total_tokens}&amp;gt;&quot;
+// ==== FILE: backend/app/plugins/__init__.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Built-in / example plugins package (optional load via PLUGIN_MODULES).&quot;&quot;&quot;
+</pre>
+<div class="ft">第 32 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+// ==== FILE: backend/app/plugins/examples/__init__.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Example plugins demonstrating AgentRunner / Judge / Tool / Hook types.&quot;&quot;&quot;
+// ==== FILE: backend/app/plugins/examples/audit_hooks.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Example HOOK plugin — records pre/post pipeline events in-memory.&quot;&quot;&quot;
+from __future__ import annotations
+from typing import Any
+from app.core.plugins.base import (
+HOOK_POST_AGENT_RUN,
+HOOK_POST_JUDGE,
+HOOK_PRE_AGENT_RUN,
+HOOK_PRE_JUDGE,
+BasePlugin,
+PluginContext,
+PluginMeta,
+PluginType,
+)
+# Module-level ring buffer for tests / debugging
+_EVENT_LOG: list[dict[str, Any]] = []
+_MAX = 200
+def get_event_log() -&amp;gt; list[dict[str, Any]]:
+return list(_EVENT_LOG)
+def clear_event_log() -&amp;gt; None:
+_EVENT_LOG.clear()
+def _append(event: str, payload: dict[str, Any]) -&amp;gt; dict[str, Any]:
+item = {&quot;event&quot;: event, **{k: v for k, v in payload.items() if k != &quot;event&quot;}}
+_EVENT_LOG.append(item)
+if len(_EVENT_LOG) &amp;gt; _MAX:
+del _EVENT_LOG[: len(_EVENT_LOG) - _MAX]
+return item
+class Plugin(BasePlugin):
+meta = PluginMeta(
+name=&quot;audit_hooks&quot;,
+version=&quot;1.0.0&quot;,
+plugin_type=PluginType.HOOK,
+description=&quot;Logs pre/post agent and judge hooks (example).&quot;,
+author=&quot;AgentFlow-Eval&quot;,
+provides=[],
+)
+def on_activate(self, ctx: PluginContext) -&amp;gt; None:
+assert ctx.register_hook is not None
+def pre_agent(payload: dict[str, Any]) -&amp;gt; dict[str, Any]:
+return _append(HOOK_PRE_AGENT_RUN, payload)
+def post_agent(payload: dict[str, Any]) -&amp;gt; dict[str, Any]:
+return _append(HOOK_POST_AGENT_RUN, payload)
+def pre_judge(payload: dict[str, Any]) -&amp;gt; dict[str, Any]:
+return _append(HOOK_PRE_JUDGE, payload)
+def post_judge(payload: dict[str, Any]) -&amp;gt; dict[str, Any]:
+return _append(HOOK_POST_JUDGE, payload)
+</pre>
+<div class="ft">第 33 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+ctx.register_hook(HOOK_PRE_AGENT_RUN, pre_agent, priority=50)
+ctx.register_hook(HOOK_POST_AGENT_RUN, post_agent, priority=50)
+ctx.register_hook(HOOK_PRE_JUDGE, pre_judge, priority=50)
+ctx.register_hook(HOOK_POST_JUDGE, post_judge, priority=50)
+// ==== FILE: backend/app/plugins/examples/echo_runner.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Example AGENT_RUNNER plugin — deterministic echo runner.&quot;&quot;&quot;
+from __future__ import annotations
+from datetime import datetime, timezone
+from typing import Any
+from app.core.agent_runner.base import AgentResult, BaseAgentRunner
+from app.core.plugins.base import BasePlugin, PluginContext, PluginMeta, PluginType
+class EchoAgentRunner(BaseAgentRunner):
+&quot;&quot;&quot;Returns the user query as a single final answer step (no LLM).&quot;&quot;&quot;
+async def run(
+self,
+query: str,
+tools: list[Any] | None = None,
+*,
+agent_config: dict[str, Any] | None = None,
+) -&amp;gt; AgentResult:
+_ = tools
+cfg = dict(agent_config or {})
+prefix = str(cfg.get(&quot;prefix&quot;) or &quot;ECHO: &quot;)
+text = f&quot;{prefix}{query}&quot;
+steps = [
+{
+&quot;type&quot;: &quot;thought&quot;,
+&quot;content&quot;: &quot;Echo runner reflects the query without external calls.&quot;,
+},
+{
+&quot;type&quot;: &quot;final&quot;,
+&quot;content&quot;: text,
+&quot;answer&quot;: text,
+},
+]
+return AgentResult(
+steps=steps,
+total_tokens=0,
+response_time_ms=1,
+status=&quot;success&quot;,
+final_answer=text,
+runner=&quot;echo&quot;,
+finished_at=datetime.now(timezone.utc),
+)
+class Plugin(BasePlugin):
+meta = PluginMeta(
+name=&quot;echo_runner&quot;,
+version=&quot;1.0.0&quot;,
+plugin_type=PluginType.AGENT_RUNNER,
+</pre>
+<div class="ft">第 34 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+description=&quot;Deterministic echo AgentRunner (example).&quot;,
+author=&quot;AgentFlow-Eval&quot;,
+provides=[&quot;echo&quot;, &quot;echo_runner&quot;],
+)
+def on_activate(self, ctx: PluginContext) -&amp;gt; None:
+assert ctx.register_runner is not None
+def factory(agent_config: dict[str, Any]) -&amp;gt; EchoAgentRunner:
+return EchoAgentRunner()
+ctx.register_runner(&quot;echo&quot;, factory)
+ctx.register_runner(&quot;echo_runner&quot;, factory)
+// ==== FILE: backend/app/plugins/examples/echo_tool.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Example TOOL plugin — echo arguments as JSON.&quot;&quot;&quot;
+from __future__ import annotations
+import json
+from typing import Any
+from app.core.plugins.base import BasePlugin, PluginContext, PluginMeta, PluginType
+def _echo_tool(**kwargs: Any) -&amp;gt; str:
+return json.dumps({&quot;echo&quot;: kwargs}, ensure_ascii=False)
+class Plugin(BasePlugin):
+meta = PluginMeta(
+name=&quot;echo_tool&quot;,
+version=&quot;1.0.0&quot;,
+plugin_type=PluginType.TOOL,
+description=&quot;Echo tool arguments as JSON (example).&quot;,
+author=&quot;AgentFlow-Eval&quot;,
+provides=[&quot;echo&quot;],
+)
+def on_activate(self, ctx: PluginContext) -&amp;gt; None:
+assert ctx.register_tool is not None
+ctx.register_tool(
+&quot;echo&quot;,
+_echo_tool,
+description=&quot;Echo back all tool arguments as a JSON object.&quot;,
+parameters={
+&quot;message&quot;: {
+&quot;type&quot;: &quot;string&quot;,
+&quot;description&quot;: &quot;Optional message to echo&quot;,
+},
+},
+required=[],
+network=False,
+)
+// ==== FILE: backend/app/plugins/examples/length_judge.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Example JUDGE plugin — score based on answer length similarity.&quot;&quot;&quot;
+from __future__ import annotations
+from typing import Any
+from app.core.judge_engine.base import BaseJudge, JudgeResult
+from app.core.plugins.base import BasePlugin, PluginContext, PluginMeta, PluginType
+</pre>
+<div class="ft">第 35 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+class LengthJudge(BaseJudge):
+&quot;&quot;&quot;Simple deterministic judge for demos and tests.&quot;&quot;&quot;
+async def evaluate(
+self,
+trace_steps: list[dict[str, Any]],
+expected_output: str,
+expected_tools: list[str],
+) -&amp;gt; JudgeResult:
+# Extract last assistant / final answer-ish text
+answer = &quot;&quot;
+for step in reversed(trace_steps or []):
+if not isinstance(step, dict):
+continue
+for key in (&quot;content&quot;, &quot;output&quot;, &quot;answer&quot;, &quot;observation&quot;):
+if step.get(key):
+answer = str(step[key])
+break
+if answer:
+break
+exp = (expected_output or &quot;&quot;).strip()
+ans = answer.strip()
+if not exp and not ans:
+score = 1.0
+elif not exp or not ans:
+score = 0.0
+else:
+ratio = min(len(ans), len(exp)) / max(len(ans), len(exp))
+score = round(float(ratio), 4)
+tools_used = []
+for step in trace_steps or []:
+if isinstance(step, dict) and step.get(&quot;tool&quot;):
+tools_used.append(str(step[&quot;tool&quot;]))
+if isinstance(step, dict) and step.get(&quot;tool_name&quot;):
+tools_used.append(str(step[&quot;tool_name&quot;]))
+tool_score = 1.0
+if expected_tools:
+hit = sum(1 for t in expected_tools if t in tools_used)
+tool_score = hit / len(expected_tools)
+total = round(0.7 * score + 0.3 * tool_score, 4)
+return JudgeResult(
+scores={
+&quot;length_similarity&quot;: score,
+&quot;tool_coverage&quot;: tool_score,
+},
+total=total,
+reason=f&quot;length_ratio={score}, tool_coverage={tool_score}&quot;,
+token_cost=0,
+)
+class Plugin(BasePlugin):
+meta = PluginMeta(
+</pre>
+<div class="ft">第 36 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+name=&quot;length_judge&quot;,
+version=&quot;1.0.0&quot;,
+plugin_type=PluginType.JUDGE,
+description=&quot;Rule judge: answer length ratio + tool coverage.&quot;,
+author=&quot;AgentFlow-Eval&quot;,
+provides=[&quot;length&quot;, &quot;length_judge&quot;],
+)
+def on_activate(self, ctx: PluginContext) -&amp;gt; None:
+assert ctx.register_judge is not None
+def factory() -&amp;gt; LengthJudge:
+return LengthJudge()
+ctx.register_judge(&quot;length&quot;, factory)
+ctx.register_judge(&quot;length_judge&quot;, factory)
+// ==== FILE: backend/app/schemas/__init__.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Pydantic 请求/响应模型包。&quot;&quot;&quot;
+from app.schemas.task import (
+TaskCreate,
+TaskResponse,
+TaskListResponse,
+TaskStatusUpdate,
+)
+from app.schemas.trace import (
+TraceResponse,
+TraceListResponse,
+MetricScoreResponse,
+JudgeResultResponse,
+)
+__all__ = [
+&quot;TaskCreate&quot;,
+&quot;TaskResponse&quot;,
+&quot;TaskListResponse&quot;,
+&quot;TaskStatusUpdate&quot;,
+&quot;TraceResponse&quot;,
+&quot;TraceListResponse&quot;,
+&quot;MetricScoreResponse&quot;,
+&quot;JudgeResultResponse&quot;,
+]
+// ==== FILE: backend/app/schemas/experiment.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Pydantic schemas for Experiment comparison APIs.&quot;&quot;&quot;
+from __future__ import annotations
+from datetime import datetime
+from typing import Any
+from pydantic import BaseModel, Field, field_validator
+class SuiteCase(BaseModel):
+&quot;&quot;&quot;Single test case in an experiment suite snapshot.&quot;&quot;&quot;
+user_query: str = Field(..., min_length=1)
+expected_output: str = Field(default=&quot;&quot;)
+expected_tools: list[str] = Field(default_factory=list)
+</pre>
+<div class="ft">第 37 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+class ExperimentVariant(BaseModel):
+&quot;&quot;&quot;One agent configuration variant to compare.&quot;&quot;&quot;
+label: str = Field(..., min_length=1, max_length=100, description=&quot;变体标签&quot;)
+agent_config: dict[str, Any] = Field(
+default_factory=dict,
+description=&quot;Agent 配置（runner/model/endpoint_url 等）&quot;,
+)
+class ExperimentCreate(BaseModel):
+&quot;&quot;&quot;Create experiment from base task and/or explicit suites + variants.&quot;&quot;&quot;
+name: str = Field(..., min_length=1, max_length=255)
+description: str = Field(default=&quot;&quot;)
+base_task_id: str | None = Field(
+default=None,
+description=&quot;从已有任务复制测试套件（与 suites 二选一或合并）&quot;,
+)
+suites: list[SuiteCase] = Field(
+default_factory=list,
+description=&quot;显式用例列表；可与 base_task_id 并用&quot;,
+)
+variants: list[ExperimentVariant] = Field(
+...,
+min_length=1,
+description=&quot;至少一个变体；创建后会为每个变体生成 Task 并排队执行&quot;,
+)
+auto_execute: bool = Field(
+default=True,
+description=&quot;是否立即排队执行各变体任务&quot;,
+)
+@field_validator(&quot;variants&quot;)
+@classmethod
+def unique_labels(cls, v: list[ExperimentVariant]) -&amp;gt; list[ExperimentVariant]:
+labels = [x.label for x in v]
+if len(labels) != len(set(labels)):
+raise ValueError(&quot;variant labels must be unique within an experiment&quot;)
+return v
+class ExperimentRunResponse(BaseModel):
+&quot;&quot;&quot;Single run in list/detail responses.&quot;&quot;&quot;
+id: str
+experiment_id: str
+task_id: str
+label: str
+agent_config: dict[str, Any]
+task_status: str | None = None
+created_at: datetime | None = None
+model_config = {&quot;from_attributes&quot;: True}
+class ExperimentResponse(BaseModel):
+&quot;&quot;&quot;Experiment detail.&quot;&quot;&quot;
+id: str
+name: str
+description: str
+</pre>
+<div class="ft">第 38 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+base_task_id: str | None = None
+suite_count: int = 0
+created_by: str = &quot;anonymous&quot;
+created_at: datetime | None = None
+updated_at: datetime | None = None
+runs: list[ExperimentRunResponse] = Field(default_factory=list)
+model_config = {&quot;from_attributes&quot;: True}
+class ExperimentListResponse(BaseModel):
+&quot;&quot;&quot;Paginated experiment list.&quot;&quot;&quot;
+items: list[ExperimentResponse]
+total: int
+page: int = 1
+page_size: int = 20
+class RunCompareItem(BaseModel):
+&quot;&quot;&quot;Aggregated scores for one experiment run.&quot;&quot;&quot;
+label: str
+task_id: str
+task_status: str
+average_score: float = 0.0
+dimension_scores: dict[str, float] = Field(default_factory=dict)
+total_tokens: int = 0
+total_time_ms: int = 0
+suite_count: int = 0
+scored_traces: int = 0
+class ExperimentCompareResponse(BaseModel):
+&quot;&quot;&quot;Side-by-side comparison of experiment runs.&quot;&quot;&quot;
+experiment_id: str
+name: str
+suite_count: int
+runs: list[RunCompareItem]
+best_label: str | None = None
+delta_vs_best: dict[str, float] = Field(
+default_factory=dict,
+description=&quot;各变体相对最高分的总分差值（best 为 0）&quot;,
+)
+// ==== FILE: backend/app/schemas/media.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Pydantic schemas for multimodal media APIs.&quot;&quot;&quot;
+from __future__ import annotations
+from datetime import datetime
+from typing import Any
+from pydantic import BaseModel, Field
+class MediaAssetResponse(BaseModel):
+id: str
+filename: str
+content_type: str
+size_bytes: int
+sha256: str
+media_kind: str
+storage_backend: str
+</pre>
+<div class="ft">第 39 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+storage_key: str
+extracted_text: str = &quot;&quot;
+features: dict[str, Any] | None = None
+extract_meta: dict[str, Any] | None = None
+task_id: str | None = None
+test_suite_id: str | None = None
+created_by: str = &quot;anonymous&quot;
+created_at: datetime | None = None
+model_config = {&quot;from_attributes&quot;: True}
+class MediaExtractResponse(BaseModel):
+asset_id: str
+kind: str
+text: str
+features: dict[str, Any] = Field(default_factory=dict)
+metadata: dict[str, Any] = Field(default_factory=dict)
+pages: int | None = None
+tables: list[dict[str, Any]] = Field(default_factory=list)
+warnings: list[str] = Field(default_factory=list)
+class MultimodalEvalRequest(BaseModel):
+&quot;&quot;&quot;Evaluate a stored media asset (or re-score extraction).&quot;&quot;&quot;
+query: str = Field(default=&quot;&quot;, description=&quot;Evaluation question / prompt&quot;)
+expected_text: str = Field(default=&quot;&quot;, description=&quot;Expected content or caption&quot;)
+use_vision_llm: bool = Field(
+default=True,
+description=&quot;Use GPT-4V/gpt-4o style vision LLM when image + API key available&quot;,
+)
+model: str | None = Field(default=None, description=&quot;Override vision model&quot;)
+class MultimodalEvalResponse(BaseModel):
+asset_id: str
+mode: str
+scores: dict[str, float]
+total: float
+reason: str
+kind: str
+token_cost: int = 0
+degraded: bool = False
+model: str | None = None
+extraction: MediaExtractResponse | None = None
+class SupportedFormatsResponse(BaseModel):
+extensions: list[str]
+kinds: list[str]
+max_upload_bytes: int
+storage_backend: str
+// ==== FILE: backend/app/schemas/task.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Task 相关的 Pydantic 请求/响应模型。&quot;&quot;&quot;
+from datetime import datetime
+from typing import Any
+from pydantic import BaseModel, Field
+class TaskCreate(BaseModel):
+</pre>
+<div class="ft">第 40 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+&quot;&quot;&quot;创建评测任务的请求体。&quot;&quot;&quot;
+name: str = Field(..., min_length=1, max_length=255, description=&quot;任务名称&quot;)
+description: str = Field(&quot;&quot;, description=&quot;任务描述&quot;)
+agent_config: dict[str, Any] = Field(
+default_factory=lambda: {&quot;model&quot;: &quot;gpt-4o&quot;, &quot;temperature&quot;: 0},
+description=&quot;Agent 配置参数&quot;,
+)
+class TaskStatusUpdate(BaseModel):
+&quot;&quot;&quot;更新任务状态的请求体。&quot;&quot;&quot;
+status: str = Field(
+...,
+pattern=r&quot;^(created|queued|running|waiting_tool|judging|completed|failed|cancelled|timeout)$&quot;,
+description=&quot;新状态&quot;,
+)
+class TaskResponse(BaseModel):
+&quot;&quot;&quot;任务响应模型。&quot;&quot;&quot;
+id: str
+name: str
+description: str
+status: str
+agent_config: dict[str, Any]
+celery_task_id: str | None = None
+is_archived: bool = False
+created_by: str = &quot;anonymous&quot;
+created_at: datetime | None = None
+updated_at: datetime | None = None
+test_suite_count: int = 0
+model_config = {&quot;from_attributes&quot;: True}
+class TaskListResponse(BaseModel):
+&quot;&quot;&quot;任务列表响应。&quot;&quot;&quot;
+items: list[TaskResponse]
+total: int
+page: int = 1
+page_size: int = 20
+// ==== FILE: backend/app/schemas/trace.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Trace and MetricScore Pydantic schemas.&quot;&quot;&quot;
+from datetime import datetime
+from typing import Any
+from pydantic import BaseModel, Field
+class MetricScoreResponse(BaseModel):
+&quot;&quot;&quot;Metric score response schema.&quot;&quot;&quot;
+id: str
+metric_name: str
+score: float
+reason: str
+extra_metadata: dict[str, Any] | None = None
+model_config = {&quot;from_attributes&quot;: True}
+class TokenUsage(BaseModel):
+&quot;&quot;&quot;Token usage breakdown for observability UIs.&quot;&quot;&quot;
+</pre>
+<div class="ft">第 41 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+prompt_tokens: int = 0
+completion_tokens: int = 0
+total_tokens: int = 0
+class TraceResponse(BaseModel):
+&quot;&quot;&quot;Execution trace response schema.&quot;&quot;&quot;
+id: str
+test_suite_id: str
+user_query: str
+steps: list[dict[str, Any]]
+total_tokens: int
+response_time_ms: int
+status: str
+created_at: datetime | None = None
+metric_scores: list[MetricScoreResponse] = []
+# Observability / version metadata (optional on older rows)
+prompt_tokens: int = 0
+completion_tokens: int = 0
+cost: float = 0.0
+agent_version: str | None = None
+prompt_version: str | None = None
+model_version: str | None = None
+tool_version: str | None = None
+token_usage: TokenUsage | None = None
+model_config = {
+&quot;from_attributes&quot;: True,
+&quot;protected_namespaces&quot;: (),
+}
+class TraceListResponse(BaseModel):
+&quot;&quot;&quot;Trace list response schema.&quot;&quot;&quot;
+items: list[TraceResponse]
+total: int
+class JudgeResultResponse(BaseModel):
+&quot;&quot;&quot;LLM Judge scoring result schema.&quot;&quot;&quot;
+scores: dict[str, float] = Field(..., description=&quot;scores per dimension&quot;)
+total: float = Field(..., ge=0, le=100, description=&quot;weighted total score&quot;)
+reason: str = Field(&quot;&quot;, description=&quot;deduction reason details&quot;)
+token_cost: int = Field(0, description=&quot;tokens consumed by judge&quot;)
+// ==== FILE: backend/app/utils/__init__.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;工具包。&quot;&quot;&quot;
+// ==== FILE: backend/app/utils/cost.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;成本计算工具 —— 基于模型和 Token 数量计算 API 调用费用。
+用法:
+from app.utils.cost import calculate_cost
+cost = calculate_cost(&quot;gpt-4o-mini&quot;, prompt_tokens=1000, completion_tokens=500)
+&quot;&quot;&quot;
+from __future__ import annotations
+from dataclasses import dataclass
+@dataclass(frozen=True)
+</pre>
+<div class="ft">第 42 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+class ModelPricing:
+&quot;&quot;&quot;每百万 Token 的价格（USD）。&quot;&quot;&quot;
+prompt_per_million: float
+completion_per_million: float
+# 官方定价表 (截至 2025-Q2，请定期更新)
+# https://openai.com/pricing
+MODEL_PRICING: dict[str, ModelPricing] = {
+# GPT-4o 系列
+&quot;gpt-4o&quot;: ModelPricing(2.50, 10.00),
+&quot;gpt-4o-2024-11-20&quot;: ModelPricing(2.50, 10.00),
+&quot;gpt-4o-2024-08-06&quot;: ModelPricing(2.50, 10.00),
+&quot;gpt-4o-2024-05-13&quot;: ModelPricing(5.00, 15.00),
+# GPT-4o-mini 系列
+&quot;gpt-4o-mini&quot;: ModelPricing(0.15, 0.60),
+&quot;gpt-4o-mini-2024-07-18&quot;: ModelPricing(0.15, 0.60),
+# GPT-4.1 系列
+&quot;gpt-4.1&quot;: ModelPricing(2.00, 8.00),
+&quot;gpt-4.1-mini&quot;: ModelPricing(0.40, 1.60),
+&quot;gpt-4.1-nano&quot;: ModelPricing(0.10, 0.40),
+# o 系列推理模型
+&quot;o4-mini&quot;: ModelPricing(1.10, 4.40),
+&quot;o3&quot;: ModelPricing(2.00, 8.00),
+&quot;o3-mini&quot;: ModelPricing(1.10, 4.40),
+&quot;o1&quot;: ModelPricing(15.00, 60.00),
+&quot;o1-mini&quot;: ModelPricing(1.10, 4.40),
+# GPT-4 Turbo (legacy)
+&quot;gpt-4-turbo&quot;: ModelPricing(10.00, 30.00),
+&quot;gpt-4-turbo-preview&quot;: ModelPricing(10.00, 30.00),
+# GPT-3.5 (legacy)
+&quot;gpt-3.5-turbo&quot;: ModelPricing(0.50, 1.50),
+&quot;gpt-3.5-turbo-0125&quot;: ModelPricing(0.50, 1.50),
+}
+# 默认 fallback 价格（使用 gpt-4o-mini 作为保守估算）
+_DEFAULT_PRICING = ModelPricing(0.15, 0.60)
+def calculate_cost(
+model: str,
+prompt_tokens: int,
+completion_tokens: int,
+) -&amp;gt; float:
+&quot;&quot;&quot;计算单次 API 调用的费用（USD）。
+Args:
+model: 模型名称（如 &quot;gpt-4o-mini&quot;）。
+prompt_tokens: 输入 Token 数。
+completion_tokens: 输出 Token 数。
+Returns:
+费用（USD），保留 8 位小数以支持微量计费。
+Examples:
+&amp;gt;&amp;gt;&amp;gt; calculate_cost(&quot;gpt-4o-mini&quot;, 1000, 500)
+0.00045
+&amp;gt;&amp;gt;&amp;gt; calculate_cost(&quot;gpt-4o&quot;, 10000, 5000)
+</pre>
+<div class="ft">第 43 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+0.075
+&quot;&quot;&quot;
+pricing = MODEL_PRICING.get(model, _DEFAULT_PRICING)
+cost = (prompt_tokens / 1_000_000) * pricing.prompt_per_million + (
+completion_tokens / 1_000_000
+) * pricing.completion_per_million
+return round(cost, 8)
+def get_supported_models() -&amp;gt; list[str]:
+&quot;&quot;&quot;返回所有已配置定价的模型列表。&quot;&quot;&quot;
+return sorted(MODEL_PRICING.keys())
+// ==== FILE: backend/app/utils/exceptions.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Custom exception hierarchy and unified error response format.&quot;&quot;&quot;
+from __future__ import annotations
+from typing import Any
+from datetime import datetime, timezone
+class AgentFlowError(Exception):
+&quot;&quot;&quot;Base exception for all application errors.&quot;&quot;&quot;
+def __init__(
+self,
+message: str = &quot;Internal error&quot;,
+status_code: int = 500,
+detail: Any = None,
+):
+self.message = message
+self.status_code = status_code
+self.detail = detail
+super().__init__(self.message)
+class NotFoundError(AgentFlowError):
+&quot;&quot;&quot;Resource not found (HTTP 404).&quot;&quot;&quot;
+def __init__(self, resource: str = &quot;Resource&quot;, resource_id: str = &quot;&quot;):
+msg = (
+f&quot;{resource} not found: {resource_id}&quot;
+if resource_id
+else f&quot;{resource} not found&quot;
+)
+super().__init__(message=msg, status_code=404)
+class ValidationError(AgentFlowError):
+&quot;&quot;&quot;Request validation failed (HTTP 422).&quot;&quot;&quot;
+def __init__(self, message: str = &quot;Validation failed&quot;, detail: Any = None):
+super().__init__(message=message, status_code=422, detail=detail)
+class BusinessError(AgentFlowError):
+&quot;&quot;&quot;Business logic error (HTTP 400).&quot;&quot;&quot;
+def __init__(self, message: str = &quot;Business error&quot;, detail: Any = None):
+super().__init__(message=message, status_code=400, detail=detail)
+class TaskStateError(AgentFlowError):
+&quot;&quot;&quot;Task state conflict (HTTP 409).&quot;&quot;&quot;
+def __init__(self, message: str = &quot;Task state error&quot;):
+super().__init__(message=message, status_code=409)
+class ExternalServiceError(AgentFlowError):
+</pre>
+<div class="ft">第 44 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+&quot;&quot;&quot;External service unavailable (HTTP 503).&quot;&quot;&quot;
+def __init__(self, message: str = &quot;External service error&quot;, detail: Any = None):
+super().__init__(message=message, status_code=503, detail=detail)
+class RateLimitError(AgentFlowError):
+&quot;&quot;&quot;Rate limit exceeded (HTTP 429).&quot;&quot;&quot;
+def __init__(self, message: str = &quot;Too many requests&quot;, detail: Any = None):
+super().__init__(message=message, status_code=429, detail=detail)
+class ForbiddenError(AgentFlowError):
+&quot;&quot;&quot;Permission denied (HTTP 403).&quot;&quot;&quot;
+def __init__(self, message: str = &quot;Forbidden&quot;, detail: Any = None):
+super().__init__(message=message, status_code=403, detail=detail)
+def error_response(
+status_code: int,
+message: str,
+detail: Any = None,
+request_id: str | None = None,
+stacktrace: str | None = None,
+error_id: str | None = None,
+) -&amp;gt; dict[str, Any]:
+&quot;&quot;&quot;Generate unified JSON error response.
+Returns dict with code, message, detail, timestamp, request_id,
+optional error_id (support correlation), and stacktrace (dev only).
+&quot;&quot;&quot;
+resp: dict[str, Any] = {
+&quot;error&quot;: {
+&quot;code&quot;: status_code,
+&quot;message&quot;: message,
+&quot;timestamp&quot;: datetime.now(timezone.utc).isoformat(),
+}
+}
+if detail:
+resp[&quot;error&quot;][&quot;detail&quot;] = detail
+if request_id:
+resp[&quot;error&quot;][&quot;request_id&quot;] = request_id
+if error_id:
+resp[&quot;error&quot;][&quot;error_id&quot;] = error_id
+if stacktrace:
+resp[&quot;error&quot;][&quot;stacktrace&quot;] = stacktrace
+return resp
+// ==== FILE: backend/app/utils/logger.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Application logging entrypoint — delegates to AOLS (structlog JSON).&quot;&quot;&quot;
+from __future__ import annotations
+from typing import Any
+def setup_logging() -&amp;gt; None:
+&quot;&quot;&quot;Configure process-wide logging (structlog + rotating file).&quot;&quot;&quot;
+from app.core.observability.aols.logger import setup_aols_logging
+setup_aols_logging()
+def get_logger(name: str | None = None) -&amp;gt; Any:
+&quot;&quot;&quot;Structured logger factory (compat re-export).&quot;&quot;&quot;
+</pre>
+<div class="ft">第 45 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+from app.core.observability.aols.logger import get_logger as _get
+return _get(name)
+// ==== FILE: backend/scripts/backfill_created_by.py ====
+&quot;&quot;&quot;One-off SQLite backfill for tasks.created_by.&quot;&quot;&quot;
+from sqlalchemy import create_engine, text
+engine = create_engine(&quot;sqlite:///./agentflow_eval.db&quot;)
+with engine.begin() as conn:
+cols = {r[1] for r in conn.execute(text(&quot;PRAGMA table_info(tasks)&quot;)).fetchall()}
+if &quot;created_by&quot; not in cols:
+conn.execute(
+text(
+&quot;ALTER TABLE tasks ADD COLUMN created_by &quot;
+&quot;VARCHAR(100) NOT NULL DEFAULT 'anonymous'&quot;
+)
+)
+print(&quot;added created_by&quot;)
+else:
+print(&quot;created_by already present&quot;)
+// ==== FILE: backend/scripts/export_openapi.py ====
+# (c) 2026 AgentFlow-Eval
+&quot;&quot;&quot;Export FastAPI OpenAPI schema and optionally check against frozen contract.
+Usage:
+cd backend
+python scripts/export_openapi.py -o ../docs/openapi-v1.json
+python scripts/export_openapi.py --check ../docs/openapi-v1.json
+&quot;&quot;&quot;
+from __future__ import annotations
+import argparse
+import json
+import sys
+from pathlib import Path
+def _app():
+# Ensure backend root on path
+root = Path(__file__).resolve().parents[1]
+if str(root) not in sys.path:
+sys.path.insert(0, str(root))
+from app.main import app
+return app
+def export_schema() -&amp;gt; dict:
+return _app().openapi()
+def path_methods(schema: dict) -&amp;gt; set[tuple[str, str]]:
+out: set[tuple[str, str]] = set()
+for path, item in (schema.get(&quot;paths&quot;) or {}).items():
+if not isinstance(item, dict):
+continue
+for method in item:
+if method.lower() in {
+&quot;get&quot;,
+&quot;post&quot;,
+&quot;put&quot;,
+</pre>
+<div class="ft">第 46 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+&quot;patch&quot;,
+&quot;delete&quot;,
+&quot;head&quot;,
+&quot;options&quot;,
+}:
+out.add((path, method.lower()))
+return out
+def check_compatible(frozen: dict, current: dict) -&amp;gt; list[str]:
+&quot;&quot;&quot;Return list of breaking-change messages (empty = ok).
+Breaking: frozen (path, method) missing from current.
+Additive endpoints are allowed.
+&quot;&quot;&quot;
+errors: list[str] = []
+frozen_pm = path_methods(frozen)
+current_pm = path_methods(current)
+missing = frozen_pm - current_pm
+for path, method in sorted(missing):
+errors.append(f&quot;BREAKING: removed {method.upper()} {path}&quot;)
+return errors
+def main(argv: list[str] | None = None) -&amp;gt; int:
+parser = argparse.ArgumentParser(description=&quot;OpenAPI export / freeze check&quot;)
+parser.add_argument(
+&quot;-o&quot;,
+&quot;--output&quot;,
+type=Path,
+help=&quot;Write OpenAPI JSON to this path&quot;,
+)
+parser.add_argument(
+&quot;--check&quot;,
+type=Path,
+metavar=&quot;FROZEN_JSON&quot;,
+help=&quot;Fail if current schema removes paths from frozen JSON&quot;,
+)
+args = parser.parse_args(argv)
+schema = export_schema()
+if args.output:
+args.output.parent.mkdir(parents=True, exist_ok=True)
+args.output.write_text(
+json.dumps(schema, ensure_ascii=False, indent=2) + &quot;\n&quot;,
+encoding=&quot;utf-8&quot;,
+)
+print(f&quot;Wrote {args.output} ({len(path_methods(schema))} operations)&quot;)
+if args.check:
+frozen = json.loads(args.check.read_text(encoding=&quot;utf-8&quot;))
+errors = check_compatible(frozen, schema)
+if errors:
+print(&quot;API compatibility check FAILED:&quot;, file=sys.stderr)
+for e in errors:
+print(f&quot;  - {e}&quot;, file=sys.stderr)
+return 1
+</pre>
+<div class="ft">第 47 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+print(
+f&quot;API compatibility check OK &quot;
+f&quot;(frozen={len(path_methods(frozen))} ops, &quot;
+f&quot;current={len(path_methods(schema))} ops)&quot;
+)
+if not args.output and not args.check:
+# dump to stdout
+json.dump(schema, sys.stdout, ensure_ascii=False, indent=2)
+print()
+return 0
+if __name__ == &quot;__main__&quot;:
+raise SystemExit(main())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</pre>
+<div class="ft">第 48 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</pre>
+<div class="ft">第 49 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</pre>
+<div class="ft">第 50 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</pre>
+<div class="ft">第 51 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</pre>
+<div class="ft">第 52 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</pre>
+<div class="ft">第 53 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</pre>
+<div class="ft">第 54 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</pre>
+<div class="ft">第 55 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</pre>
+<div class="ft">第 56 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</pre>
+<div class="ft">第 57 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</pre>
+<div class="ft">第 58 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</pre>
+<div class="ft">第 59 页 / 共 60 页</div></div>
+<div class="pg">
+<div class="hd"><span class="l">AgentFlow-Eval 源程序鉴别材料</span><span class="r">V1.0.0</span></div>
+<pre class="ca">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</pre>
+<div class="ft">第 60 页 / 共 60 页</div></div>
+</body></html>

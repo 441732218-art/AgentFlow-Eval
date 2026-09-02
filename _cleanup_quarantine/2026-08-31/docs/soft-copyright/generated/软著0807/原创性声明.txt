@@ -1,0 +1,67 @@
+═══════════════════════════════════════════════════════════════════
+          原创性声明与第三方库边界
+═══════════════════════════════════════════════════════════════════
+
+一、自研原创模块
+
+以下模块为申请人李凯昕独立设计、编码完成，拥有完整著作权：
+
+1. 任务状态机（app/models/task.py）
+   TaskStatus 枚举及 can_transition_to 状态流转校验
+   乐观锁并发控制策略（数据库层 WHERE status=? 方案）
+
+2. ReAct 执行器（app/core/agent_runner/）
+   openai_runner.py: OpenAI 兼容 Agent 的执行编排
+   http_runner.py: HTTP Agent 探测与契约测试
+   protocol.py: 执行协议抽象接口
+
+3. 工具沙箱（app/core/agent_runner/tool_sandbox.py）
+   内置工具（计算器、搜索、Python REPL）的安全执行环境
+   SSRF 防护（app/core/agent_runner/ssrf.py）
+
+4. 规则+LLM 混合评分引擎（app/core/judge_engine/）
+   LLMJudge: 调用 LLM 进行多维度自动评分
+   LengthJudge: 确定性快速评分（demo/test）
+   metrics.py: 工具调用准确率、答案提取等指标计算
+
+5. 轻量租户隔离（app/core/tenancy.py, tenant_context.py）
+   基于 created_by / tenant_id 的 Actor 隔离策略
+   多租户上下文管理
+
+6. 审计日志（app/core/audit.py, app/models/audit_log.py）
+   全量操作审计记录
+   插件化审计 Hook（app/plugins/examples/audit_hooks.py）
+
+7. WebSocket 活动推送（app/core/ws_hub.py）
+   任务状态变更实时推送
+
+8. 插件系统（app/core/plugins/）
+   动态加载、签名校验、沙箱隔离
+   市场/商业/权限管理
+
+9. 可观测性体系（app/core/observability/）
+   AOLS 结构化日志（app/core/observability/aols/）
+   业务 KPI 指标采集（business_kpis.py）
+   慢任务检测（slow_tasks.py）
+
+10. 多模态评测（app/core/multimodal/）
+    图像/PDF/电子表格提取与评测管线
+
+二、第三方依赖仅作为基础设施
+
+以下第三方库仅作为开发框架/工具使用，申请人不对其主张著作权，
+且自研代码与第三方库接口调用清晰分离：
+
+  - FastAPI / Pydantic / Starlette（Web 框架）
+  - SQLAlchemy / asyncpg / aiosqlite（数据持久化）
+  - Celery / Redis（异步任务队列）
+  - React / Ant Design / Vite（前端框架）
+  - 其他见 requirements.txt / package.json
+
+三、权利声明
+
+本软件 AgentFlow-Eval Agent自动化评测工作台 V1.0 的全部原创
+源代码著作权归李凯昕所有。第三方开源组件的使用遵循其各自许可
+协议（MIT / Apache 2.0 / BSD），不构成对第三方权利的侵犯。
+
+═══════════════════════════════════════════════════════════════════

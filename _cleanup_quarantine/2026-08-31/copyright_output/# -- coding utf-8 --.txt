@@ -1,0 +1,105 @@
+# -*- coding: utf-8 -*-
+import re, html, math, unicodedata
+from pathlib import Path
+
+SRC = Path("copyright_output/source_code_60pages.txt")
+OUT = Path("copyright_output/source_code_60pages.html")
+TITLE = "AgentFlow-Eval 源程序鉴别材料 V1.0.0"
+TARGET_PAGES = 60
+LH = 1.25
+
+raw = SRC.read_text(encoding="utf-8").split("\n")
+
+code = []
+for ln in raw:
+    s = ln.rstrip("\r")
+    t = s.strip()
+    if t.startswith("AgentFlow-Eval") and "源程序鉴别材料" in t:
+        continue
+    if re.fullmatch(r"-{10,}", t):
+        continue
+    if re.match(r"^第\s*\d+\s*页\s*/\s*共\s*\d+\s*页$", t):
+        continue
+    if t == TITLE:
+        continue
+    code.append(s)
+while code and not code[0].strip(): code.pop(0)
+while code and not code[-1].strip(): code.pop()
+
+def dw(s):
+    return sum(2 if unicodedata.east_asian_width(ch) in ("F", "W") else 1 for ch in s)
+
+def phys_lines(s, cols):
+    s = s.expandtabs(4)
+    return 1 if s == "" else max(1, math.ceil(dw(s) / cols))
+
+def solve(font):
+    char_mm = font * 0.6 * 0.3528
+    cols = max(40, int((190.0 / char_mm) * 0.85))
+    line_mm = font * LH * 0.3528
+    max_rows = int(267.0 / line_mm) - 1
+    total = sum(phys_lines(x, cols) for x in code)
+    return cols, max_rows, total
+
+font = 7.5
+while font >= 5.0:
+    cols, max_rows, total = solve(font)
+    rows = math.ceil(total / TARGET_PAGES)
+    if rows <= max_rows:
+        break
+    font -= 0.5
+else:
+    font = 5.0
+    cols, max_rows, total = solve(font)
+    rows = math.ceil(total / TARGET_PAGES)
+
+phys = [phys_lines(x, cols) for x in code]
+cum = [0]
+for v in phys:
+    cum.append(cum[-1] + v)
+total = cum[-1]
+
+if total == 0:
+    pages = [[]]
+else:
+    bounds = [round(total * k / TARGET_PAGES) for k in range(TARGET_PAGES + 1)]
+    pages, start = [], 0
+    for k in range(1, TARGET_PAGES + 1):
+        target, end = bounds[k], start
+        while end < len(code) and cum[end + 1] <= target:
+            end += 1
+        if end == start and start < len(code):
+            end = start + 1
+        pages.append(code[start:end])
+        start = end
+    if start < len(code):
+        pages[-1].extend(code[start:])
+
+n = len(pages)
+page_phys = [sum(phys_lines(x, cols) for x in pg) for pg in pages]
+
+CSS = ("@page { size: A4; margin: 0; }\n"
+       "* { box-sizing: border-box; margin: 0; padding: 0; }\n"
+       "body { font-family: Consolas, 'Courier New', 'Microsoft YaHei', SimSun, monospace; }\n"
+       ".page { width:210mm; height:297mm; padding:10mm 10mm 8mm 10mm; page-break-after:always; overflow:hidden; position:relative; }\n"
+       ".page:last-child { page-break-after:auto; }\n"
+       ".hdr { font-size:9pt; text-align:center; border-bottom:1px solid #999; padding-bottom:3px; margin-bottom:4px; }\n"
+       ".ftr { font-size:9pt; text-align:center; border-top:1px solid #999; padding-top:3px; position:absolute; bottom:8mm; left:10mm; right:10mm; }\n"
+       "pre.code { white-space:pre-wrap; word-break:break-word; font-size:%spt; line-height:%s; font-family:inherit; }" % (font, LH))
+
+parts = ['<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8">',
+         '<title>' + html.escape(TITLE) + '</title>',
+         '<style>' + CSS + '</style></head><body>']
+for i, p in enumerate(pages, 1):
+    parts.append('<section class="page">')
+    parts.append('<div class="hdr">' + html.escape(TITLE) + '</div>')
+    parts.append('<pre class="code">' + html.escape("\n".join(p)) + '</pre>')
+    parts.append('<div class="ftr">第 ' + str(i) + ' 页 / 共 ' + str(n) + ' 页</div>')
+    parts.append('</section>')
+parts.append('</body></html>')
+
+OUT.write_text("\n".join(parts), encoding="utf-8")
+print("font pt        :", font)
+print("rows/page max  :", max(page_phys), "/ limit", max_rows)
+print("HTML pages     :", n)
+print("Output         :", OUT)

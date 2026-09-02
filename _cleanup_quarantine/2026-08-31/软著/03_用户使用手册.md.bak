@@ -1,0 +1,453 @@
+# 材料三：用户使用手册（操作说明书?
+
+**软件名称?* AgentFlow-Eval Agent自动化评测工作台（界面名称：AgentFlow Intelligence/驾驶舱）
+**版本号：** V1.0
+**著作权人?* 李凯?
+**开发完成日期：** 2026??4?
+**文档类型?* 用户操作手册
+
+> 软件著作权登记名称为「AgentFlow-Eval Agent自动化评测工作台」，前端工作台显示名称为「AgentFlow Intelligence / 驾驶舱」，二者指向同一软件产品?
+
+---
+
+## 1. 软件概述
+
+AgentFlow Intelligence（驾驶舱）是一款面向企?AI 场景?Agent 自动化评?Web 工作台。用户可创建评测任务（Task）、导入业务测试用例（TestSuite），系统自动调度 Agent 执行，记录完整执行轨迹（Trace），并结合规则指标与大模型评审（LLM-as-Judge）生成多维指标分（MetricScore）与结构化报告?
+
+**主要使用角色?* AI 应用开发者、算法评测人员、质检人员?
+**访问方式?* 浏览器访问前端工作台（推?Chrome / Edge 近两个大版本）?
+
+**核心业务闭环?*
+
+1. 创建评测任务（Task）并配置 Agent 参数
+2. 导入或维护测试用例（TestSuite?
+3. 执行评测（异步或本地 Eager?
+4. 查看执行轨迹（Trace）的 DAG、步骤日志与指标分（MetricScore?
+5. 查看聚合报告，必要时人工复核改分
+
+---
+
+## 2. 运行环境
+
+### 2.1 硬件环境（建议）
+
+| 项目 | 最低建?|
+|------|----------|
+| CPU | 2 ?|
+| 内存 | 4 GB |
+| 磁盘 | 10 GB 可用空间 |
+| 显示 | 1280×720 及以?|
+
+### 2.2 软件环境
+
+| 组件 | 版本要求 |
+|------|----------|
+| 操作系统 | Windows 10/11、Linux ?macOS |
+| Python | 3.11 及以?|
+| Node.js | 18 及以上（前端开发模式） |
+| 浏览?| Chrome / Edge 近两个大版本 |
+| Docker | 可选，用于完整栈（PostgreSQL + Redis + Celery?|
+
+### 2.3 外部依赖说明
+
+- 大模型服务：需配置兼容 OpenAI 协议?API 地址与密钥（占位符：`your_api_key_here`、`https://api.your-llm-endpoint.example/v1`）?
+- 完整异步模式需?Redis ?Celery Worker；本地演示可?`CELERY_TASK_ALWAYS_EAGER=true` 设为进程内同步执行?
+
+---
+
+## 3. 安装与启?
+
+### 3.1 方式 A：本?Eager（最小依赖）
+
+**步骤 1：后?*
+
+1. 进入 `backend` 目录，创建并激?Python 虚拟环境?
+2. 执行 `pip install -r requirements.txt`?
+3. 复制环境模板?`.env`，设置：
+   - `OPENAI_API_KEY=your_api_key_here`
+   - `OPENAI_BASE_URL=https://api.your-llm-endpoint.example/v1`（如需?
+   - `CELERY_TASK_ALWAYS_EAGER=true`
+4. 启动：`uvicorn app.main:app --reload --port 8000`?
+5. 浏览器访?`http://127.0.0.1:8000/health` 确认服务健康?
+
+**步骤 2：前?*
+
+1. 进入 `frontend` 目录，执?`npm install`?
+2. 配置 `VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1`?
+3. 执行 `npm run dev`?
+4. 浏览器访?`http://localhost:5173`?
+
+![驾驶舱看板图](command_center.png)
+
+> ?：驾驶舱看板图（command_center.png?
+
+### 3.2 方式 B：Docker 全栈
+
+1. 生成 Docker 环境文件（参?`scripts/generate-deploy-env.ps1`）?
+2. ?`backend/.env.docker` 填入 `OPENAI_API_KEY=your_api_key_here`?
+3. 执行 Docker Compose 启动全栈?
+4. 访问前端入口?API 文档（如 `http://localhost/`、`http://localhost:8000/docs`）?
+
+API 文档（Swagger）界面可通过后端 `/docs` 路径访问；前端工作台访问根路径自动跳转至驾驶舱?
+
+### 3.3 写入演示数据（可选）
+
+在后端环境中执行：`python -m app.core.seed`，可生成示例评测任务（Task）与测试用例（TestSuite），便于熟悉界面。?
+
+---
+
+## 4. 系统导航结构
+
+系统采用?右布局，左侧导航栏按四大功能分组组织：
+
+**COMMAND（命令与控制?*
+- **驾驶舱（AI Command Center?* ?`/dashboard`
+- **Trace（轨迹回溯）** ?`/traces`
+- **故障诊断** ?`/diagnosis`
+- **分析（分析中心）** ?`/analytics`
+- **监控（运行监控）** ?`/monitoring`
+
+**EVALUATE（评测）**
+- **任务（评测任务列表）** ?`/tasks`
+- **创建任务** ?`/tasks/create`
+- **报告** ?`/reports`
+
+**OPERATE（运营）**
+- **用量计费** ?`/billing`
+- **插件市场** ?`/plugins`
+
+**SYSTEM（系统）**
+- **设置中心** ?`/settings`
+
+![导航结构图](nav_overview.png)
+
+> ?：系统导航结构图（nav_overview.png?
+
+---
+
+## 5. 功能模块详解
+
+
+### 5.1 驾驶舱（AI Command Center?
+
+**入口?* 左侧导航 COMMAND 分组「驾驶舱」或路由 `/dashboard`?
+
+驾驶舱为系统的核心监控界面，提供以下可视化组件：
+
+**六项核心指标卡（指标面板?*
+- **AI HEALTH** ?系统整体健康度评?
+- **RUNNING AGENTS** ?当前正在运行?Agent 数量
+- **SUCCESS RATE** ?整体任务成功?
+- **FAILURE RATE** ?整体任务失败?
+- **AVG LATENCY** ?平均响应延迟
+- **TOKEN COST** ?累计 Token 消?
+
+**四项状态卡片区**
+- **AOLS EVENTS** ?事件聚合计数
+- **AOLS ERRORS** ?错误聚合计数
+- **AGENT FAIL** ?Agent 失败统计
+- **DATA SOURCES** ?数据源连接状态（ORM + AOLS?
+
+**HEALTH GAUGE 仪表?* ?实时显示系统健康度指针?
+
+**TOKENS × LATENCY 双轴?* ?左侧纵轴?Token 消耗量，右侧纵轴为延迟时间，横轴为时间线?
+
+**AGENT PIPELINE TOPOLOGY 五节点拓扑图**
+- 节点链：**User Request ?Planner Agent ?Tool Calling ?Observation ?LLM Judge**
+- 各节点状态色标：
+  - **绿（HEALTHY?* ?正常
+  - **黄（DEGRADED?* ?降级
+  - **红（FAILURE?* ?失败
+  - **灰（IDLE?* ?空闲
+
+**右上角操作区**
+- 时间范围选择?*7d / 14d / 30d** 切换按钮
+- 快捷入口?*Monitoring**?*Diagnosis**?*创建任务** 按钮
+
+![驾驶舱看板图](command_center.png)
+
+> ?：驾驶舱（AI Command Center）看板图（command_center.png?
+
+### 5.2 评测任务列表
+
+**入口?* 左侧导航 EVALUATE 分组「任务」或路由 `/tasks`?
+
+**交互闭环?*
+
+1. 点击「任务」→ 加载评测任务（Task）分页列表?
+2. 可按状态筛选，切换是否包含已归档任务?
+3. 点击某一任务名称 ?进入任务详情页?
+4. 可对任务执行归档或删除（以界面按钮为准）?
+
+![任务列表](task_list.png)
+
+> ?：评测任务列表界面（task_list.png?
+
+### 5.3 创建评测任务
+
+**入口?* EVALUATE 分组「创建任务」或路由 `/tasks/create`?
+
+**交互闭环?*
+
+1. 点击「创建任务」→ 加载创建表单?
+2. 输入任务名称、描述?
+3. 配置 Agent 参数（如模型、最大迭代轮次等）?
+4. 点击「保?创建」→ 后端写入评测任务（Task）→ 跳转详情或列表并展示新任务?
+
+![创建任务](task_create.png)
+
+> ?：创建评测任务表单界面（task_create.png?
+
+### 5.4 测试用例维护与导?
+
+**入口?* 任务详情页用例区域?
+
+**交互闭环?*
+
+1. 打开任务详情 ?加载测试用例（TestSuite）列表?
+2. 选择上传 CSV ?JSON 文件 ?点击上传按钮?
+3. 后端解析 `user_query`、`expected_output`、`expected_tools` 等字段并批量写入?
+4. 界面刷新展示新增用例条数?
+
+?：测试用例上传界??请参考任务详情页的用例管理区域截图（文件：testcase_upload.png，如未单独截图则可参?task_create 页面中的用例上传组件）?
+
+### 5.5 执行评测
+
+**入口?* 任务详情页「执行」按钮?
+
+**交互闭环?*
+
+1. 确认测试用例（TestSuite）已就绪后点击「执行评测」?
+2. 系统将评测任务（Task）状态置为排?运行，并投递异步任务（?Eager 同步执行）?
+3. 前端通过刷新?WebSocket 活动推送展示进度?
+4. 执行完成后状态变为完成或失败，可进入执行轨迹（Trace）与报告查看?
+
+
+
+### 5.6 运行监控
+
+**入口?* 左侧导航 COMMAND 分组「监控」或路由 `/monitoring`?
+
+运行监控页面提供系统运行时的完整可观测性视图：
+
+**基础设施状态面?*
+- **API Gateway** ?API 网关健康状?
+- **Redis Broker** ?Redis 消息代理连接状?
+- **PostgreSQL** ?数据库连接状?
+- **Celery Workers** ?异步任务 Worker 在线数与忙闲状?
+- **Queue Depth** ?消息队列深度实时?
+
+**Fleet Activity（集群活动）** ??Worker 节点当前处理的任务状态列表?
+
+**LIVE LOG STREAM（实时日志流?* ?滚动输出?Agent 运行日志流，支持按级别（INFO/WARN/ERROR）过滤?
+
+**SLOW TASKS（慢任务?* ?超过延迟阈值的任务列表，展示任务名称、耗时与所?Worker?
+
+![运行监控](monitoring.png)
+
+> ?：运行监控界面（monitoring.png?
+
+
+
+![轨迹回溯](trace.png)
+
+> ?：轨迹回??Trace Tree ?Trace Detail 界面（trace.png?
+
+> ?：轨迹回??Steps/DAG/Metrics 视图与步骤展开详情（同一截图已涵盖，trace.png?
+
+### 5.7 轨迹回溯（Trace?
+
+**入口?* 左侧导航 COMMAND 分组「Trace」或路由 `/traces`?
+
+轨迹回溯页面提供执行过程的完整可视化追溯?
+
+**视图结构**
+- **TRACE TREE** ?左侧执行轨迹树，按时间线展示步骤层级
+- **TRACE DETAIL** ?右侧详情面板，展示当前选中步骤的：
+  - **Latency** ?步骤耗时
+  - **Tokens** ?Token 消耗量
+  - **Steps** ?步骤?
+  - **AVG SCORE** ?平均评分
+
+**视图切换标签**
+- **Steps** ?步骤列表视图
+- **DAG** ?ReactFlow 有向无环图视?
+- **Metrics** ?指标分视?
+
+**Steps 展开详情** ?点击某一步骤可展开查看?
+- **Prompt** ?发送给 LLM 的完整提示词
+- **Input** ?步骤输入数据
+
+**操作按钮**
+- **诊断（Diagnosis?* ?转入故障诊断分析
+- **Judge（评判）** ?触发 LLM 重新评判
+
+![轨迹回溯](trace.png)
+
+> ?：轨迹回??Trace Tree ?Trace Detail 界面（trace.png?
+
+> ?：轨迹回??Steps/DAG/Metrics 视图与步骤展开详情（同一截图已涵盖，trace.png?
+
+### 5.8 人工复核与重新评?
+
+**入口?* 执行轨迹（Trace）详情评分区域?
+
+**交互闭环?*
+
+1. 查看机评各维度指标分（MetricScore）与扣分说明?
+2. 如需调整，输入人工分数与审核人标??提交复核?
+3. 系统以人工分覆盖有效分并记录审核标记?
+4. 亦可触发重新 LLM 评判（在配置密钥可用时）?
+
+
+
+### 5.9 分析中心
+
+**入口?* 左侧导航 COMMAND 分组「分析」或路由 `/analytics`?
+
+分析中心提供评测数据的多维统计分析视图：
+
+**AGENT CAPABILITY RADAR（能力雷达图?* ?六维能力评价?
+- **Reasoning** ?推理能力
+- **Accuracy** ?准确?
+- **Safety** ?安全?
+- **Cost** ?成本效率
+- **Speed** ?响应速度
+- **Tool Usage** ?工具调用能力
+
+**MODEL COMPARE（模型对比）** ?不同模型在同一评测集上的得分对比柱状图?
+
+**OPS HEATMAP（运维热力图?* ?按时间与状态维度的错误/失败分布热力图?
+
+**COST 双轴?* ?Token 消耗与延迟的双轴趋势图?
+
+**SCORE DISTRIBUTION（分数分布）** ?各维度得分分布直方图?
+
+**四张核心指标?*
+- **SUCCESS** ?总体成功?
+- **AVG SCORE** ?平均综合得分
+- **TOKENS** ?累计 Token ?
+- **AVG LATENCY** ?平均延迟
+
+![分析中心](analytics.png)
+
+> ?0：分析中心界面（analytics.png?
+
+### 5.10 评测报告
+
+**入口?* 左侧导航 EVALUATE 分组「报告」或路由 `/reports`，以及任务侧报告入口?
+
+**交互闭环?*
+
+1. 点击报告列表中的报告??加载聚合结果?
+2. 查看各测试用例（TestSuite? 维度指标分（MetricScore）分布与说明?
+3. 可结合任务详情回溯具体执行轨迹（Trace）?
+
+![评测报告](reports.png)
+
+> ?1：评测报告详情界面（reports.png?
+
+### 5.11 用量计费
+
+**入口?* 左侧导航 OPERATE 分组「用量计费」或路由 `/billing`?
+
+用量计费页面展示 API Token 消耗统计与费用概览，包含：
+- 当前周期 Token 使用量与预估费用
+- 按模型分组的消耗明细表
+- 历史周期费用趋势?
+
+> ?2：用量计费界面（billing.png，如未单独截图可参照 analytics 页面?Cost 双轴图）
+
+### 5.12 插件市场
+
+**入口?* 左侧导航 OPERATE 分组「插件市场」或路由 `/plugins`?
+
+插件市场页面展示可安装的第三方工具插件列表，支持在线安装/卸载与版本管理?
+
+管理?
+
+### 5.13 设置中心
+
+**入口?* 左侧导航 SYSTEM 分组「设置中心」或路由 `/settings`?
+
+设置中心提供以下配置管理功能?
+
+**交互闭环?*
+
+1. 打开设置??加载主题、工作区与鉴权相关配置项?
+2. 切换主题或保存偏??界面即时生效?
+3. 查看工具沙箱列表或探测结果（如界面提供）?
+4. API 密钥管理与外部服务集成配置?
+
+![设置中心](settings.png)
+
+> ?3：设置中心界面（settings.png?
+
+---
+
+## 6. 典型操作流程（端到端?
+
+1. 启动前后端服务并完成健康检查?
+2. （可选）执行种子脚本生成示例数据（正式截图须替换为真实业务样式）?
+3. 创建评测任务（Task）并配置 Agent?
+4. 上传 CSV/JSON 测试用例（TestSuite）?
+5. 点击执行评测，等待状态完成?
+6. 在任务详情查看执行轨迹（Trace）的 DAG、步骤与指标分（MetricScore）?
+7. 打开报告页查看聚合结果；必要时人工复核?
+8. 对历史任务进行归档或删除，保持列表整洁?
+
+
+
+---
+
+## 7. 常见问题
+
+| 问题 | 可能原因 | 处理建议 |
+|------|----------|----------|
+| 前端无法请求 API | 地址或跨域配置错?| 检?`VITE_API_BASE_URL` 是否?`/api/v1` |
+| 健康检?redis ?unavailable | 未启?Redis | 本地 Eager 可忽略；完整模式请启?Redis |
+| 执行后无执行轨迹（Trace?| 密钥无效或测试用例（TestSuite）为?| 检?`OPENAI_API_KEY` 与用例列?|
+| 401 未授?| 已开启鉴权但未传 Key | 请求头增?`X-API-Key: your_api_key_here` |
+| 执行卡住 | 异步模式未起 Worker | 启动 Celery Worker，或?Eager ?true |
+| 评分仅为规则?| 未配置有?LLM Key | 属正常降级；配置密钥后可 hybrid 精修 |
+
+---
+
+## 8. 版本信息
+
+| 项目 | 内容 |
+|------|------|
+| 软件名称 | AgentFlow-Eval Agent自动化评测工作台 |
+| 软件版本 | V1.0 |
+| 文档版本 | V1.0（终稿修订版?|
+| 著作权人 | 李凯?|
+| 开发完成日?| 2026??4?|
+| 主要技?| Python / FastAPI / Celery / React / TypeScript / Ant Design / ReactFlow |
+| 运行形?| B/S 前后端分?|
+
+---
+
+## 9. 注意事项
+
+1. 生产环境请关闭不必要的公开文档路径，并启用鉴权与租户隔离?
+2. 密钥、数据库口令不得写入截图与提交材料明文，统一使用占位符?
+3. 截图应体现真实业务数据样式，避免测试水印?Demo 字样；文件名格式为「图X-功能名称.png」?
+
+
+## 10. 对比实验（A/B 实验 ?高级功能?
+
+**入口?* 当前版本未在导航栏集成，需通过地址?`/experiments` 直接访问?
+
+A/B 对比实验功能用于在相同测试用例（TestSuite）集上运行多组不同配置的 Agent（如不同模型或工具组合），并自动对比各变体的多维指标分（MetricScore），标识最优变体及相对于基线的得分差异?
+
+**主要能力?*
+- 创建实验（Experiment）并指定基础评测任务作为用例来源
+- 为每个变体（Variant）配置独立的 Agent 参数（模型、温度、工具等?
+- 自动执行各变体评测并与基准对?
+- 输出对比报告（best_label、delta_vs_best、维度分对比?
+
+> 该功能后?API 已完整实现（见核心源代码鉴别材料模块 K），前端实验管理界面可通过 `/experiments` 访问。完整集成计划于 V2.0 版本?
+
+![对比实验](ab_experiment.png)
+
+> ?4：A/B 对比实验界面（ab_experiment.png

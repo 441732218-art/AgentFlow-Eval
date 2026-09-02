@@ -1,0 +1,3005 @@
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+# === File: backend/app/main.py ===
+# (c) 2026 AgentFlow-Eval | Author: LiKaixin
+# ====================================================================
+# (c) 2026 AgentFlow-Eval
+"""FastAPI application entry point with production middleware stack."""
+
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+from typing import Any
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
+
+from app.api.v1.router import router as v1_router
+from app.config import settings
+from app.utils.exceptions import AgentFlowError, error_response
+from app.utils.logger import setup_logging
+from app.core.middleware import (
+    APIKeyAuthMiddleware,
+    RequestIDMiddleware,
+    SecurityHeadersMiddleware,
+)
+from app.core.observability.metrics import MetricsMiddleware, get_metrics_response
+from app.core.settings_guard import enforce_production_settings
+
+setup_logging()
+
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+
+    HAS_SLOWAPI = True
+except ImportError:
+    HAS_SLOWAPI = False
+
+
+# ---- Lifespan events ----
+def _sqlite_table_columns(connection, table: str) -> set[str]:
+    from sqlalchemy import text
+
+    rows = connection.execute(text(f"PRAGMA table_info({table})")).fetchall()
+    return {row[1] for row in rows}
+
+
+def _ensure_sqlite_columns(connection) -> None:
+    """Add missing columns on existing SQLite DBs (create_all never ALTERs)."""
+    from sqlalchemy import text
+    import logging
+
+    log = logging.getLogger(__name__)
+    if connection.dialect.name != "sqlite":
+        return
+
+    task_cols = {
+        "celery_task_id": "ALTER TABLE tasks ADD COLUMN celery_task_id VARCHAR(255)",
+        "is_archived": "ALTER TABLE tasks ADD COLUMN is_archived BOOLEAN NOT NULL DEFAULT 0",
+        "created_by": "ALTER TABLE tasks ADD COLUMN created_by VARCHAR(100) NOT NULL DEFAULT 'anonymous'",
+        "tenant_id": "ALTER TABLE tasks ADD COLUMN tenant_id VARCHAR(36)",
+    }
+    existing = _sqlite_table_columns(connection, "tasks")
+    for name, ddl in task_cols.items():
+        if name not in existing:
+            connection.execute(text(ddl))
+            log.info("SQLite backfill: tasks.%s", name)
+
+    if "traces" in {
+        r[0]
+------------------------------------------------------------
+第 1 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+        for r in connection.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table'")
+        ).fetchall()
+    }:
+        trace_cols = {
+            "prompt_tokens": "ALTER TABLE traces ADD COLUMN prompt_tokens INTEGER NOT NULL DEFAULT 0",
+            "completion_tokens": "ALTER TABLE traces ADD COLUMN completion_tokens INTEGER NOT NULL DEFAULT 0",
+            "cost": "ALTER TABLE traces ADD COLUMN cost FLOAT NOT NULL DEFAULT 0",
+            "agent_version": "ALTER TABLE traces ADD COLUMN agent_version VARCHAR(100)",
+            "prompt_version": "ALTER TABLE traces ADD COLUMN prompt_version VARCHAR(100)",
+            "model_version": "ALTER TABLE traces ADD COLUMN model_version VARCHAR(100)",
+            "tool_version": "ALTER TABLE traces ADD COLUMN tool_version VARCHAR(100)",
+        }
+        existing = _sqlite_table_columns(connection, "traces")
+        for name, ddl in trace_cols.items():
+            if name not in existing:
+                connection.execute(text(ddl))
+                log.info("SQLite backfill: traces.%s", name)
+
+    if "metric_scores" in {
+        r[0]
+        for r in connection.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table'")
+        ).fetchall()
+    }:
+        ms_cols = {
+            "confidence": "ALTER TABLE metric_scores ADD COLUMN confidence FLOAT",
+            "is_human_reviewed": "ALTER TABLE metric_scores ADD COLUMN is_human_reviewed BOOLEAN NOT NULL DEFAULT 0",
+            "human_score": "ALTER TABLE metric_scores ADD COLUMN human_score FLOAT",
+            "reviewer": "ALTER TABLE metric_scores ADD COLUMN reviewer VARCHAR(100)",
+        }
+        existing = _sqlite_table_columns(connection, "metric_scores")
+        for name, ddl in ms_cols.items():
+            if name not in existing:
+                connection.execute(text(ddl))
+                log.info("SQLite backfill: metric_scores.%s", name)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifecycle."""
+    from app.models.base import Base
+    from app.core.dependencies import engine
+    import logging
+
+    log = logging.getLogger(__name__)
+
+    # Fail fast on insecure production configuration
+    try:
+        enforce_production_settings(settings)
+    except Exception:
+        log.exception("Production settings validation failed")
+        raise
+
+    # Import models so metadata is complete (incl. AuditLog)
+    import app.models  # noqa: F401
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+------------------------------------------------------------
+第 2 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+        try:
+            await conn.run_sync(_ensure_sqlite_columns)
+        except Exception as exc:
+            log.warning("Schema backfill skipped: %s", exc)
+    log.info("Tables initialized")
+
+    # Live activity WebSocket hub (Redis pub/sub + in-process fan-out)
+    ws_started = False
+    try:
+        from app.core.ws_hub import start_ws_hub, stop_ws_hub
+
+        await start_ws_hub()
+        ws_started = True
+    except Exception as exc:
+        log.warning("WS hub start failed: %s", exc)
+
+    # Optional multi-layer cache warm-up (settings / dashboard / recent tasks)
+    if getattr(settings, "CACHE_WARMUP_ON_STARTUP", False):
+        try:
+            from app.core.cache.warmup import warm_cache
+
+            summary = await warm_cache(actor="anonymous", limit=20)
+            log.info("Cache warmup: %s", summary)
+        except Exception as exc:
+            log.warning("Cache warmup skipped: %s", exc)
+
+    # Deploy profile: bind TaskQueue / Cache / EventBus / Metering ports
+    try:
+        from app.core.profiles import apply_profile_from_settings, profile_status
+
+        apply_profile_from_settings()
+        log.info("Infrastructure ports: %s", profile_status())
+    except Exception as exc:
+        log.warning("Deploy profile apply failed (using lazy defaults): %s", exc)
+
+    # Plugin system: discover directories + explicit modules
+    plugins_bootstrapped = False
+    try:
+        from app.core.plugins.manager import get_plugin_manager
+        from app.core.plugins.market import get_plugin_market
+
+        if getattr(settings, "PLUGINS_ENABLED", True):
+            mgr = get_plugin_manager()
+            strict = bool(
+                getattr(settings, "PLUGIN_STRICT_ALLOWLIST", False)
+                or getattr(settings, "PLUGIN_STRICT_MODE", False)
+            )
+            modules = list(getattr(settings, "plugin_module_list", []) or [])
+            directories = list(getattr(settings, "plugin_dir_list", []) or [])
+            if strict:
+                # Production hardening: only explicit modules, never directory scan
+                directories = []
+                if not modules:
+                    log.warning(
+                        "PLUGIN_STRICT_MODE/ALLOWLIST=true but PLUGIN_MODULES empty — no plugins loaded"
+                    )
+            # Optional HMAC signature gate
+            try:
+                from app.core.plugins.signature import (
+                    filter_signed_modules,
+                    signature_check_enabled,
+                )
+
+                if signature_check_enabled() and modules:
+                    modules, rejected = filter_signed_modules(modules)
+------------------------------------------------------------
+第 3 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+                    if rejected:
+                        log.warning("Plugin signature rejections: %s", rejected)
+            except Exception as sig_exc:
+                log.warning("Plugin signature check skipped: %s", sig_exc)
+            summary = mgr.bootstrap(
+                enabled=True,
+                directories=directories,
+                modules=modules,
+                auto_activate=True,
+                allowlist=list(getattr(settings, "plugin_allowlist", []) or [])
+                or (modules if strict else None),
+            )
+            plugins_bootstrapped = True
+            log.info(
+                "Plugins bootstrap (strict=%s): %s",
+                strict,
+                summary,
+            )
+            market = get_plugin_market()
+            if getattr(settings, "PLUGIN_MARKET_SEED_EXAMPLES", True):
+                market.seed_builtin_catalog()
+            catalog = getattr(settings, "PLUGIN_CATALOG_PATH", "") or ""
+            if catalog:
+                market.catalog_path = __import__("pathlib").Path(catalog)
+                market.load_catalog()
+        else:
+            log.info("Plugin system disabled (PLUGINS_ENABLED=false)")
+    except Exception as exc:
+        log.warning("Plugin bootstrap skipped: %s", exc)
+
+    yield
+
+    if plugins_bootstrapped:
+        try:
+            from app.core.plugins.manager import get_plugin_manager
+
+            get_plugin_manager().shutdown()
+        except Exception as exc:
+            log.warning("Plugin shutdown failed: %s", exc)
+
+    if ws_started:
+        try:
+            from app.core.ws_hub import stop_ws_hub
+
+            await stop_ws_hub()
+        except Exception as exc:
+            log.warning("WS hub stop failed: %s", exc)
+
+    await engine.dispose()
+    from app.core.dependencies import close_redis
+
+    await close_redis()
+
+
+app = FastAPI(
+    title=settings.APP_NAME,
+    description="Agent automated evaluation platform",
+    version="1.0.0",
+    lifespan=lifespan,
+------------------------------------------------------------
+第 4 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+    docs_url="/docs" if not settings.is_prod else None,
+    redoc_url="/redoc" if not settings.is_prod else None,
+)
+
+# ---- Rate limiting ----
+if HAS_SLOWAPI and settings.RATE_LIMIT_ENABLED:
+    limiter = Limiter(
+        key_func=get_remote_address, default_limits=[settings.RATE_LIMIT_DEFAULT]
+    )
+    app.state.limiter = limiter
+    app.add_exception_handler(429, _rate_limit_exceeded_handler)
+
+# Middleware order: last added = outermost. Desired stack:
+#   CORS -> RequestID -> SecurityHeaders -> Metrics -> APIKeyAuth -> app
+app.add_middleware(APIKeyAuthMiddleware)
+app.add_middleware(MetricsMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-Request-ID",
+        "X-Trace-ID",
+        "X-API-Key",
+    ],
+    expose_headers=["X-Request-ID", "X-Trace-ID", "X-Error-ID"],
+)
+
+# ---- Trusted hosts ----
+if settings.is_prod:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
+
+# ---- Routes ----
+app.include_router(v1_router)
+
+
+# ---- Exception handlers ----
+@app.exception_handler(AgentFlowError)
+async def agentflow_error_handler(
+    request: Request, exc: AgentFlowError
+) -> JSONResponse:
+    rid = getattr(request.state, "request_id", None)
+    error_id = getattr(request.state, "error_id", None)
+    if not error_id and exc.status_code >= 500:
+        try:
+            from app.core.observability.aols import new_error_id
+
+            error_id = new_error_id()
+            request.state.error_id = error_id
+        except Exception:
+            error_id = None
+    if exc.status_code >= 500:
+        try:
+            from app.core.observability.aols import LogEvent, get_logger
+
+            get_logger("app.errors").error(
+                str(LogEvent.SYSTEM_ERROR),
+                error_type=type(exc).__name__,
+                error_message=exc.message,
+------------------------------------------------------------
+第 5 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+                status_code=exc.status_code,
+                path=request.url.path,
+                request_id=rid,
+                error_id=error_id,
+            )
+        except Exception:
+            pass
+    body = error_response(
+        exc.status_code,
+        exc.message,
+        exc.detail,
+        request_id=rid,
+        error_id=error_id if exc.status_code >= 500 else None,
+    )
+    resp = JSONResponse(status_code=exc.status_code, content=body)
+    if error_id:
+        resp.headers["X-Error-ID"] = str(error_id)
+    return resp
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    import traceback
+
+    rid = getattr(request.state, "request_id", None)
+    try:
+        from app.core.observability.aols import LogEvent, get_logger, new_error_id
+
+        error_id = getattr(request.state, "error_id", None) or new_error_id()
+        request.state.error_id = error_id
+        get_logger("app.errors").error(
+            str(LogEvent.SYSTEM_ERROR),
+            error_type=type(exc).__name__,
+            error_message=str(exc),
+            status_code=500,
+            path=request.url.path,
+            request_id=rid,
+            error_id=error_id,
+            exc_info=True,
+        )
+    except Exception:
+        error_id = getattr(request.state, "error_id", None)
+
+    stack = traceback.format_exc() if settings.DEBUG else None
+    resp = JSONResponse(
+        status_code=500,
+        content=error_response(
+            500,
+            "Internal error",
+            str(exc) if settings.DEBUG else None,
+            request_id=rid,
+            stacktrace=stack,
+            error_id=error_id,
+        ),
+    )
+------------------------------------------------------------
+第 6 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+    if error_id:
+        resp.headers["X-Error-ID"] = str(error_id)
+    return resp
+
+
+# ---- Prometheus metrics ----
+@app.get("/metrics", include_in_schema=False)
+async def prometheus_metrics() -> Any:
+    """Prometheus text exposition endpoint (scraped by Prometheus / Grafana Agent).
+
+    Public path (no API key). Disable via ``METRICS_ENABLED=false`` to return 404.
+    """
+    if not settings.METRICS_ENABLED:
+        return JSONResponse(status_code=404, content={"detail": "Metrics disabled"})
+    return get_metrics_response()
+
+
+# ---- Health checks (liveness / readiness / composite) ----
+APP_VERSION = "1.0.0"
+
+
+async def _probe_services() -> dict[str, str]:
+    """Probe database and Redis; return per-service status strings."""
+    from sqlalchemy import text
+    from app.core.dependencies import engine
+
+    services: dict[str, str] = {}
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        services["database"] = "ok"
+    except Exception as e:
+        services["database"] = f"error: {e}"
+
+    # Lite / eager / memory queue: never block readiness on Redis
+    skip_redis = bool(settings.CELERY_TASK_ALWAYS_EAGER)
+    try:
+        from app.core.profiles import current_profile, get_task_queue
+
+        if current_profile() == "lite" or get_task_queue().is_eager():
+            skip_redis = True
+        if get_task_queue().backend_name in {"eager", "memory"}:
+            skip_redis = True
+    except Exception:
+        pass
+
+    if skip_redis:
+        services["redis"] = "skipped (lite/eager)"
+    else:
+        try:
+            from app.core.dependencies import get_redis
+
+            r = await get_redis()
+            await r.ping()
+            services["redis"] = "ok"
+        except Exception:
+            services["redis"] = "unavailable"
+    return services
+
+
+@app.get("/health/live")
+async def liveness() -> dict[str, Any]:
+    """Kubernetes-style liveness probe — process is up, no dependency checks.
+
+    Always returns HTTP 200 if the event loop can serve the request.
+    """
+    return {
+        "status": "alive",
+------------------------------------------------------------
+第 7 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+        "app": settings.APP_NAME,
+        "version": APP_VERSION,
+    }
+
+
+@app.get("/health/ready")
+async def readiness(request: Request) -> JSONResponse:
+    """Kubernetes-style readiness probe — ready to accept traffic.
+
+    Returns 200 when the database is reachable; 503 when critical deps fail.
+    Redis is required only when not in Celery eager mode.
+    """
+    services = await _probe_services()
+    critical_ok = services.get("database") == "ok"
+    redis_ok = services.get("redis", "").startswith(("ok", "skipped"))
+    ready = critical_ok and redis_ok
+    deploy = {}
+    try:
+        from app.core.profiles import profile_status
+
+        deploy = profile_status()
+    except Exception:
+        pass
+    body: dict[str, Any] = {
+        "status": "ready" if ready else "not_ready",
+        "app": settings.APP_NAME,
+        "version": APP_VERSION,
+        "services": services,
+        "celery_eager": settings.CELERY_TASK_ALWAYS_EAGER,
+        "deploy": deploy,
+    }
+    return JSONResponse(status_code=200 if ready else 503, content=body)
+
+
+@app.get("/health")
+async def health_check() -> dict[str, Any]:
+    """Composite health check with database and Redis connectivity.
+
+    Backward-compatible with existing Docker healthchecks. Prefer
+    ``/health/live`` and ``/health/ready`` for orchestrators.
+    """
+    services = await _probe_services()
+    critical_ok = services.get("database") == "ok"
+    redis_ok = services.get("redis", "").startswith(("ok", "skipped"))
+    all_healthy = critical_ok and redis_ok
+    deploy = {}
+    try:
+        from app.core.profiles import profile_status
+
+        deploy = profile_status()
+    except Exception:
+        pass
+    return {
+        "status": "healthy" if all_healthy else "degraded",
+        "app": settings.APP_NAME,
+        "version": APP_VERSION,
+        "services": services,
+        "celery_eager": settings.CELERY_TASK_ALWAYS_EAGER,
+------------------------------------------------------------
+第 8 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+        "deploy": deploy,
+    }
+
+# === File: backend/app/core/middleware.py ===
+# (c) 2026 AgentFlow-Eval | Author: LiKaixin
+# ====================================================================
+# (c) 2026 AgentFlow-Eval
+"""Request tracing, security headers, and optional API-key auth middleware."""
+
+from __future__ import annotations
+
+import time
+import uuid
+
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
+
+from app.config import settings
+from app.core.security import (
+    authenticate_api_key,
+    extract_api_key,
+    is_public_path,
+)
+from app.utils.exceptions import error_response
+
+# Prefer AOLS structured logger; fall back to stdlib
+try:
+    from app.core.observability.aols import (
+        LogEvent,
+        bind_request_context,
+        clear_request_context,
+        get_logger,
+        new_error_id,
+    )
+
+    log = get_logger("app.http")
+    HAS_AOLS = True
+except Exception:  # pragma: no cover
+    import logging
+
+    log = logging.getLogger(__name__)
+    HAS_AOLS = False
+    LogEvent = None  # type: ignore[misc, assignment]
+
+    def bind_request_context(**kwargs):  # type: ignore[misc]
+        return None
+
+    def clear_request_context() -> None:  # type: ignore[misc]
+        return None
+
+    def new_error_id() -> str:  # type: ignore[misc]
+        return uuid.uuid4().hex[:16]
+
+
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    if request.client:
+        return request.client.host or ""
+    return ""
+
+
+def _skip_access_log(path: str) -> bool:
+    raw = getattr(settings, "LOG_ACCESS_SKIP_PATHS", "") or ""
+    prefixes = [p.strip() for p in raw.split(",") if p.strip()]
+    for p in prefixes:
+        if path == p or path.startswith(p.rstrip("/") + "/") or path.startswith(p):
+            # exact or prefix: /health matches /health and /health/ready
+            if path == p or path.startswith(p):
+------------------------------------------------------------
+第 9 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+                return True
+    return False
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Inject request/trace IDs, bind AOLS context, emit structured access logs.
+
+    Behaviour:
+      1. Reads ``X-Request-ID`` / ``X-Trace-ID`` or generates a UUID.
+      2. Sets request.state + contextvars TraceID + structlog bind.
+      3. Echoes IDs on response; optional ``X-Error-ID`` when set.
+      4. Logs each request as ``http.request`` / ``http.request.failed``.
+    """
+
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
+        request_id = (
+            request.headers.get("X-Request-ID")
+            or request.headers.get("X-Trace-ID")
+            or str(uuid.uuid4())
+        )
+        request.state.request_id = request_id
+        try:
+            from app.core.observability.tracing import set_trace_id
+
+            set_trace_id(request_id)
+        except Exception:
+            pass
+
+        client_ip = _client_ip(request)
+        path = request.url.path
+        method = request.method
+
+        bind_request_context(
+            request_id=request_id,
+            trace_id=request_id,
+            method=method,
+            path=path,
+            client_ip=client_ip,
+        )
+
+        start = time.perf_counter()
+        error_id: str | None = None
+        status_code = 500
+        response: Response | None = None
+
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+        except Exception:
+            # Let global handlers format body; still log failed request
+            error_id = new_error_id()
+            request.state.error_id = error_id
+            duration_ms = int((time.perf_counter() - start) * 1000)
+            if not _skip_access_log(path):
+                self._emit_access(
+                    method=method,
+                    path=path,
+                    status_code=500,
+------------------------------------------------------------
+第 10 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+                    latency_ms=duration_ms,
+                    request_id=request_id,
+                    client_ip=client_ip,
+                    error_id=error_id,
+                    failed=True,
+                )
+            clear_request_context()
+            raise
+
+        # Actor may be set by auth middleware (inner)
+        actor = getattr(request.state, "actor", None)
+        if actor:
+            bind_request_context(actor=str(actor))
+
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Trace-ID"] = request_id
+        err_state = getattr(request.state, "error_id", None)
+        if err_state:
+            response.headers["X-Error-ID"] = str(err_state)
+            error_id = str(err_state)
+
+        failed = status_code >= 400
+        if not _skip_access_log(path):
+            self._emit_access(
+                method=method,
+                path=path,
+                status_code=status_code,
+                latency_ms=duration_ms,
+                request_id=request_id,
+                client_ip=client_ip,
+                actor=str(actor) if actor else None,
+                error_id=error_id,
+                failed=failed,
+            )
+
+        clear_request_context()
+        return response
+
+    @staticmethod
+    def _emit_access(
+        *,
+        method: str,
+        path: str,
+        status_code: int,
+        latency_ms: int,
+        request_id: str,
+        client_ip: str,
+        actor: str | None = None,
+        error_id: str | None = None,
+        failed: bool = False,
+    ) -> None:
+        event = (
+            str(LogEvent.HTTP_REQUEST_FAILED)
+            if failed and LogEvent is not None
+            else (
+------------------------------------------------------------
+第 11 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+                str(LogEvent.HTTP_REQUEST) if LogEvent is not None else "http.request"
+            )
+        )
+        if failed and LogEvent is None:
+            event = "http.request.failed"
+
+        fields: dict = {
+            "event": event,
+            "method": method,
+            "path": path,
+            "status_code": status_code,
+            "latency_ms": latency_ms,
+            "request_id": request_id,
+            "trace_id": request_id,
+            "client_ip": client_ip,
+        }
+        if actor:
+            fields["actor"] = actor
+        if error_id:
+            fields["error_id"] = error_id
+
+        try:
+            if failed:
+                log.warning(event, **{k: v for k, v in fields.items() if k != "event"})
+            else:
+                log.info(event, **{k: v for k, v in fields.items() if k != "event"})
+        except TypeError:
+            # stdlib fallback
+            log.info(
+                "%s %s -> %s [%dms] request_id=%s",
+                method,
+                path,
+                status_code,
+                latency_ms,
+                request_id,
+            )
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Attach enterprise security response headers to every response."""
+
+    _API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    _DOCS_CSP = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "img-src 'self' data: https:; "
+        "font-src 'self' https://cdn.jsdelivr.net data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
+
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
+        response = await call_next(request)
+
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+------------------------------------------------------------
+第 12 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault(
+            "Referrer-Policy", "strict-origin-when-cross-origin"
+        )
+        response.headers.setdefault(
+            "Permissions-Policy",
+            "geolocation=(), microphone=(), camera=(), payment=()",
+        )
+        response.headers.setdefault("X-XSS-Protection", "0")
+        response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+        response.headers.setdefault("Cross-Origin-Resource-Policy", "same-site")
+
+        path = request.url.path
+        if path in {"/docs", "/redoc", "/openapi.json"} or path.startswith("/docs"):
+            response.headers.setdefault("Content-Security-Policy", self._DOCS_CSP)
+        else:
+            response.headers.setdefault("Content-Security-Policy", self._API_CSP)
+
+        if settings.is_prod and not settings.DEBUG:
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains",
+            )
+
+        return response
+
+
+class APIKeyAuthMiddleware(BaseHTTPMiddleware):
+    """Enforce API key auth for /api/v1 when AUTH_ENABLED=true."""
+
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
+        path = request.url.path
+        if not settings.AUTH_ENABLED:
+            from app.core.rbac import Role
+
+            request.state.actor = "anonymous"
+            request.state.role = Role.SYSTEM_ADMIN
+            return await call_next(request)
+
+        if is_public_path(path) or not path.startswith("/api/"):
+            from app.core.rbac import Role
+
+            request.state.actor = "public"
+            request.state.role = Role.VIEWER
+            return await call_next(request)
+
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
+        api_key = extract_api_key(request)
+        identity = authenticate_api_key(api_key)
+        if identity is None:
+            rid = getattr(request.state, "request_id", None)
+            return JSONResponse(
+                status_code=401,
+                content=error_response(
+                    401,
+                    "Unauthorized",
+                    "Provide a valid X-API-Key or Authorization: Bearer <key>",
+------------------------------------------------------------
+第 13 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+                    request_id=rid,
+                ),
+            )
+
+        request.state.actor = identity.actor
+        request.state.auth = identity
+        request.state.role = identity.role
+        return await call_next(request)
+
+# === File: backend/app/core/plugins/manager.py ===
+# (c) 2026 AgentFlow-Eval | Author: LiKaixin
+# ====================================================================
+# (c) 2026 AgentFlow-Eval
+"""Plugin lifecycle manager — discover, load, activate, deactivate, unload."""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from app.core.plugins.base import (
+    BasePlugin,
+    PluginContext,
+    PluginMeta,
+    PluginState,
+    PluginType,
+    ToolSpec,
+    HOOK_PLUGIN_LOADED,
+    HOOK_PLUGIN_UNLOADED,
+)
+from app.core.plugins.hooks import HookRegistry, get_hook_registry
+from app.core.plugins.loader import (
+    DiscoveredPlugin,
+    PluginLoadError,
+    discover_directory,
+    discover_modules,
+    instantiate_from_path,
+    instantiate_plugin,
+)
+from app.core.plugins.registry import (
+    PluginCapabilityRegistry,
+    get_capability_registry,
+)
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PluginRecord:
+    """Runtime bookkeeping for one plugin."""
+
+    plugin_id: str
+    entry: str
+    source: str
+    state: PluginState = PluginState.DISCOVERED
+    meta: PluginMeta | None = None
+    instance: BasePlugin | None = None
+    error: str | None = None
+    config: dict[str, Any] = field(default_factory=dict)
+    path: str | None = None
+    hook_ids: list[int] = field(default_factory=list)
+------------------------------------------------------------
+第 14 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "plugin_id": self.plugin_id,
+            "entry": self.entry,
+            "source": self.source,
+            "state": self.state.value,
+            "meta": self.meta.to_dict() if self.meta else None,
+            "error": self.error,
+            "path": self.path,
+            "config": dict(self.config),
+            "plugin_type": (
+                self.meta.plugin_type.value
+                if self.meta and isinstance(self.meta.plugin_type, PluginType)
+                else (self.meta.plugin_type if self.meta else None)
+            ),
+        }
+
+
+class PluginManager:
+    """Owns discovery, lifecycle, and capability registration."""
+
+    def __init__(
+        self,
+        *,
+        hooks: HookRegistry | None = None,
+        capabilities: PluginCapabilityRegistry | None = None,
+    ) -> None:
+        self.hooks = hooks or get_hook_registry()
+        self.capabilities = capabilities or get_capability_registry()
+        self._plugins: dict[str, PluginRecord] = {}
+        self._enabled: bool = True
+
+    # ------------------------------------------------------------------
+    # Context builders
+    # ------------------------------------------------------------------
+
+    def _make_context(self, plugin_id: str, config: dict[str, Any]) -> PluginContext:
+        pid = plugin_id
+
+        def _reg_runner(key: str, factory: Any) -> None:
+            self.capabilities.register_runner(key, factory, plugin_id=pid)
+
+        def _reg_judge(key: str, factory: Any) -> None:
+            self.capabilities.register_judge(key, factory, plugin_id=pid)
+
+        def _reg_tool(
+            name: str,
+            fn: Any,
+            *,
+            description: str = "",
+            parameters: dict[str, Any] | None = None,
+            required: list[str] | None = None,
+            network: bool = False,
+            spec: ToolSpec | None = None,
+        ) -> None:
+            if spec is not None:
+                self.capabilities.register_tool(spec, plugin_id=pid)
+                return
+            self.capabilities.register_tool(
+                ToolSpec(
+                    name=name,
+------------------------------------------------------------
+第 15 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+                    description=description or f"Plugin tool {name}",
+                    parameters=parameters or {},
+                    required=list(required or []),
+                    fn=fn,
+                    network=network,
+                    source_plugin=pid,
+                ),
+                plugin_id=pid,
+            )
+
+        def _reg_hook(
+            hook_name: str,
+            callback: Any,
+            *,
+            priority: int = 100,
+        ) -> int:
+            entry_id = self.hooks.register(
+                hook_name, callback, priority=priority, plugin_id=pid
+            )
+            rec = self._plugins.get(pid)
+            if rec is not None:
+                rec.hook_ids.append(entry_id)
+            return entry_id
+
+        return PluginContext(
+            config=dict(config),
+            register_runner=_reg_runner,
+            register_judge=_reg_judge,
+            register_tool=_reg_tool,
+            register_hook=_reg_hook,
+            logger=logging.getLogger(f"plugin.{pid}"),
+        )
+
+    # ------------------------------------------------------------------
+    # Discovery
+    # ------------------------------------------------------------------
+
+    def discover(
+        self,
+        *,
+        directories: list[str] | None = None,
+        modules: list[str] | str | None = None,
+    ) -> list[PluginRecord]:
+        """Discover plugins without loading code (path/module scan)."""
+        discovered: list[DiscoveredPlugin] = []
+        for d in directories or []:
+            discovered.extend(discover_directory(d))
+        discovered.extend(discover_modules(modules))
+
+        records: list[PluginRecord] = []
+        for d in discovered:
+            existing = self._plugins.get(d.plugin_id)
+            if existing and existing.state in {
+                PluginState.LOADED,
+                PluginState.ACTIVE,
+            }:
+                records.append(existing)
+                continue
+------------------------------------------------------------
+第 16 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+            rec = PluginRecord(
+                plugin_id=d.plugin_id,
+                entry=d.entry,
+                source=d.source,
+                state=PluginState.ERROR if d.error else PluginState.DISCOVERED,
+                error=d.error,
+                path=d.path,
+            )
+            if d.manifest:
+                from app.core.plugins.loader import meta_from_manifest
+
+                rec.meta = meta_from_manifest(d.manifest, d.plugin_id)
+            self._plugins[d.plugin_id] = rec
+            records.append(rec)
+        return records
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    def load(
+        self,
+        plugin_id: str | None = None,
+        *,
+        entry: str | None = None,
+        path: str | Path | None = None,
+        config: dict[str, Any] | None = None,
+        activate: bool = True,
+    ) -> PluginRecord:
+        """Load (and optionally activate) a plugin by id, entry, or path."""
+        if not self._enabled:
+            raise RuntimeError("Plugin system is disabled")
+
+        config = dict(config or {})
+        rec: PluginRecord | None = None
+
+        if plugin_id and plugin_id in self._plugins:
+            rec = self._plugins[plugin_id]
+            entry = entry or rec.entry
+            path = path or rec.path
+            if not config and rec.config:
+                config = dict(rec.config)
+
+        if path is not None:
+            path = Path(path)
+            pid = plugin_id or path.stem if path.is_file() else (plugin_id or path.name)
+            try:
+                instance = instantiate_from_path(path, config)
+            except PluginLoadError as exc:
+                rec = PluginRecord(
+                    plugin_id=pid,
+                    entry=str(path),
+                    source="path",
+                    state=PluginState.ERROR,
+                    error=str(exc),
+                    path=str(path),
+                    config=config,
+                )
+                self._plugins[pid] = rec
+------------------------------------------------------------
+第 17 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+                return rec
+            rec = PluginRecord(
+                plugin_id=instance.meta.name or pid,
+                entry=str(path),
+                source="path",
+                path=str(path),
+                config=config,
+                instance=instance,
+                meta=instance.meta,
+                state=PluginState.LOADED,
+            )
+        elif entry:
+            try:
+                instance = instantiate_plugin(entry, config)
+            except PluginLoadError as exc:
+                pid = plugin_id or entry
+                rec = PluginRecord(
+                    plugin_id=pid,
+                    entry=entry,
+                    source="module",
+                    state=PluginState.ERROR,
+                    error=str(exc),
+                    config=config,
+                )
+                self._plugins[pid] = rec
+                return rec
+            rec = PluginRecord(
+                plugin_id=instance.meta.name or plugin_id or entry,
+                entry=entry,
+                source="module",
+                config=config,
+                instance=instance,
+                meta=instance.meta,
+                state=PluginState.LOADED,
+            )
+        elif rec and rec.entry:
+            return self.load(
+                rec.plugin_id,
+                entry=rec.entry if rec.source == "module" else None,
+                path=rec.path
+                if rec.source == "path"
+                else (rec.entry if rec.source == "path" else None),
+                config=config,
+                activate=activate,
+            )
+        else:
+            raise PluginLoadError("load() requires plugin_id, entry, or path")
+
+        self._plugins[rec.plugin_id] = rec
+        assert rec.instance is not None
+        ctx = self._make_context(rec.plugin_id, config)
+------------------------------------------------------------
+第 18 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+        try:
+            rec.instance.on_load(ctx)
+        except Exception as exc:
+            rec.state = PluginState.ERROR
+            rec.error = f"on_load: {exc}"
+            logger.exception("Plugin %s on_load failed", rec.plugin_id)
+            return rec
+
+        if activate:
+            return self.activate(rec.plugin_id)
+        return rec
+
+    def activate(self, plugin_id: str) -> PluginRecord:
+        rec = self._require(plugin_id)
+        if rec.instance is None:
+            rec.state = PluginState.ERROR
+            rec.error = "no instance"
+            return rec
+        if rec.state == PluginState.ACTIVE:
+            return rec
+        ctx = self._make_context(plugin_id, rec.config)
+        try:
+            rec.instance.on_activate(ctx)
+            rec.state = PluginState.ACTIVE
+            rec.error = None
+        except Exception as exc:
+            rec.state = PluginState.ERROR
+            rec.error = f"on_activate: {exc}"
+            logger.exception("Plugin %s on_activate failed", plugin_id)
+            return rec
+        try:
+            self.hooks.emit_sync(
+                HOOK_PLUGIN_LOADED,
+                {
+                    "plugin_id": plugin_id,
+                    "meta": rec.meta.to_dict() if rec.meta else {},
+                },
+            )
+        except Exception:
+            pass
+        logger.info("Plugin activated: %s", plugin_id)
+        return rec
+
+    def deactivate(self, plugin_id: str) -> PluginRecord:
+        rec = self._require(plugin_id)
+        if rec.instance is None:
+            return rec
+        ctx = self._make_context(plugin_id, rec.config)
+        try:
+            rec.instance.on_deactivate(ctx)
+        except Exception as exc:
+            logger.exception("Plugin %s on_deactivate failed: %s", plugin_id, exc)
+        # Drop capabilities but keep instance loaded
+        self.capabilities.unregister_runners(plugin_id)
+------------------------------------------------------------
+第 19 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+        self.capabilities.unregister_judges(plugin_id)
+        self.capabilities.unregister_tools(plugin_id)
+        self.hooks.unregister_plugin(plugin_id)
+        rec.hook_ids.clear()
+        rec.state = PluginState.DISABLED
+        logger.info("Plugin deactivated: %s", plugin_id)
+        return rec
+
+    def unload(self, plugin_id: str) -> PluginRecord:
+        rec = self._require(plugin_id)
+        if rec.state == PluginState.ACTIVE:
+            self.deactivate(plugin_id)
+        if rec.instance is not None:
+            ctx = self._make_context(plugin_id, rec.config)
+            try:
+                rec.instance.on_unload(ctx)
+            except Exception as exc:
+                logger.exception("Plugin %s on_unload failed: %s", plugin_id, exc)
+        try:
+            self.hooks.emit_sync(
+                HOOK_PLUGIN_UNLOADED,
+                {"plugin_id": plugin_id},
+            )
+        except Exception:
+            pass
+        rec.instance = None
+        rec.state = PluginState.UNLOADED
+        logger.info("Plugin unloaded: %s", plugin_id)
+        return rec
+
+    def reload(self, plugin_id: str) -> PluginRecord:
+        rec = self._require(plugin_id)
+        entry, path, source, config = rec.entry, rec.path, rec.source, dict(rec.config)
+        self.unload(plugin_id)
+        if source == "path":
+            return self.load(
+                plugin_id, path=path or entry, config=config, activate=True
+            )
+        return self.load(plugin_id, entry=entry, config=config, activate=True)
+
+    # ------------------------------------------------------------------
+    # Bulk bootstrap
+    # ------------------------------------------------------------------
+
+    def bootstrap(
+        self,
+        *,
+        enabled: bool = True,
+        directories: list[str] | None = None,
+        modules: list[str] | str | None = None,
+        auto_activate: bool = True,
+        allowlist: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Discover and load all configured plugins (app startup).
+
+        ``allowlist``: optional list of allowed entry strings or module prefixes.
+        When set, any discovered plugin whose entry does not match is skipped.
+        """
+------------------------------------------------------------
+第 20 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+        self._enabled = enabled
+        if not enabled:
+            return {"enabled": False, "loaded": [], "errors": []}
+
+        def _allowed(entry: str, plugin_id: str) -> bool:
+            if not allowlist:
+                return True
+            e = (entry or "").strip()
+            pid = (plugin_id or "").strip()
+            for a in allowlist:
+                a = (a or "").strip()
+                if not a:
+                    continue
+                if e == a or pid == a or e.startswith(a) or a in e:
+                    return True
+            return False
+
+        self.discover(directories=directories, modules=modules)
+        loaded: list[str] = []
+        errors: list[dict[str, str]] = []
+        skipped: list[str] = []
+
+        # Explicit modules first
+        for d in discover_modules(modules):
+            if d.error:
+                errors.append({"plugin_id": d.plugin_id, "error": d.error})
+                continue
+            if not _allowed(d.entry, d.plugin_id):
+                skipped.append(d.plugin_id)
+                logger.warning(
+                    "Plugin %s skipped by allowlist (entry=%s)", d.plugin_id, d.entry
+                )
+                continue
+            try:
+                rec = self.load(entry=d.entry, activate=auto_activate)
+                if rec.state == PluginState.ERROR:
+                    errors.append(
+                        {"plugin_id": rec.plugin_id, "error": rec.error or "error"}
+                    )
+                else:
+                    loaded.append(rec.plugin_id)
+            except Exception as exc:
+                errors.append({"plugin_id": d.plugin_id, "error": str(exc)})
+
+        # Directories
+        for directory in directories or []:
+            for d in discover_directory(directory):
+                if d.plugin_id in loaded:
+                    continue
+                if d.error:
+                    errors.append({"plugin_id": d.plugin_id, "error": d.error})
+                    continue
+                entry_hint = d.entry or d.path or d.plugin_id
+                if not _allowed(str(entry_hint), d.plugin_id):
+                    skipped.append(d.plugin_id)
+                    logger.warning(
+------------------------------------------------------------
+第 21 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+                        "Plugin %s from dir skipped by allowlist", d.plugin_id
+                    )
+                    continue
+                try:
+                    rec = self.load(
+                        plugin_id=d.plugin_id,
+                        path=d.path or d.entry,
+                        activate=auto_activate,
+                    )
+                    if rec.state == PluginState.ERROR:
+                        errors.append(
+                            {"plugin_id": rec.plugin_id, "error": rec.error or "error"}
+                        )
+                    else:
+                        loaded.append(rec.plugin_id)
+                except Exception as exc:
+                    errors.append({"plugin_id": d.plugin_id, "error": str(exc)})
+
+        return {
+            "enabled": True,
+            "loaded": loaded,
+            "errors": errors,
+            "skipped_allowlist": skipped,
+            "total": len(self._plugins),
+        }
+
+    def shutdown(self) -> None:
+        """Unload all plugins (app shutdown)."""
+        for pid in list(self._plugins.keys()):
+            try:
+                if self._plugins[pid].state in {
+                    PluginState.ACTIVE,
+                    PluginState.LOADED,
+                    PluginState.DISABLED,
+                }:
+                    self.unload(pid)
+            except Exception:
+                logger.exception("Failed unloading plugin %s", pid)
+
+    # ------------------------------------------------------------------
+    # Query
+    # ------------------------------------------------------------------
+
+    def get(self, plugin_id: str) -> PluginRecord | None:
+        return self._plugins.get(plugin_id)
+
+    def list_plugins(
+        self,
+        *,
+        state: PluginState | str | None = None,
+        plugin_type: PluginType | str | None = None,
+    ) -> list[dict[str, Any]]:
+        items = []
+        for rec in self._plugins.values():
+            if state is not None:
+                sv = state.value if isinstance(state, PluginState) else str(state)
+                if rec.state.value != sv:
+                    continue
+------------------------------------------------------------
+第 22 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+            if plugin_type is not None and rec.meta:
+                tv = (
+                    plugin_type.value
+                    if isinstance(plugin_type, PluginType)
+                    else str(plugin_type)
+                )
+                mt = (
+                    rec.meta.plugin_type.value
+                    if isinstance(rec.meta.plugin_type, PluginType)
+                    else str(rec.meta.plugin_type)
+                )
+                if mt != tv:
+                    continue
+            items.append(rec.to_dict())
+        items.sort(key=lambda x: x["plugin_id"])
+        return items
+
+    def status(self) -> dict[str, Any]:
+        by_state: dict[str, int] = {}
+        for rec in self._plugins.values():
+            by_state[rec.state.value] = by_state.get(rec.state.value, 0) + 1
+        return {
+            "enabled": self._enabled,
+            "plugins": len(self._plugins),
+            "by_state": by_state,
+            "runners": self.capabilities.list_runners(),
+            "judges": self.capabilities.list_judges(),
+            "tools": self.capabilities.list_tools(),
+            "hooks": self.hooks.list_hooks(),
+        }
+
+    def _require(self, plugin_id: str) -> PluginRecord:
+        if plugin_id not in self._plugins:
+            raise KeyError(f"unknown plugin: {plugin_id}")
+        return self._plugins[plugin_id]
+
+    def clear_all(self) -> None:
+        """Reset manager (tests)."""
+        self.shutdown()
+        self._plugins.clear()
+        self.capabilities.clear()
+        self.hooks.clear()
+
+
+# ---------------------------------------------------------------------------
+# Process-wide singleton
+# ---------------------------------------------------------------------------
+
+_manager: PluginManager | None = None
+
+
+def get_plugin_manager() -> PluginManager:
+    global _manager
+    if _manager is None:
+        _manager = PluginManager()
+    return _manager
+
+
+def reset_plugin_manager() -> PluginManager:
+    """Replace singleton (tests)."""
+    global _manager
+    if _manager is not None:
+        try:
+------------------------------------------------------------
+第 23 页 / 共 60 页
+
+# ============================================================
+# （此处省略中间部分源代码）
+# ============================================================
+
+------------------------------------------------------------
+第 38 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+    """Permission + ownership check for a single resource.
+
+    SYSTEM_ADMIN / TENANT_ADMIN / MANAGER / REVIEWER may cross *owners*
+    within the same tenant for permitted actions.
+    MEMBER / VIEWER are limited to resources they own (``owner == actor``).
+
+    Args:
+        role: Caller role.
+        actor: Caller actor name.
+        owner: Resource owner (e.g. task.created_by).
+        permission: Required permission.
+        resource: Resource type label for errors.
+        resource_id: Resource id for errors.
+        hide_existence: If True, deny with 404 instead of 403 for foreign rows.
+    """
+    ensure_permission(role, permission)
+
+    if not rbac_enforced():
+        return
+
+    try:
+        r = role if isinstance(role, Role) else Role.parse(str(role or "viewer"))
+    except ValueError:
+        r = Role.VIEWER
+
+    if r in CROSS_OWNER_ROLES:
+        return
+
+    owner_s = (owner or "anonymous").strip() or "anonymous"
+    actor_s = (actor or "anonymous").strip() or "anonymous"
+    if owner_s == actor_s:
+        return
+
+    if hide_existence:
+        from app.utils.exceptions import NotFoundError
+
+        raise NotFoundError(resource, resource_id)
+    raise ForbiddenError(
+        f"Not allowed to access {resource}",
+        detail={"resource_id": resource_id, "owner": owner_s},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Decorator (sync + async)
+# ---------------------------------------------------------------------------
+
+
+def _extract_request(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Request | None:
+    if "request" in kwargs and isinstance(kwargs["request"], Request):
+        return kwargs["request"]
+    for a in args:
+        if isinstance(a, Request):
+            return a
+    return None
+
+
+def _check_permissions_on_request(
+    request: Request | None,
+    permissions: tuple[Permission | str, ...],
+    *,
+    require_all: bool,
+) -> None:
+    if request is None:
+        if rbac_enforced():
+            raise ForbiddenError(
+                "Permission check requires Request in endpoint signature"
+------------------------------------------------------------
+第 39 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+            )
+        return
+    role = get_request_role(request)
+    if require_all:
+        for perm in permissions:
+            ensure_permission(role, perm)
+        return
+    if rbac_enforced() and not has_any_permission(role, permissions):
+        raise ForbiddenError(
+            "Missing one of required permissions",
+            detail={
+                "required_any": [
+                    p.value if isinstance(p, Permission) else str(p)
+                    for p in permissions
+                ],
+                "role": role.value,
+            },
+        )
+
+
+def _preserve_fastapi_signature(
+    wrapper: Callable[..., Any], fn: Callable[..., Any]
+) -> None:
+    """Copy resolved type hints onto the wrapper so FastAPI can introspect it.
+
+    With ``from __future__ import annotations``, string annotations must be
+    resolved against the *original* function globals. FastAPI reads
+    ``inspect.signature`` annotations, so we rebuild the signature with
+    concrete types (not ForwardRef strings).
+    """
+    from typing import get_type_hints
+
+    sig = inspect.signature(fn)
+    try:
+        hints = get_type_hints(fn)
+    except Exception:
+        hints = {}
+
+    new_params: list[inspect.Parameter] = []
+    for name, param in sig.parameters.items():
+        ann = hints.get(name, param.annotation)
+        new_params.append(param.replace(annotation=ann))
+    ret = hints.get("return", sig.return_annotation)
+    wrapper.__signature__ = sig.replace(  # type: ignore[attr-defined]
+        parameters=new_params,
+        return_annotation=ret,
+    )
+    ann_map: dict[str, Any] = {p.name: p.annotation for p in new_params}
+    if ret is not inspect.Signature.empty:
+        ann_map["return"] = ret
+    wrapper.__annotations__ = ann_map
+
+
+def require_permission(
+    *permissions: Permission | str,
+    require_all: bool = True,
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
+------------------------------------------------------------
+第 40 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+    """Decorator enforcing one or more permissions.
+
+    Works for both ``async def`` and plain ``def`` callables that receive a
+    Starlette/FastAPI ``Request`` (as argument or ``request=`` kwarg).
+
+    Args:
+        permissions: Required permission(s).
+        require_all: If True, all must be present; else any one is enough.
+    """
+    if not permissions:
+        raise ValueError("require_permission() needs at least one permission")
+
+    def decorator(fn: Callable[P, R]) -> Callable[P, R]:
+        if inspect.iscoroutinefunction(fn):
+
+            @functools.wraps(fn)
+            async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
+                request = _extract_request(args, kwargs)
+                _check_permissions_on_request(
+                    request, permissions, require_all=require_all
+                )
+                return await fn(*args, **kwargs)
+
+            _preserve_fastapi_signature(async_wrapper, fn)
+            return async_wrapper  # type: ignore[return-value]
+
+        @functools.wraps(fn)
+        def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            request = _extract_request(args, kwargs)
+            _check_permissions_on_request(request, permissions, require_all=require_all)
+            return fn(*args, **kwargs)
+
+        _preserve_fastapi_signature(sync_wrapper, fn)
+        return sync_wrapper  # type: ignore[return-value]
+
+    return decorator
+
+
+# ---------------------------------------------------------------------------
+# FastAPI Depends factories
+# ---------------------------------------------------------------------------
+
+
+def RequirePermission(
+    *permissions: Permission | str,
+    require_all: bool = True,
+) -> Any:
+    """FastAPI dependency that enforces permissions and returns the role.
+
+    Usage::
+
+        @router.post("")
+        async def create_task(
+            request: Request,
+            _role: Role = RequirePermission(Permission.TASK_CREATE),
+        ):
+            ...
+    """
+
+    async def _dependency(request: Request) -> Role:
+        role = get_request_role(request)
+        if require_all:
+            for perm in permissions:
+                ensure_permission(role, perm)
+        else:
+            if rbac_enforced() and not has_any_permission(role, permissions):
+                raise ForbiddenError(
+                    "Missing one of required permissions",
+------------------------------------------------------------
+第 41 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+                    detail={
+                        "required_any": [
+                            p.value if isinstance(p, Permission) else str(p)
+                            for p in permissions
+                        ],
+                        "role": role.value,
+                    },
+                )
+        request.state.role = role
+        return role
+
+    return Depends(_dependency)
+
+
+def matrix_as_dict() -> dict[str, list[str]]:
+    """Export role→permission matrix for docs / settings API."""
+    return {
+        role.value: sorted(p.value for p in perms)
+        for role, perms in ROLE_PERMISSIONS.items()
+    }
+
+# === File: backend/app/core/security.py ===
+# (c) 2026 AgentFlow-Eval | Author: LiKaixin
+# ====================================================================
+# (c) 2026 AgentFlow-Eval
+"""API Key authentication helpers with optional RBAC role binding."""
+
+from __future__ import annotations
+
+import hmac
+import secrets
+from dataclasses import dataclass
+
+from fastapi import Header, Request
+from fastapi.security.utils import get_authorization_scheme_param
+
+from app.config import settings
+from app.core.rbac import Role, resolve_role_for_actor
+from app.utils.exceptions import AgentFlowError
+
+
+class UnauthorizedError(AgentFlowError):
+    """Raised when authentication fails."""
+
+    def __init__(self, message: str = "Unauthorized") -> None:
+        super().__init__(message=message, status_code=401, detail=None)
+
+
+@dataclass(frozen=True)
+class ApiKeyEntry:
+    """Parsed API key configuration entry."""
+
+    secret: str
+    actor: str
+    role: Role | None = None  # None → resolve at auth time
+
+
+@dataclass(frozen=True)
+class AuthIdentity:
+    """Authenticated principal derived from API key."""
+
+    key_id: str
+    actor: str
+    raw_key_prefix: str
+    role: Role = Role.USER
+
+
+def parse_api_key_entries(raw: str | list[str] | None) -> list[ApiKeyEntry]:
+    """Parse API_KEYS into structured entries.
+
+    Supported formats per item:
+    - ``secret``
+    - ``secret:actor``
+    - ``secret:actor:role``  (role is admin|manager|reviewer|user|guest)
+------------------------------------------------------------
+第 42 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+    """
+    if not raw:
+        return []
+    items: list[str]
+    if isinstance(raw, list):
+        items = [str(x).strip() for x in raw if str(x).strip()]
+    else:
+        items = [p.strip() for p in str(raw).split(",") if p.strip()]
+
+    entries: list[ApiKeyEntry] = []
+    for idx, item in enumerate(items, start=1):
+        parts = [p.strip() for p in item.split(":")]
+        secret = parts[0] if parts else ""
+        if not secret:
+            continue
+        actor = parts[1] if len(parts) > 1 and parts[1] else f"key_{idx}"
+        role: Role | None = None
+        if len(parts) > 2 and parts[2]:
+            try:
+                role = Role.parse(parts[2])
+            except ValueError:
+                # Treat third segment as part of actor name if invalid role
+                actor = f"{actor}:{parts[2]}"
+                role = None
+        entries.append(ApiKeyEntry(secret=secret, actor=actor, role=role))
+    return entries
+
+
+def parse_api_keys(raw: str | list[str] | None) -> dict[str, str]:
+    """Parse API keys config into {secret: actor_name}.
+
+    Backward-compatible helper used by settings UI and tests.
+    """
+    return {e.secret: e.actor for e in parse_api_key_entries(raw)}
+
+
+def extract_api_key(
+    request: Request,
+    authorization: str | None = None,
+    x_api_key: str | None = None,
+) -> str | None:
+    """Extract API key from X-API-Key or Authorization: Bearer."""
+    key = (x_api_key or request.headers.get("X-API-Key") or "").strip()
+    if key:
+        return key
+    header = authorization or request.headers.get("Authorization")
+    if header:
+        scheme, param = get_authorization_scheme_param(header)
+        if scheme.lower() == "bearer" and param:
+            return param.strip()
+        # Also accept raw "ApiKey <token>"
+        if scheme.lower() in {"apikey", "api-key"} and param:
+            return param.strip()
+    return None
+
+
+def authenticate_api_key(api_key: str | None) -> AuthIdentity | None:
+    """Validate API key against configured secrets (constant-time compare)."""
+    if not api_key:
+        return None
+------------------------------------------------------------
+第 43 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+    entries = parse_api_key_entries(settings.API_KEYS)
+    for entry in entries:
+        if hmac.compare_digest(api_key, entry.secret):
+            role = resolve_role_for_actor(entry.actor, explicit=entry.role)
+            return AuthIdentity(
+                key_id=secrets.token_hex(4),
+                actor=entry.actor,
+                raw_key_prefix=api_key[:4] + "***",
+                role=role,
+            )
+    return None
+
+
+def require_auth_if_enabled(
+    request: Request,
+    authorization: str | None = Header(default=None),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+) -> AuthIdentity | None:
+    """FastAPI dependency: enforce API key when AUTH_ENABLED is true."""
+    if not settings.AUTH_ENABLED:
+        # Anonymous dev identity — full access when RBAC not enforced
+        identity = AuthIdentity(
+            key_id="dev",
+            actor="anonymous",
+            raw_key_prefix="dev",
+            role=Role.SYSTEM_ADMIN,
+        )
+        request.state.actor = identity.actor
+        request.state.auth = identity
+        request.state.role = identity.role
+        return identity
+
+    api_key = extract_api_key(request, authorization, x_api_key)
+    identity = authenticate_api_key(api_key)
+    if identity is None:
+        raise UnauthorizedError(
+            "Invalid or missing API key. Provide X-API-Key or Authorization: Bearer <key>."
+        )
+    request.state.actor = identity.actor
+    request.state.auth = identity
+    request.state.role = identity.role
+    return identity
+
+
+# Paths that skip auth even when enabled
+AUTH_PUBLIC_PATHS = frozenset(
+    {
+        "/health",
+        "/health/live",
+        "/health/ready",
+        "/metrics",
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+        # Stripe webhook (verified by signature, not API key)
+        "/api/v1/billing/webhook/stripe",
+        "/api/v1/billing/webhook",
+    }
+------------------------------------------------------------
+第 44 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+)
+
+
+def is_public_path(path: str) -> bool:
+    """Return True if the path is exempt from API key authentication."""
+    if path in AUTH_PUBLIC_PATHS:
+        return True
+    if path.startswith("/docs") or path.startswith("/redoc"):
+        return True
+    if path.rstrip("/").endswith("/billing/webhook/stripe"):
+        return True
+    if path.rstrip("/").endswith("/billing/webhook"):
+        return True
+    return False
+
+# === File: backend/app/core/tenancy.py ===
+# (c) 2026 AgentFlow-Eval | Author: LiKaixin
+# ====================================================================
+# (c) 2026 AgentFlow-Eval
+"""Actor isolation + enterprise tenant filtering helpers."""
+
+from __future__ import annotations
+
+from sqlalchemy import Select, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.config import settings
+from app.models.task import Task
+from app.models.test_suite import TestSuite
+from app.models.trace import Trace
+from app.utils.exceptions import NotFoundError
+
+
+def tenancy_enforced() -> bool:
+    """Isolation is on when auth is enabled, or TENANCY_ENABLED is explicit."""
+    return bool(settings.AUTH_ENABLED or settings.TENANCY_ENABLED)
+
+
+def admin_actors() -> set[str]:
+    raw = settings.ADMIN_ACTORS or ""
+    return {p.strip() for p in raw.split(",") if p.strip()}
+
+
+def is_admin(actor: str | None) -> bool:
+    if not actor:
+        return False
+    return actor in admin_actors()
+
+
+def can_access_task(
+    task: Task,
+    actor: str | None,
+    *,
+    role: str | None = None,
+) -> bool:
+    """Return True if actor may read/mutate the task.
+
+    Cross-owner access is granted to ADMIN/MANAGER/REVIEWER / enterprise
+    system_admin / tenant_admin roles when RBAC is active; otherwise falls
+    back to ADMIN_ACTORS + ownership checks.
+
+    When multi-tenant is on and a tenant is selected, also enforce tenant_id.
+    """
+    # Tenant boundary first
+    try:
+        from app.core.tenant_context import (
+            current_tenant_id,
+            multi_tenant_enabled,
+        )
+
+        if multi_tenant_enabled():
+------------------------------------------------------------
+第 45 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+            tid = current_tenant_id()
+            if tid:
+                resource_tid = getattr(task, "tenant_id", None)
+                if resource_tid and resource_tid != tid:
+                    return False
+                if not resource_tid:
+                    # Legacy row without tenant: deny when tenant scoped
+                    return False
+    except Exception:
+        pass
+
+    if not tenancy_enforced():
+        return True
+    if is_admin(actor):
+        return True
+    # Role-based cross-owner (RBAC)
+    try:
+        from app.core.rbac import CROSS_OWNER_ROLES, Role, rbac_enforced
+
+        if rbac_enforced() and role:
+            try:
+                r = Role.parse(str(role))
+                if r in CROSS_OWNER_ROLES:
+                    return True
+            except ValueError:
+                pass
+    except Exception:
+        pass
+    owner = getattr(task, "created_by", None) or "anonymous"
+    return owner == (actor or "anonymous")
+
+
+def ensure_task_access(
+    task: Task | None,
+    actor: str | None,
+    task_id: str = "",
+    *,
+    role: str | None = None,
+) -> Task:
+    """Raise NotFoundError if missing or not accessible (no existence leak)."""
+    if task is None or not can_access_task(task, actor, role=role):
+        raise NotFoundError("Task", task_id or (task.id if task else ""))
+    return task
+
+
+def apply_owner_filter(
+    query: Select,
+    actor: str | None,
+    *,
+    role: str | None = None,
+) -> Select:
+    """Restrict Task list queries to the current actor when tenancy is on.
+
+    Also applies ``tenant_id`` filter when multi-tenant context is active.
+    """
+    try:
+        from app.core.tenant_context import apply_tenant_filter
+
+        query = apply_tenant_filter(query, Task)
+    except Exception:
+------------------------------------------------------------
+第 46 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+        pass
+
+    if not tenancy_enforced():
+        return query
+    if is_admin(actor):
+        return query
+    try:
+        from app.core.rbac import CROSS_OWNER_ROLES, Role, rbac_enforced
+
+        if rbac_enforced() and role:
+            try:
+                if Role.parse(str(role)) in CROSS_OWNER_ROLES:
+                    return query
+            except ValueError:
+                pass
+    except Exception:
+        pass
+    owner = actor or "anonymous"
+    return query.where(Task.created_by == owner)
+
+
+def apply_trace_owner_filter(query: Select, actor: str | None) -> Select:
+    """Restrict Trace queries to suites belonging to actor-owned tasks."""
+    try:
+        from app.core.tenant_context import apply_tenant_filter
+
+        query = apply_tenant_filter(query, Trace)
+    except Exception:
+        pass
+
+    if not tenancy_enforced():
+        return query
+    if is_admin(actor):
+        return query
+    owner = actor or "anonymous"
+    return (
+        query.join(TestSuite, Trace.test_suite_id == TestSuite.id)
+        .join(Task, TestSuite.task_id == Task.id)
+        .where(Task.created_by == owner)
+    )
+
+
+async def load_task_for_suite(
+    session: AsyncSession,
+    suite_id: str,
+    actor: str | None,
+) -> Task:
+    """Load parent Task for a test suite; enforce ownership."""
+    result = await session.execute(
+        select(Task)
+        .join(TestSuite, TestSuite.task_id == Task.id)
+        .where(TestSuite.id == suite_id)
+    )
+    task = result.scalar_one_or_none()
+    if task is None or not can_access_task(task, actor):
+        raise NotFoundError("测试用例", suite_id)
+    return task
+
+
+async def load_trace_with_access(
+------------------------------------------------------------
+第 47 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+    session: AsyncSession,
+    trace_id: str,
+    actor: str | None,
+    *,
+    with_scores: bool = True,
+) -> Trace:
+    """Load a Trace and ensure the caller owns the parent Task."""
+    opts = [selectinload(Trace.metric_scores)] if with_scores else []
+    result = await session.execute(
+        select(Trace).options(*opts).where(Trace.id == trace_id)
+    )
+    trace = result.scalar_one_or_none()
+    if trace is None:
+        raise NotFoundError("执行轨迹", trace_id)
+
+    # Resolve parent task via suite
+    suite_result = await session.execute(
+        select(TestSuite).where(TestSuite.id == trace.test_suite_id)
+    )
+    suite = suite_result.scalar_one_or_none()
+    if suite is None:
+        raise NotFoundError("执行轨迹", trace_id)
+
+    task_result = await session.execute(select(Task).where(Task.id == suite.task_id))
+    task = task_result.scalar_one_or_none()
+    if task is None or not can_access_task(task, actor):
+        # Hide existence of foreign traces
+        raise NotFoundError("执行轨迹", trace_id)
+    return trace
+
+# === File: backend/app/models/task.py ===
+# (c) 2026 AgentFlow-Eval | Author: LiKaixin
+# ====================================================================
+# (c) 2026 AgentFlow-Eval
+"""Task 任务模型 —— 表示一次评测任务的顶层聚合根。"""
+
+import enum
+from typing import TYPE_CHECKING
+
+from sqlalchemy import Boolean, Index, JSON, Enum, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.test_suite import TestSuite
+
+
+class TaskStatus(str, enum.Enum):
+    """任务状态枚举 —— 生产级状态机。
+
+    状态流转:
+        CREATED ─► QUEUED ─► RUNNING ─► JUDGING ─► COMPLETED
+                                │          │
+                                ▼          ▼
+                             FAILED     FAILED
+                                │
+                                ▼
+                           CANCELLED / TIMEOUT
+    """
+
+    CREATED = "created"
+    QUEUED = "queued"
+    RUNNING = "running"
+    WAITING_TOOL = "waiting_tool"
+    JUDGING = "judging"
+    COMPLETED = "completed"
+------------------------------------------------------------
+第 48 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    TIMEOUT = "timeout"
+
+    # ---- 合法流转矩阵 ----
+    @classmethod
+    def allowed_transitions(cls) -> dict["TaskStatus", set["TaskStatus"]]:
+        """返回每个状态允许流转的目标状态集合。"""
+        return {
+            cls.CREATED: {cls.QUEUED, cls.CANCELLED},
+            cls.QUEUED: {cls.RUNNING, cls.CANCELLED, cls.TIMEOUT},
+            cls.RUNNING: {
+                cls.WAITING_TOOL,
+                cls.JUDGING,
+                cls.FAILED,
+                cls.CANCELLED,
+                cls.TIMEOUT,
+            },
+            cls.WAITING_TOOL: {cls.RUNNING, cls.FAILED, cls.CANCELLED, cls.TIMEOUT},
+            cls.JUDGING: {cls.COMPLETED, cls.FAILED, cls.CANCELLED},
+            cls.COMPLETED: set(),
+            cls.FAILED: set(),
+            cls.CANCELLED: set(),
+            cls.TIMEOUT: set(),
+        }
+
+    def can_transition_to(self, target: "TaskStatus") -> bool:
+        """检查是否允许从当前状态流转到目标状态。"""
+        return target in self.allowed_transitions().get(self, set())
+
+
+class Task(PKMixin, TenantMixin, TimestampMixin, Base):
+    """评测任务。
+
+    一个 Task 包含多个 TestSuite 测试用例，执行时逐条运行并汇总评分。
+    """
+
+    __tablename__ = "tasks"
+    __table_args__ = (
+        # List: WHERE created_by=? AND is_archived=0 ORDER BY created_at DESC
+        Index(
+            "ix_tasks_owner_archived_created",
+            "created_by",
+            "is_archived",
+            "created_at",
+        ),
+        # Dashboard: WHERE status=? ORDER BY created_at DESC
+        Index("ix_tasks_status_created", "status", "created_at"),
+        Index("ix_tasks_created_by", "created_by"),
+        Index("ix_tasks_celery_task_id", "celery_task_id"),
+        Index("ix_tasks_is_archived", "is_archived"),
+        Index("ix_tasks_tenant_created", "tenant_id", "created_at"),
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="任务名称",
+    )
+    description: Mapped[str] = mapped_column(
+------------------------------------------------------------
+第 49 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+        Text,
+        nullable=False,
+        default="",
+        comment="任务描述",
+    )
+    status: Mapped[TaskStatus] = mapped_column(
+        Enum(
+            TaskStatus,
+            name="task_status",
+            native_enum=False,
+            length=20,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
+        nullable=False,
+        default=TaskStatus.CREATED,
+        comment="任务状态",
+    )
+    agent_config: Mapped[dict] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+        comment="Agent 配置参数（JSON 对象）",
+    )
+    celery_task_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        default=None,
+        comment="Celery 异步任务 ID，用于取消和状态追踪",
+    )
+    is_archived: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="是否已归档（软归档，列表默认隐藏）",
+    )
+    created_by: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        default="anonymous",
+        comment="创建者 actor（API Key 映射名），用于轻量多租户隔离",
+    )
+
+    # ---- 关系 ----
+    test_suites: Mapped[list["TestSuite"]] = relationship(
+        back_populates="task",
+        cascade="all, delete-orphan",
+    )
+
+    def __repr__(self) -> str:
+        return f"<Task id={self.id} name={self.name!r} status={self.status.value}>"
+
+# === File: backend/app/models/trace.py ===
+# (c) 2026 AgentFlow-Eval | Author: LiKaixin
+# ====================================================================
+# (c) 2026 AgentFlow-Eval
+"""Trace 模型 —— 记录 Agent 执行一次测试用例的完整轨迹。"""
+
+import enum
+from typing import TYPE_CHECKING
+------------------------------------------------------------
+第 50 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+
+from sqlalchemy import Enum, Float, ForeignKey, Index, Integer, JSON, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.metric_score import MetricScore
+    from app.models.test_suite import TestSuite
+
+
+class TraceStatus(str, enum.Enum):
+    """轨迹执行状态。"""
+
+    SUCCESS = "success"
+    FAILED = "failed"
+
+
+class Trace(PKMixin, TenantMixin, TimestampMixin, Base):
+    """执行轨迹。
+
+    保存 Agent 运行一次测试用例的完整 ReAct 步骤、Token 消耗和响应时间，
+    是评分和链路可视化的核心数据源。
+    """
+
+    __tablename__ = "traces"
+    __table_args__ = (
+        # List traces for a suite ordered by time
+        Index("ix_traces_suite_created", "test_suite_id", "created_at"),
+        Index("ix_traces_created_at", "created_at"),
+        Index("ix_traces_tenant_created", "tenant_id", "created_at"),
+    )
+
+    test_suite_id: Mapped[str] = mapped_column(
+        ForeignKey("test_suites.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="所属测试用例 ID",
+    )
+    user_query: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="本次执行使用的用户指令（快照）",
+    )
+    steps: Mapped[list] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        comment="ReAct 步骤数组，每步包含 thought/action/observation 等字段",
+    )
+    total_tokens: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="本次执行消耗的总 Token 数",
+    )
+    response_time_ms: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="执行耗时（毫秒）",
+    )
+------------------------------------------------------------
+第 51 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+    status: Mapped[TraceStatus] = mapped_column(
+        Enum(
+            TraceStatus,
+            name="trace_status",
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
+        nullable=False,
+        default=TraceStatus.SUCCESS,
+        comment="执行状态：success / failed",
+    )
+
+    # ---- v1.0 新增：Token 分拆与成本追踪 ----
+    prompt_tokens: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="输入 Prompt Token 数",
+    )
+    completion_tokens: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="输出 Completion Token 数",
+    )
+    cost: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0.0,
+        comment="本次执行费用（USD）",
+    )
+
+    # ---- v1.0 新增：版本追踪，确保可复现 ----
+    agent_version: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        default=None,
+        comment="Agent 实现版本号",
+    )
+    prompt_version: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        default=None,
+        comment="Prompt 模板版本号",
+    )
+    model_version: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        default=None,
+        comment="LLM 模型版本（如 gpt-4o-2024-05-13）",
+    )
+    tool_version: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        default=None,
+------------------------------------------------------------
+第 52 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+        comment="工具集版本号",
+    )
+
+    # ---- 关系 ----
+    test_suite: Mapped["TestSuite"] = relationship(back_populates="traces")
+    metric_scores: Mapped[list["MetricScore"]] = relationship(
+        back_populates="trace",
+        cascade="all, delete-orphan",
+    )
+
+    def __repr__(self) -> str:
+        return f"<Trace id={self.id} status={self.status.value} tokens={self.total_tokens}>"
+
+# === File: backend/app/models/experiment.py ===
+# (c) 2026 AgentFlow-Eval | Author: LiKaixin
+# ====================================================================
+# (c) 2026 AgentFlow-Eval
+"""Experiment models — multi-run comparison on the same test suites."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from sqlalchemy import ForeignKey, Index, JSON, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, PKMixin, TenantMixin, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.task import Task
+
+
+class Experiment(PKMixin, TenantMixin, TimestampMixin, Base):
+    """A comparison experiment grouping multiple evaluation runs.
+
+    Suites are snapshotted as JSON so later base-task edits do not alter
+    historical comparisons. Each run materializes a Task with cloned suites.
+    """
+
+    __tablename__ = "experiments"
+    __table_args__ = (
+        Index("ix_experiments_created_by", "created_by"),
+        Index("ix_experiments_created_at", "created_at"),
+        Index("ix_experiments_base_task_id", "base_task_id"),
+        Index("ix_experiments_owner_created", "created_by", "created_at"),
+        Index("ix_experiments_tenant_created", "tenant_id", "created_at"),
+    )
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False, comment="实验名称")
+    description: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", comment="实验描述"
+    )
+    base_task_id: Mapped[str | None] = mapped_column(
+        String(36),
+        nullable=True,
+        comment="可选：套件来源任务 ID",
+    )
+    suite_snapshot: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        comment="测试用例快照 [{user_query, expected_output, expected_tools}]",
+    )
+    created_by: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        default="anonymous",
+        comment="创建者 actor",
+------------------------------------------------------------
+第 53 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+    )
+
+    runs: Mapped[list[ExperimentRun]] = relationship(
+        back_populates="experiment",
+        cascade="all, delete-orphan",
+        order_by="ExperimentRun.created_at",
+    )
+
+    def __repr__(self) -> str:
+        return f"<Experiment id={self.id} name={self.name!r}>"
+
+
+class ExperimentRun(PKMixin, TenantMixin, TimestampMixin, Base):
+    """One evaluation run inside an experiment (maps 1:1 to a Task)."""
+
+    __tablename__ = "experiment_runs"
+    __table_args__ = (
+        UniqueConstraint("experiment_id", "label", name="uq_experiment_run_label"),
+        Index("ix_experiment_runs_tenant", "tenant_id"),
+    )
+
+    experiment_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("experiments.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="所属实验",
+    )
+    task_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("tasks.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="对应评测任务",
+    )
+    label: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        comment="变体标签，如 gpt-4o / http-agent-v1",
+    )
+    agent_config: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+        comment="该 run 使用的 agent_config 快照",
+    )
+
+    experiment: Mapped[Experiment] = relationship(back_populates="runs")
+    task: Mapped[Task] = relationship()
+
+    def __repr__(self) -> str:
+        return f"<ExperimentRun id={self.id} label={self.label!r} task={self.task_id}>"
+
+# === File: backend/app/schemas/task.py ===
+# (c) 2026 AgentFlow-Eval | Author: LiKaixin
+# ====================================================================
+# (c) 2026 AgentFlow-Eval
+"""Task 相关的 Pydantic 请求/响应模型。"""
+
+from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel, Field
+
+
+class TaskCreate(BaseModel):
+    """创建评测任务的请求体。"""
+------------------------------------------------------------
+第 54 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+
+    name: str = Field(..., min_length=1, max_length=255, description="任务名称")
+    description: str = Field("", description="任务描述")
+    agent_config: dict[str, Any] = Field(
+        default_factory=lambda: {"model": "gpt-4o", "temperature": 0},
+        description="Agent 配置参数",
+    )
+
+
+class TaskStatusUpdate(BaseModel):
+    """更新任务状态的请求体。"""
+
+    status: str = Field(
+        ...,
+        pattern=r"^(created|queued|running|waiting_tool|judging|completed|failed|cancelled|timeout)$",
+        description="新状态",
+    )
+
+
+class TaskResponse(BaseModel):
+    """任务响应模型。"""
+
+    id: str
+    name: str
+    description: str
+    status: str
+    agent_config: dict[str, Any]
+    celery_task_id: str | None = None
+    is_archived: bool = False
+    created_by: str = "anonymous"
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    test_suite_count: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class TaskListResponse(BaseModel):
+    """任务列表响应。"""
+
+    items: list[TaskResponse]
+    total: int
+    page: int = 1
+    page_size: int = 20
+
+# === File: backend/app/schemas/experiment.py ===
+# (c) 2026 AgentFlow-Eval | Author: LiKaixin
+# ====================================================================
+# (c) 2026 AgentFlow-Eval
+"""Pydantic schemas for Experiment comparison APIs."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel, Field, field_validator
+
+
+class SuiteCase(BaseModel):
+    """Single test case in an experiment suite snapshot."""
+
+    user_query: str = Field(..., min_length=1)
+    expected_output: str = Field(default="")
+    expected_tools: list[str] = Field(default_factory=list)
+
+
+class ExperimentVariant(BaseModel):
+    """One agent configuration variant to compare."""
+
+    label: str = Field(..., min_length=1, max_length=100, description="变体标签")
+    agent_config: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Agent 配置（runner/model/endpoint_url 等）",
+    )
+------------------------------------------------------------
+第 55 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+
+
+class ExperimentCreate(BaseModel):
+    """Create experiment from base task and/or explicit suites + variants."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str = Field(default="")
+    base_task_id: str | None = Field(
+        default=None,
+        description="从已有任务复制测试套件（与 suites 二选一或合并）",
+    )
+    suites: list[SuiteCase] = Field(
+        default_factory=list,
+        description="显式用例列表；可与 base_task_id 并用",
+    )
+    variants: list[ExperimentVariant] = Field(
+        ...,
+        min_length=1,
+        description="至少一个变体；创建后会为每个变体生成 Task 并排队执行",
+    )
+    auto_execute: bool = Field(
+        default=True,
+        description="是否立即排队执行各变体任务",
+    )
+
+    @field_validator("variants")
+    @classmethod
+    def unique_labels(cls, v: list[ExperimentVariant]) -> list[ExperimentVariant]:
+        labels = [x.label for x in v]
+        if len(labels) != len(set(labels)):
+            raise ValueError("variant labels must be unique within an experiment")
+        return v
+
+
+class ExperimentRunResponse(BaseModel):
+    """Single run in list/detail responses."""
+
+    id: str
+    experiment_id: str
+    task_id: str
+    label: str
+    agent_config: dict[str, Any]
+    task_status: str | None = None
+    created_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ExperimentResponse(BaseModel):
+    """Experiment detail."""
+
+    id: str
+    name: str
+    description: str
+    base_task_id: str | None = None
+    suite_count: int = 0
+    created_by: str = "anonymous"
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    runs: list[ExperimentRunResponse] = Field(default_factory=list)
+
+    model_config = {"from_attributes": True}
+------------------------------------------------------------
+第 56 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+
+
+class ExperimentListResponse(BaseModel):
+    """Paginated experiment list."""
+
+    items: list[ExperimentResponse]
+    total: int
+    page: int = 1
+    page_size: int = 20
+
+
+class RunCompareItem(BaseModel):
+    """Aggregated scores for one experiment run."""
+
+    label: str
+    task_id: str
+    task_status: str
+    average_score: float = 0.0
+    dimension_scores: dict[str, float] = Field(default_factory=dict)
+    total_tokens: int = 0
+    total_time_ms: int = 0
+    suite_count: int = 0
+    scored_traces: int = 0
+
+
+class ExperimentCompareResponse(BaseModel):
+    """Side-by-side comparison of experiment runs."""
+
+    experiment_id: str
+    name: str
+    suite_count: int
+    runs: list[RunCompareItem]
+    best_label: str | None = None
+    delta_vs_best: dict[str, float] = Field(
+        default_factory=dict,
+        description="各变体相对最高分的总分差值（best 为 0）",
+    )
+
+# === File: backend/app/core/plugins/hooks.py ===
+# (c) 2026 AgentFlow-Eval | Author: LiKaixin
+# ====================================================================
+# (c) 2026 AgentFlow-Eval
+"""Hook registry — ordered pre/post callbacks for core pipeline events."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
+
+HookCallback = Callable[..., Any]
+
+
+@dataclass(order=True)
+class HookEntry:
+    """A single registered hook callback with priority (lower runs first)."""
+
+    priority: int
+    name: str = field(compare=False)
+    callback: HookCallback = field(compare=False)
+    plugin_id: str | None = field(default=None, compare=False)
+    # Unique id for unregistration
+    entry_id: int = field(default=0, compare=False)
+
+
+class HookRegistry:
+    """In-process ordered hook bus.
+
+    Callbacks may be sync or async. Exceptions are isolated (logged) so a bad
+    plugin cannot break the host pipeline unless ``strict=True``.
+    """
+------------------------------------------------------------
+第 57 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+
+    def __init__(self) -> None:
+        self._hooks: dict[str, list[HookEntry]] = defaultdict(list)
+        self._seq = 0
+        self._lock = asyncio.Lock() if False else None  # sync-safe; GIL list ops
+
+    def register(
+        self,
+        hook_name: str,
+        callback: HookCallback,
+        *,
+        priority: int = 100,
+        plugin_id: str | None = None,
+    ) -> int:
+        """Register a callback. Returns entry id for later unregister."""
+        if not hook_name or not callable(callback):
+            raise ValueError("hook_name and callable callback are required")
+        self._seq += 1
+        entry = HookEntry(
+            priority=int(priority),
+            name=hook_name,
+            callback=callback,
+            plugin_id=plugin_id,
+            entry_id=self._seq,
+        )
+        self._hooks[hook_name].append(entry)
+        self._hooks[hook_name].sort()
+        logger.debug(
+            "Hook registered: %s priority=%s plugin=%s id=%s",
+            hook_name,
+            priority,
+            plugin_id,
+            entry.entry_id,
+        )
+        return entry.entry_id
+
+    def unregister(self, entry_id: int) -> bool:
+        """Remove a hook by entry id. Returns True if found."""
+        for name, entries in list(self._hooks.items()):
+            for i, e in enumerate(entries):
+                if e.entry_id == entry_id:
+                    del entries[i]
+                    if not entries:
+                        del self._hooks[name]
+                    return True
+        return False
+
+    def unregister_plugin(self, plugin_id: str) -> int:
+        """Remove all hooks owned by a plugin. Returns count removed."""
+        removed = 0
+        for name in list(self._hooks.keys()):
+            before = len(self._hooks[name])
+            self._hooks[name] = [
+                e for e in self._hooks[name] if e.plugin_id != plugin_id
+------------------------------------------------------------
+第 58 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+            ]
+            removed += before - len(self._hooks[name])
+            if not self._hooks[name]:
+                del self._hooks[name]
+        return removed
+
+    def list_hooks(self, hook_name: str | None = None) -> list[dict[str, Any]]:
+        """List registered hooks (for API / debug)."""
+        names = [hook_name] if hook_name else sorted(self._hooks.keys())
+        out: list[dict[str, Any]] = []
+        for name in names:
+            for e in self._hooks.get(name, []):
+                out.append(
+                    {
+                        "hook": name,
+                        "entry_id": e.entry_id,
+                        "priority": e.priority,
+                        "plugin_id": e.plugin_id,
+                        "callback": getattr(e.callback, "__name__", repr(e.callback)),
+                    }
+                )
+        return out
+
+    def clear(self) -> None:
+        self._hooks.clear()
+
+    def emit_sync(
+        self,
+        hook_name: str,
+        payload: dict[str, Any] | None = None,
+        *,
+        strict: bool = False,
+    ) -> list[Any]:
+        """Run hooks sequentially (sync path). Async callbacks run via asyncio.run if needed."""
+        payload = dict(payload or {})
+        results: list[Any] = []
+        for entry in list(self._hooks.get(hook_name, [])):
+            try:
+                result = entry.callback(payload)
+                if asyncio.iscoroutine(result):
+                    # Avoid asyncio.run() — it closes the loop and breaks
+                    # subsequent pytest-asyncio tests. Prefer sync hooks when
+                    # calling emit_sync; async hooks should use emit().
+                    logger.warning(
+                        "Async hook %s/%s skipped in emit_sync; use await emit()",
+                        hook_name,
+                        entry.entry_id,
+                    )
+                    result = None
+                results.append(result)
+            except Exception as exc:
+                logger.exception(
+                    "Hook %s (plugin=%s) failed: %s",
+                    hook_name,
+                    entry.plugin_id,
+                    exc,
+------------------------------------------------------------
+第 59 页 / 共 60 页
+
+AgentFlow-Eval 源程序鉴别材料 V1.0.0
+------------------------------------------------------------
+                )
+                if strict:
+                    raise
+                results.append({"error": str(exc), "plugin_id": entry.plugin_id})
+        return results
+
+    async def emit(
+        self,
+        hook_name: str,
+        payload: dict[str, Any] | None = None,
+        *,
+        strict: bool = False,
+    ) -> list[Any]:
+        """Run hooks sequentially; await async callbacks."""
+        payload = dict(payload or {})
+        results: list[Any] = []
+        for entry in list(self._hooks.get(hook_name, [])):
+            try:
+                result = entry.callback(payload)
+                if asyncio.iscoroutine(result):
+                    result = await result
+                results.append(result)
+            except Exception as exc:
+                logger.exception(
+                    "Hook %s (plugin=%s) failed: %s",
+                    hook_name,
+                    entry.plugin_id,
+                    exc,
+                )
+                if strict:
+                    raise
+                results.append({"error": str(exc), "plugin_id": entry.plugin_id})
+        return results
+
+
+# Process-wide default registry
+_default_hooks: HookRegistry | None = None
+
+
+def get_hook_registry() -> HookRegistry:
+    global _default_hooks
+    if _default_hooks is None:
+        _default_hooks = HookRegistry()
+    return _default_hooks
+
+
+def reset_hook_registry() -> HookRegistry:
+    """Replace the global registry (tests)."""
+    global _default_hooks
+    _default_hooks = HookRegistry()
+    return _default_hooks
+
+------------------------------------------------------------
+第 60 页 / 共 60 页
+

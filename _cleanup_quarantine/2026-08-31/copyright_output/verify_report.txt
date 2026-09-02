@@ -1,0 +1,7 @@
+total_pages: 60
+pages_continuous: True
+file_count: 14
+file_size_bytes: 131515
+secret_leaks: 0
+keywords: {'circuit': 0, 'ssrf': 0, 'topolog': 0, 'consistent': 0, 'sandbox': 0, 'lifecycle': 4, 'protocol': 0, 'judge': 27, 'middleware': 34, 'plugin': 439}
+line_ending: LF

@@ -1,0 +1,231 @@
+﻿# -*- coding: utf-8 -*-
+"""从真实源码重建 source_code_60pages.txt（按"有效行"取前后各30页）。"""
+import pathlib, re
+
+# ============ 必填：与申请表逐字一致 ============
+SOFT_NAME = "AgentFlow-Eval"          # 软件全称（若申请表是中文名，改这里！）
+VERSION   = "V1.0.0"                  # 版本号（申请表是 1.0.0 还是 V1.0.0，保持一致）
+AUTHOR    = "LiKaixin"
+YEAR      = 2026
+
+# ============ 路径 ============
+ROOT       = pathlib.Path(r"D:\AgentFlow-Eval")
+CODE_ROOTS = [ROOT / "backend"]       # 递归收集这些目录下全部 .py；源码在别处就改这里
+OUT_TXT    = ROOT / "copyright_output" / "source_code_60pages.txt"
+
+# ============ 分页参数 ============
+EFFECTIVE_PER_PAGE = 50
+PAGES_PER_HALF     = 30
+NEED               = EFFECTIVE_PER_PAGE * PAGES_PER_HALF   # 1500
+
+# ============ 精简开关 ============
+STRIP_HASH_COMMENTS = True            # 删源码自带 # 注释（保留 # === File: 头）
+EXCLUDE_DIR = {"__pycache__", ".venv", "venv", "tests", "test",
+               "migrations", "alembic", ".git", "node_modules"}
+
+SEP = ["", "# " + "=" * 60, "# （此处省略中间部分源代码）", "# " + "=" * 60, ""]
+
+
+def is_effective(s: str) -> bool:
+    t = s.strip()
+    return t != "" and not t.startswith("#")
+
+
+# 1) 收集文件
+files = []
+for cr in CODE_ROOTS:
+    if not cr.exists():
+        print(f"[WARN] 目录不存在: {cr}")
+        continue
+    for p in cr.rglob("*.py"):
+        if any(part in EXCLUDE_DIR for part in p.parts):
+            continue
+        files.append(p)
+files.sort(key=lambda p: p.relative_to(ROOT).as_posix())
+print(f"[INFO] 收集源文件: {len(files)} 个")
+
+# 2) 拼全量流（删 # 注释 + 压缩空行 + 加文件头）
+L = []
+for p in files:
+    rel = p.relative_to(ROOT).as_posix()
+    L.append(f"# === File: {rel} ===")                 # 文件头（保留，白名单）
+    L.append(f"# (c) {YEAR} {SOFT_NAME} | Author: {AUTHOR}")
+    try:
+        body = p.read_text(encoding="utf-8")
+    except Exception as e:
+        print(f"[WARN] 读取失败跳过: {rel} -> {e}")
+        continue
+    for ln in body.splitlines():
+        r = ln.rstrip()
+        if STRIP_HASH_COMMENTS and r.strip().startswith("#"):
+            continue                                   # 删源码 # 注释
+        if r == "" and L and L[-1] == "":
+            continue                                   # 压缩连续空行
+        L.append(r)
+    if L and L[-1] != "":
+        L.append("")                                   # 文件间 1 空行
+
+eff_idx = [i for i, s in enumerate(L) if is_effective(s)]
+total_eff = len(eff_idx)
+print(f"[INFO] 全量物理行: {len(L)}, 全量有效行: {total_eff}")
+
+# 3) 切前后段 or 退化
+use_two_halves = False
+
+def extend_to_boundary(L, i_front_end, NEED, max_extend=30, max_eff=1530):
+    """从第1500有效行位置向后延伸到最近完整边界；若超限则向前回退。"""
+
+    def _is_toplevel_def_class(line: str) -> bool:
+        s = line.strip()
+        if not (s.startswith("def ") or s.startswith("class ")):
+            return False
+        # 顶层定义：行首无空白缩进
+        return not line.startswith((" ", "\t"))
+
+    # ---- 向后（forward）延伸 ----
+    added_eff = 0
+    for i in range(i_front_end + 1, min(len(L), i_front_end + 1 + max_extend)):
+        if is_effective(L[i]):
+            added_eff += 1
+            if NEED + added_eff > max_eff:
+                # 超出有效行上限 → 改用回退
+                break
+
+        # 边界类型1：下一行是顶层 def/class → 当前行是上一个函数/类的结尾
+        if i + 1 < len(L) and _is_toplevel_def_class(L[i + 1]):
+            return i
+
+        # 边界类型2：当前行是空行且下一行是顶层 def/class
+        if L[i].strip() == "" and i + 1 < len(L) and _is_toplevel_def_class(L[i + 1]):
+            return i
+    else:
+        # for 正常结束（未 break）→ 已触及文件末尾或 max_extend
+        if i_front_end + max_extend >= len(L):
+            return len(L) - 1
+
+    # ---- 向前（backward）回退到最近完整边界 ----
+    # 策略：在 max_extend*2 范围内找最近的分段空行、非缩进代码结束行、或 def/class
+    backward_limit = min(i_front_end + 1, max_extend * 2)
+
+    def _is_module_level_stmt(line: str) -> bool:
+        """非缩进行，且不是 def/class 或函数签名延续 → 可能是函数/块结束后的模块级代码。"""
+        s = line.strip()
+        if s == "":
+            return False
+        if s.startswith("def ") or s.startswith("class "):
+            return False
+        if line.startswith((" ", "\t")):
+            return False
+        # 排除函数签名延续行：以 ) ] : {  @ 开头通常不是独立语句
+        if s[0] in (")", "]", ":", "{", "@"):
+            return False
+        return True
+
+    # 第 1 轮：在限制范围内找最近的非缩进行（模块级代码行）
+    #          这种行通常是上一个缩进块（函数/类）结束后的第一条语句
+    for i in range(i_front_end, i_front_end - backward_limit, -1):
+        if _is_module_level_stmt(L[i]):
+            # 需要确认该行之前是缩进代码（说明刚从函数/类中出来）
+            if i > 0 and L[i - 1].startswith((" ", "\t")) and L[i - 1].strip() != "":
+                # 收敛到该行后面的空行或直接使用该行
+                boundary = i
+                while boundary + 1 <= i_front_end and L[boundary + 1].strip() == "":
+                    boundary += 1  # 吸收后续空行
+                return boundary
+            # 如果前面不是缩进代码，跳过（可能是模块级连续代码）
+
+    # 第 2 轮：找空行边界（最近 block 结束处）
+    for i in range(i_front_end, i_front_end - backward_limit, -1):
+        if L[i].strip() != "":
+            continue
+        # 检查该空行之后是否有非缩进代码 → 段落边界
+        for j in range(i + 1, min(len(L), i + 4)):
+            sj = L[j].strip()
+            if sj == "":
+                continue
+            if not L[j].startswith((" ", "\t")):
+                boundary = i - 1
+                while boundary > i_front_end - backward_limit and L[boundary].strip() == "":
+                    boundary -= 1
+                return max(i_front_end - backward_limit, boundary)
+            else:
+                break  # 缩进代码跟随 → 函数内部空行
+
+    # 第 3 轮：在限制范围内找最近的 def/class
+    for i in range(i_front_end, i_front_end - backward_limit, -1):
+        if _is_toplevel_def_class(L[i]):
+            new_end = i - 1
+            if new_end >= 0:
+                while new_end > i_front_end - backward_limit and L[new_end].strip() == "":
+                    new_end -= 1
+            return max(0, new_end)
+
+    # 兜底：扩大范围找 def/class
+    for i in range(i_front_end - backward_limit - 1, -1, -1):
+        if _is_toplevel_def_class(L[i]):
+            new_end = i - 1
+            if new_end < 0:
+                return 0
+            while new_end >= 0 and L[new_end].strip() == "":
+                new_end -= 1
+            return max(0, new_end)
+
+    return i_front_end
+
+
+if total_eff >= 2 * NEED:
+    i_front_end = eff_idx[NEED - 1]                    # 前段第1500有效行
+    i_back_eff0 = eff_idx[total_eff - NEED]            # 后段第1有效行
+    j = i_back_eff0
+    while j > 0 and not L[j].strip().startswith("# === File:"):
+        j -= 1                                         # 回退对齐文件头
+
+    # 延伸/回退到完整边界
+    i_front_new = extend_to_boundary(L, i_front_end, NEED)
+    f_eff_new = sum(1 for k in range(i_front_new + 1) if is_effective(L[k]))
+    direction = "向后延伸" if i_front_new >= i_front_end else "向前回退"
+    print(f"[INFO] 边界对齐: {direction}, 前段有效行 {NEED}→{f_eff_new}  (物理索引 {i_front_end}→{i_front_new})")
+
+    # 若前段变短，则后段补偿更多行以保证前后段总计 ≥ 2*NEED
+    deficit = max(0, NEED - f_eff_new)                  # 前段比 1500 少了多少
+    if deficit > 0:
+        back_need = NEED + deficit                       # 后段需要 1500 + deficit
+        new_back_start_eff = total_eff - back_need
+        if new_back_start_eff > i_front_new:             # 确保不重叠
+            j_new = eff_idx[new_back_start_eff]
+            while j_new > 0 and not L[j_new].strip().startswith("# === File:"):
+                j_new -= 1
+            b_eff_comp = total_eff - sum(1 for k in range(j_new) if is_effective(L[k]))
+            if f_eff_new + b_eff_comp >= 2 * NEED - 5:
+                j = j_new
+                print(f"[INFO] 后段补偿: +{deficit} 有效行 (后段 {NEED}→{back_need})")
+            else:
+                print(f"[WARN] 后段补偿后仍不足，退回原始切割")
+                i_front_new = i_front_end
+                f_eff_new = NEED
+                direction = "原始切割(无调整)"
+        else:
+            print(f"[WARN] 后段补偿会导致重叠，退回原始切割")
+            i_front_new = i_front_end
+            f_eff_new = NEED
+            direction = "原始切割(无调整)"
+
+    if i_front_new < j:                                # 两段不重叠 → 可省略中间
+        use_two_halves = True
+        front = L[: i_front_new + 1]
+        back = L[j:]
+    else:
+        print("[WARN] 前后段物理区间重叠，改为提交全部")
+
+if use_two_halves:
+    f_eff = sum(1 for s in front if is_effective(s))
+    b_eff = sum(1 for s in back if is_effective(s))
+    print(f"[OK] 前后各30页模式: 前段有效行={f_eff}, 后段有效行={b_eff}")
+    txt_lines = front + ["# === SEGMENT_BREAK ==="] + SEP + back
+else:
+    print(f"[OK] 退化模式(提交全部): 有效行={total_eff}, 预估页数≈{total_eff // EFFECTIVE_PER_PAGE}")
+    txt_lines = L
+
+OUT_TXT.parent.mkdir(parents=True, exist_ok=True)
+OUT_TXT.write_text("\n".join(txt_lines) + "\n", encoding="utf-8")
+print(f"[SAVED] -> {OUT_TXT}  (物理行 {len(txt_lines)})")

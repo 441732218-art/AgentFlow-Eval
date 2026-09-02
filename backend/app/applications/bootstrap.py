@@ -5,11 +5,13 @@ from __future__ import annotations
 
 from app.applications.example_provider import ExampleApplicationToolProvider
 from app.applications.provider import ApplicationToolProvider
+from app.applications.trade_provider import TradeApplicationProvider
 from app.runtime.tools.local_handler_registry import LocalHandlerRegistry
 from app.runtime.tools.registry import ToolRegistry
 
 DEFAULT_APPLICATION_PROVIDERS: list[ApplicationToolProvider] = [
     ExampleApplicationToolProvider(),
+    TradeApplicationProvider(),
 ]
 
 

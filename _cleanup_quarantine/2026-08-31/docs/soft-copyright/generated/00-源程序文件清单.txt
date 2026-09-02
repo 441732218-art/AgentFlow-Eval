@@ -1,0 +1,114 @@
+软件名称：AgentFlow-Eval Agent自动化评测工作台
+版本号：V1.0
+申请人：李凯昕
+开发完成日期：2026年7月14日
+读取源文件数：102
+有效代码行数（过滤空行+纯注释行）：10517
+交存连续行数（含技术注释、已滤空行）：14017
+交存页数：61
+模式：HEAD+TAIL（全文约 281 页，交存前30+分隔+后30=61页）
+注释率：27.0%
+
+文件清单（相对路径 \t 有效行 \t 交存行）：
+  backend/app/core/judge_engine/__init__.py	4	9
+  backend/app/core/judge_engine/base.py	25	34
+  backend/app/core/judge_engine/llm_judge.py	190	204
+  backend/app/core/judge_engine/metrics.py	46	57
+  backend/app/core/agent_runner/__init__.py	9	14
+  backend/app/core/agent_runner/base.py	27	36
+  backend/app/core/agent_runner/openai_runner.py	313	324
+  backend/app/core/agent_runner/parser.py	10	17
+  backend/app/core/agent_runner/tool_sandbox.py	229	256
+  backend/app/core/celery_app/celery.py	20	26
+  backend/app/core/celery_app/tasks.py	440	477
+  backend/app/core/security.py	82	97
+  backend/app/core/tenancy.py	86	100
+  backend/app/core/middleware.py	59	67
+  backend/app/core/dependencies.py	78	92
+  backend/app/core/events.py	78	88
+  backend/app/core/ws_hub.py	91	99
+  backend/app/core/audit.py	36	42
+  backend/app/core/seed.py	100	107
+  backend/app/models/__init__.py	7	12
+  backend/app/models/audit_log.py	31	37
+  backend/app/models/base.py	27	37
+  backend/app/models/metric_score.py	51	61
+  backend/app/models/task.py	81	93
+  backend/app/models/trace.py	73	83
+  backend/app/api/v1/endpoints/audit.py	46	52
+  backend/app/api/v1/endpoints/reports.py	101	112
+  backend/app/api/v1/endpoints/settings.py	66	77
+  backend/app/api/v1/endpoints/tasks.py	390	405
+  backend/app/api/v1/endpoints/tools.py	26	33
+  backend/app/api/v1/endpoints/traces.py	187	199
+  backend/app/api/v1/endpoints/ws.py	35	43
+  backend/app/api/v1/router.py	10	15
+  backend/app/schemas/__init__.py	16	21
+  backend/app/schemas/task.py	34	43
+  backend/app/schemas/trace.py	29	38
+  backend/app/utils/cost.py	54	72
+  backend/app/utils/exceptions.py	51	65
+  backend/app/utils/logger.py	52	62
+  backend/app/main.py	179	197
+  backend/app/config.py	58	82
+  frontend/src/components/TraceFlow/ScoreCard.tsx	135	139
+  frontend/src/components/TraceFlow/StepLogPanel.tsx	166	170
+  frontend/src/components/TraceFlow/TraceFlowChart.tsx	368	376
+  frontend/src/pages/Dashboard/index.tsx	339	346
+  frontend/src/pages/NotFound.tsx	32	35
+  frontend/src/pages/Settings.tsx	577	582
+  frontend/src/pages/reports/ReportDetail.tsx	457	462
+  frontend/src/pages/reports/index.tsx	168	173
+  frontend/src/pages/tasks/create.tsx	336	339
+  frontend/src/pages/tasks/detail.tsx	443	452
+  frontend/src/pages/tasks/index.tsx	483	491
+  frontend/src/hooks/index.ts	15	18
+  frontend/src/hooks/useActivityWatcher.ts	213	235
+  frontend/src/hooks/useDocumentTitle.ts	31	35
+  frontend/src/hooks/useTasks.ts	105	107
+  frontend/src/hooks/useTraces.ts	27	30
+  frontend/src/stores/useNotificationStore.ts	125	135
+  frontend/src/stores/useTaskStore.ts	73	76
+  frontend/src/stores/useThemeStore.ts	118	131
+  frontend/src/stores/useTraceStore.ts	49	53
+  frontend/src/api/client.ts	76	83
+  frontend/src/api/endpoints/reports.ts	6	9
+  frontend/src/api/endpoints/settings.ts	25	28
+  frontend/src/api/endpoints/tasks.ts	50	53
+  frontend/src/api/endpoints/traces.ts	14	17
+  frontend/src/api/index.ts	6	9
+  frontend/src/services/api.ts	1	6
+  frontend/src/services/taskService.ts	30	38
+  frontend/src/services/traceService.ts	17	24
+  frontend/src/lib/query-client.ts	13	16
+  frontend/src/lib/utils.ts	4	7
+  frontend/src/lib/validators.ts	23	26
+  frontend/src/utils/exportPdf.ts	162	171
+  frontend/src/utils/format.ts	33	41
+  frontend/src/types/index.ts	152	159
+  frontend/src/router/index.tsx	38	41
+  frontend/src/layouts/components/Header.tsx	33	38
+  frontend/src/layouts/components/Sidebar.tsx	39	44
+  frontend/src/layouts/index.tsx	1	7
+  frontend/src/components/CommandPalette.tsx	379	384
+  frontend/src/components/common/ErrorBoundary.tsx	83	88
+  frontend/src/components/common/Loading.tsx	21	25
+  frontend/src/components/layout/ActivityWatcher.tsx	5	9
+  frontend/src/components/layout/Header.tsx	160	163
+  frontend/src/components/layout/MainLayout.tsx	66	69
+  frontend/src/components/layout/NotificationDrawer.tsx	235	239
+  frontend/src/components/layout/Sidebar.tsx	150	154
+  frontend/src/components/layout/navItems.tsx	28	31
+  frontend/src/components/ui/AppBreadcrumb.tsx	43	47
+  frontend/src/components/ui/Button.tsx	19	22
+  frontend/src/components/ui/Card.tsx	19	22
+  frontend/src/components/ui/EmptyState.tsx	58	62
+  frontend/src/components/ui/LoadingSpinner.tsx	42	45
+  frontend/src/components/ui/PageHeader.tsx	54	57
+  frontend/src/components/ui/PageSkeleton.tsx	129	134
+  frontend/src/components/ui/StatusBadge.tsx	39	42
+  frontend/src/components/ui/Toast.tsx	9	12
+  frontend/src/theme/antdTheme.ts	233	236
+  frontend/src/i18n/index.ts	177	183
+  frontend/src/main.tsx	41	47
+  frontend/src/App.tsx	17	21

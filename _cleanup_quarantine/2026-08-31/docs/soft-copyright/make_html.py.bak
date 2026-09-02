@@ -1,0 +1,104 @@
+﻿# -*- coding: utf-8 -*-
+"""读取 source_code_60pages.txt，按每50有效行硬分页，生成可打印 HTML。"""
+import pathlib, html
+
+# ============ 必须与 build_source.py / 申请表 一致 ============
+SOFT_NAME = "AgentFlow-Eval"
+VERSION   = "V1.0.0"
+
+ROOT = pathlib.Path(r"D:\AgentFlow-Eval")
+SRC  = ROOT / "copyright_output" / "source_code_60pages.txt"
+OUT  = ROOT / "copyright_output" / "source_code_60pages.html"
+
+EFFECTIVE_PER_PAGE = 50
+
+
+def eff(s: str) -> bool:
+    t = s.strip()
+    return t != "" and not t.startswith("#")
+
+
+def is_head(s: str) -> bool:
+    return s.strip().startswith("# === File:")
+
+
+def is_bar(s: str) -> bool:
+    return s.strip().startswith("# ====")
+
+
+def is_omit(s: str) -> bool:
+    return "此处省略中间部分源代码" in s
+
+
+lines = SRC.read_text(encoding="utf-8").splitlines()
+
+# ---- 按有效行硬分页 ----
+pages, cur, valid, i, n = [], [], 0, 0, len(lines)
+while i < n:
+    s = lines[i]
+    if is_omit(s) and any(eff(x) for x in cur):
+        pages.append(cur)
+        cur, valid = [], 0
+    cur.append(s)
+    if eff(s):
+        valid += 1
+    i += 1
+    if valid >= EFFECTIVE_PER_PAGE:
+        absorbed = 0
+        while i < n and absorbed < 4:
+            ns = lines[i]
+            if eff(ns) or is_omit(ns) or is_bar(ns) or is_head(ns):
+                break
+            cur.append(ns)
+            i += 1
+            absorbed += 1
+        pages.append(cur)
+        cur, valid = [], 0
+if cur:
+    pages.append(cur)
+
+# ---- 校验 ----
+valids = [sum(1 for x in p if eff(x)) for p in pages]
+totals = [len(p) for p in pages]
+print(f"[INFO] 总页数: {len(pages)}")
+print(f"[INFO] 每页有效行 min/max = {min(valids)}/{max(valids)}  (非退化应=50)")
+print(f"[INFO] 每页总行   max = {max(totals)}  (应<=77)")
+bad = [k + 1 for k, v in enumerate(valids) if v < EFFECTIVE_PER_PAGE]
+if bad:
+    print(f"[WARN] 有效行<50 的页(仅退化末页允许): {bad}")
+
+# ---- 渲染 ----
+N = len(pages)
+CSS = """
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Consolas, "Courier New", monospace; }
+.page { width: 210mm; height: 297mm; padding: 14mm 12mm; margin: 0 auto;
+        display: flex; flex-direction: column; page-break-after: always; }
+.page:last-child { page-break-after: auto; }
+.header { height: 8mm; line-height: 8mm; text-align: center;
+          font-size: 11pt; font-weight: bold; border-bottom: 1px solid #000; }
+.footer { height: 8mm; line-height: 8mm; text-align: center;
+          font-size: 9pt; margin-top: auto; }
+.code { flex: 1; margin: 2mm 0 0 0; font-size: 8pt; line-height: 1.15;
+        white-space: pre; overflow: hidden; }
+"""
+
+parts = []
+parts.append("<!DOCTYPE html>")
+parts.append('<html lang="zh"><head><meta charset="utf-8">')
+parts.append(f"<title>{SOFT_NAME} 源程序鉴别材料 {VERSION}</title>")
+parts.append(f"<style>{CSS}</style></head><body>")
+
+for k, p in enumerate(pages, 1):
+    body = html.escape("\n".join(p))
+    parts.append('<div class="page">')
+    parts.append(f'<div class="header">{SOFT_NAME} 源程序鉴别材料 {VERSION}</div>')
+    parts.append(f'<pre class="code">{body}</pre>')
+    parts.append(f'<div class="footer">第 {k} 页 / 共 {N} 页</div>')
+    parts.append("</div>")
+
+parts.append("</body></html>")
+
+OUT.write_text("\n".join(parts), encoding="utf-8")
+print(f"[SAVED] -> {OUT}")

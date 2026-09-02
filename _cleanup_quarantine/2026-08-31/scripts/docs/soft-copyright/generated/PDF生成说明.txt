@@ -1,0 +1,24 @@
+源程序鉴别材料 PDF 生成说明
+================================
+软件名称：AgentFlow-Eval Agent自动化评测工作台
+版本号：V1.0
+申请人：李凯昕
+开发完成日期：2026年7月14日
+页眉：软件名称：AgentFlow-Eval Agent自动化评测工作台 V1.0
+
+模式：FULL (约 0 页，提交全部)
+文件数：0
+排版总行数：0
+总页数：0
+注释率：0.0%
+
+输出文件：
+  源程序鉴别材料_AgentFlow-Eval_V1.0.pdf
+  源程序鉴别材料_PDF同源.txt
+  源程序鉴别材料_前30页.txt / 后30页.txt（HEAD+TAIL 模式）
+  源程序鉴别材料_AgentFlow-Eval_V1.0.print.html（打印源）
+
+排版：A4 竖版 · 9pt · 行距 15pt · 每页 50 行 · 连续行号 · 页脚「第 X 页 / 共 Y 页」
+
+重新生成：
+  python scripts/generate_source_deposit_pdf.py
