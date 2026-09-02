@@ -114,7 +114,11 @@ def test_agent_failed_event_emitted() -> None:
     production_runtime, execution_context, agent_runtime = _runtime_stack()
     definition = _agent_definition()
 
-    with patch.object(agent_runtime._pipeline, "run", side_effect=RuntimeError("pipeline failed")):
+    with patch.object(
+        agent_runtime._agent_pipeline._execution_pipeline,
+        "run",
+        side_effect=RuntimeError("pipeline failed"),
+    ):
         result = agent_runtime.execute(definition, "fail probe", context=execution_context)
 
     assert result.session.status == "FAILED"

@@ -7,15 +7,11 @@ import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, overload
 
-from app.runtime.agent.lifecycle import complete_session, fail_session, start_session
 from app.runtime.agent.models import AgentDefinition
 from app.runtime.agent.session import ExecutionSession
 from app.runtime.bootstrap.context_factory import create_execution_context
 from app.runtime.bootstrap.factory import ProductionRuntime
-from app.runtime.context import RuntimeContext
-from app.runtime.executor.context_fields import attach_execution_context
 from app.runtime.executor.execution_context import ExecutionContext
-from app.runtime.pipeline import ExecutionPipeline
 from app.runtime.registry.registry import AgentNotFoundError
 
 if TYPE_CHECKING:
@@ -31,12 +27,17 @@ class AgentDisabledError(RuntimeError):
 
 
 @dataclass
-class AgentExecutionResult:
+class AgentRuntimeExecutionResult:
     """Outcome of a single ``AgentRuntime.execute`` invocation."""
 
     session: ExecutionSession
     output: Any | None = None
     error: str | None = None
+    pipeline_result: Any | None = None
+
+
+# Backward-compatible alias for existing callers and tests.
+AgentExecutionResult = AgentRuntimeExecutionResult
 
 
 class AgentRuntime:
@@ -49,9 +50,9 @@ class AgentRuntime:
     ) -> None:
         self._production_runtime = production_runtime
         self._agent_registry = agent_registry
-        self._pipeline = ExecutionPipeline(
-            tool_execution_engine=production_runtime.tool_execution_engine,
-        )
+        from app.runtime.pipeline.agent_pipeline import AgentExecutionPipeline
+
+        self._agent_pipeline = AgentExecutionPipeline(production_runtime)
 
     @overload
     def execute(
@@ -59,7 +60,7 @@ class AgentRuntime:
         agent_definition: AgentDefinition,
         task: str,
         context: ExecutionContext | None = None,
-    ) -> AgentExecutionResult: ...
+    ) -> AgentRuntimeExecutionResult: ...
 
     @overload
     def execute(
@@ -67,14 +68,14 @@ class AgentRuntime:
         agent_id: str,
         task: str,
         context: ExecutionContext | None = None,
-    ) -> AgentExecutionResult: ...
+    ) -> AgentRuntimeExecutionResult: ...
 
     def execute(
         self,
         agent_or_id: AgentDefinition | str,
         task: str,
         context: ExecutionContext | None = None,
-    ) -> AgentExecutionResult:
+    ) -> AgentRuntimeExecutionResult:
         """Run an agent task through the existing runtime orchestration boundary."""
         if isinstance(agent_or_id, str):
             agent_definition = self._resolve_agent(agent_or_id)
@@ -97,46 +98,30 @@ class AgentRuntime:
         agent_definition: AgentDefinition,
         task: str,
         context: ExecutionContext | None,
-    ) -> AgentExecutionResult:
+    ) -> AgentRuntimeExecutionResult:
         execution_context = context or create_execution_context(
             self._production_runtime,
             execution_id=uuid.uuid4().hex,
             agent_id=agent_definition.id,
         )
-        session = start_session(
+        pipeline_result = self._agent_pipeline.run(
             agent_definition,
+            task,
             execution_context,
-            task=task,
+        )
+        session = ExecutionSession(
+            execution_id=pipeline_result.execution_id,
+            agent_id=pipeline_result.agent_id,
             tenant_id=execution_context.tenant_id,
             user_id=execution_context.user_id,
-            execution_id=execution_context.execution_id,
+            status="COMPLETED" if pipeline_result.status == "COMPLETED" else "FAILED",
+            started_at=None,
+            finished_at=None,
         )
-
-        runtime_context = RuntimeContext(
-            execution_id=session.execution_id,
-            agent_id=agent_definition.id,
-            metadata=dict(execution_context.metadata),
+        error = pipeline_result.metadata.get("error_message")
+        return AgentRuntimeExecutionResult(
+            session=session,
+            output=pipeline_result.output,
+            error=error if pipeline_result.status == "FAILED" else None,
+            pipeline_result=pipeline_result,
         )
-        attach_execution_context(runtime_context, execution_context)
-
-        try:
-            output = self._pipeline.run(runtime_context, task)
-            complete_session(
-                session,
-                execution_context,
-                agent_definition=agent_definition,
-                output=output,
-            )
-            return AgentExecutionResult(session=session, output=output, error=None)
-        except Exception as exc:
-            fail_session(
-                session,
-                execution_context,
-                agent_definition=agent_definition,
-                error=exc,
-            )
-            return AgentExecutionResult(
-                session=session,
-                output=None,
-                error=str(exc),
-            )
