@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
+import time
 import uuid
-from typing import Any
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 from app.runtime.agent.lifecycle import complete_session, fail_session, start_session
 from app.runtime.agent.models import AgentDefinition
@@ -31,6 +33,197 @@ from app.runtime.planning.default_planner import DefaultPlanner
 from app.runtime.planning.planner import Planner
 from app.runtime.state.models import ExecutionState
 from app.runtime.state.store import ExecutionStateStore
+
+if TYPE_CHECKING:
+    from app.runtime.analytics.collector import RuntimeAnalyticsCollector
+    from app.runtime.event_stream.publisher import EventPublisher
+
+
+@dataclass
+class _EventStreamRunTracker:
+    """Mutable event chain state collected during one pipeline run."""
+
+    last_event_id: str | None = None
+
+
+def _publish_stream_envelope(
+    publisher: EventPublisher,
+    tracker: _EventStreamRunTracker,
+    *,
+    event_type: str,
+    execution_id: str,
+    correlation_id: str,
+    payload: dict[str, Any] | None = None,
+) -> str:
+    from app.runtime.event_stream.models import RuntimeEventEnvelope
+
+    event_id = uuid.uuid4().hex
+    publisher.publish(
+        RuntimeEventEnvelope(
+            event_id=event_id,
+            event_type=event_type,
+            correlation_id=correlation_id,
+            parent_event_id=tracker.last_event_id,
+            execution_id=execution_id,
+            payload=dict(payload or {}),
+        )
+    )
+    tracker.last_event_id = event_id
+    return event_id
+
+
+@dataclass
+class _AnalyticsRunTracker:
+    """Mutable counters collected during one pipeline run."""
+
+    start_time: float = field(default_factory=time.monotonic)
+    tool_count: int = 0
+    failure_count: int = 0
+
+
+class _AnalyticsTrackingStepExecutor:
+    """Records step and tool analytics metrics around step execution."""
+
+    def __init__(
+        self,
+        step_executor: StepExecutor,
+        analytics_collector: RuntimeAnalyticsCollector,
+        *,
+        execution_id: str,
+        tracker: _AnalyticsRunTracker,
+    ) -> None:
+        self._step_executor = step_executor
+        self._analytics_collector = analytics_collector
+        self._execution_id = execution_id
+        self._tracker = tracker
+
+    def execute_step(
+        self,
+        step: ExecutionStep,
+        context: StepExecutionContext,
+    ) -> Any:
+        from app.runtime.analytics.models import StepMetric, ToolMetric
+        from app.runtime.executor.context_fields import get_tool_definition
+
+        tool_definition = get_tool_definition(context.runtime_context)
+        started_at = time.monotonic()
+        try:
+            output = self._step_executor.execute_step(step, context)
+        except Exception as exc:
+            duration_ms = int((time.monotonic() - started_at) * 1000)
+            resolved_tool = get_tool_definition(context.runtime_context) or tool_definition
+            self._tracker.failure_count += 1
+            self._analytics_collector.collect_step_metric(
+                StepMetric(
+                    execution_id=self._execution_id,
+                    step_id=step.name,
+                    duration_ms=duration_ms,
+                    status="FAILED",
+                    error=str(exc),
+                )
+            )
+            if resolved_tool is not None:
+                self._tracker.tool_count += 1
+                self._analytics_collector.collect_tool_metric(
+                    ToolMetric(
+                        execution_id=self._execution_id,
+                        tool_name=resolved_tool.name,
+                        duration_ms=duration_ms,
+                        status="FAILED",
+                        error=str(exc),
+                    )
+                )
+            raise
+
+        duration_ms = int((time.monotonic() - started_at) * 1000)
+        resolved_tool = get_tool_definition(context.runtime_context) or tool_definition
+        self._analytics_collector.collect_step_metric(
+            StepMetric(
+                execution_id=self._execution_id,
+                step_id=step.name,
+                duration_ms=duration_ms,
+                status="COMPLETED",
+            )
+        )
+        if resolved_tool is not None:
+            self._tracker.tool_count += 1
+            self._analytics_collector.collect_tool_metric(
+                ToolMetric(
+                    execution_id=self._execution_id,
+                    tool_name=resolved_tool.name,
+                    duration_ms=duration_ms,
+                    status="COMPLETED",
+                )
+            )
+        return output
+
+
+class _EventStreamTrackingStepExecutor:
+    """Publishes step lifecycle events to the runtime event stream."""
+
+    def __init__(
+        self,
+        step_executor: StepExecutor,
+        event_publisher: EventPublisher,
+        *,
+        execution_id: str,
+        tracker: _EventStreamRunTracker,
+        fallback_correlation_id: str,
+    ) -> None:
+        self._step_executor = step_executor
+        self._event_publisher = event_publisher
+        self._execution_id = execution_id
+        self._tracker = tracker
+        self._fallback_correlation_id = fallback_correlation_id
+
+    def _resolve_correlation_id(self, context: StepExecutionContext) -> str:
+        correlation = get_correlation_context(context.runtime_context)
+        if correlation is not None:
+            return correlation.correlation_id
+        return self._fallback_correlation_id
+
+    def execute_step(
+        self,
+        step: ExecutionStep,
+        context: StepExecutionContext,
+    ) -> Any:
+        from app.runtime.event_stream.models import STEP_COMPLETE, STEP_FAILED, STEP_START
+
+        correlation_id = self._resolve_correlation_id(context)
+        _publish_stream_envelope(
+            self._event_publisher,
+            self._tracker,
+            event_type=STEP_START,
+            execution_id=self._execution_id,
+            correlation_id=correlation_id,
+            payload={"step_id": step.name, "step_type": step.step_type},
+        )
+        try:
+            output = self._step_executor.execute_step(step, context)
+        except Exception as exc:
+            _publish_stream_envelope(
+                self._event_publisher,
+                self._tracker,
+                event_type=STEP_FAILED,
+                execution_id=self._execution_id,
+                correlation_id=correlation_id,
+                payload={
+                    "step_id": step.name,
+                    "step_type": step.step_type,
+                    "error": str(exc),
+                },
+            )
+            raise
+
+        _publish_stream_envelope(
+            self._event_publisher,
+            self._tracker,
+            event_type=STEP_COMPLETE,
+            execution_id=self._execution_id,
+            correlation_id=correlation_id,
+            payload={"step_id": step.name, "step_type": step.step_type},
+        )
+        return output
 
 
 class _StateTrackingStepExecutor:
@@ -209,6 +402,8 @@ class AgentExecutionPipeline:
         memory_manager: MemoryContextManager | None = None,
         runtime_context_manager: RuntimeContextManager | None = None,
         correlation_manager: RuntimeCorrelationManager | None = None,
+        analytics_collector: RuntimeAnalyticsCollector | None = None,
+        event_publisher: EventPublisher | None = None,
     ) -> None:
         self._production_runtime = production_runtime
         self._planner = planner or DefaultPlanner()
@@ -220,8 +415,58 @@ class AgentExecutionPipeline:
         self._memory_manager = memory_manager
         self._runtime_context_manager = runtime_context_manager
         self._correlation_manager = correlation_manager
+        self._analytics_collector = analytics_collector
+        self._event_publisher = event_publisher
         self._execution_pipeline = ExecutionPipeline(
             tool_execution_engine=production_runtime.tool_execution_engine,
+        )
+
+    def _record_execution_analytics(
+        self,
+        *,
+        tracker: _AnalyticsRunTracker,
+        execution_id: str,
+        agent_id: str,
+        status: str,
+        step_count: int,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        if self._analytics_collector is None:
+            return
+        from app.runtime.analytics.models import ExecutionMetric
+
+        duration_ms = int((time.monotonic() - tracker.start_time) * 1000)
+        self._analytics_collector.collect_execution_metric(
+            ExecutionMetric(
+                execution_id=execution_id,
+                agent_id=agent_id,
+                duration_ms=duration_ms,
+                status="COMPLETED" if status == "COMPLETED" else "FAILED",
+                step_count=step_count,
+                tool_count=tracker.tool_count,
+                failure_count=tracker.failure_count,
+                metadata=dict(metadata or {}),
+            )
+        )
+
+    def _publish_execution_stream_event(
+        self,
+        *,
+        tracker: _EventStreamRunTracker,
+        event_type: str,
+        execution_id: str,
+        correlation_id: str,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        if self._event_publisher is None:
+            return
+        _publish_stream_envelope(
+            self._event_publisher,
+            tracker,
+            event_type=event_type,
+            execution_id=execution_id,
+            correlation_id=correlation_id,
+            payload=payload,
         )
 
     def _create_running_state(
@@ -502,11 +747,46 @@ class AgentExecutionPipeline:
         )
         self._sync_aggregated_memory(session.execution_id, memory_context)
         step_context = StepExecutionContext(runtime_context=runtime_context, task=task)
+        analytics_tracker = _AnalyticsRunTracker()
+        stream_tracker = _EventStreamRunTracker()
+        correlation_id = (
+            execution_correlation.correlation_id
+            if execution_correlation is not None
+            else session.execution_id
+        )
+        from app.runtime.event_stream.models import EXECUTION_START
+
+        self._publish_execution_stream_event(
+            tracker=stream_tracker,
+            event_type=EXECUTION_START,
+            execution_id=session.execution_id,
+            correlation_id=correlation_id,
+            payload={
+                "agent_id": agent_definition.id,
+                "task": task,
+                "plan_id": plan.plan_id,
+            },
+        )
         step_executor = _PipelineStepExecutor(
             self._execution_pipeline,
             task,
             self._correlation_manager,
         )
+        if self._event_publisher is not None:
+            step_executor = _EventStreamTrackingStepExecutor(
+                step_executor,
+                self._event_publisher,
+                execution_id=session.execution_id,
+                tracker=stream_tracker,
+                fallback_correlation_id=correlation_id,
+            )
+        if self._analytics_collector is not None:
+            step_executor = _AnalyticsTrackingStepExecutor(
+                step_executor,
+                self._analytics_collector,
+                execution_id=session.execution_id,
+                tracker=analytics_tracker,
+            )
         if self._state_store is not None:
             step_executor = _StateTrackingStepExecutor(
                 step_executor,
@@ -576,6 +856,28 @@ class AgentExecutionPipeline:
             )
             self._sync_aggregated_memory(session.execution_id, memory_context)
             self._finalize_aggregated_context(session.execution_id)
+            self._record_execution_analytics(
+                tracker=analytics_tracker,
+                execution_id=session.execution_id,
+                agent_id=agent_definition.id,
+                status="COMPLETED",
+                step_count=len(strategy_result.step_results),
+                metadata={"task": task, "plan_id": plan.plan_id},
+            )
+            from app.runtime.event_stream.models import EXECUTION_COMPLETE
+
+            self._publish_execution_stream_event(
+                tracker=stream_tracker,
+                event_type=EXECUTION_COMPLETE,
+                execution_id=session.execution_id,
+                correlation_id=correlation_id,
+                payload={
+                    "agent_id": agent_definition.id,
+                    "task": task,
+                    "plan_id": plan.plan_id,
+                    "step_count": len(strategy_result.step_results),
+                },
+            )
             return AgentExecutionResult(
                 execution_id=session.execution_id,
                 agent_id=agent_definition.id,
@@ -626,6 +928,32 @@ class AgentExecutionPipeline:
         )
         self._sync_aggregated_memory(session.execution_id, memory_context)
         self._finalize_aggregated_context(session.execution_id)
+        self._record_execution_analytics(
+            tracker=analytics_tracker,
+            execution_id=session.execution_id,
+            agent_id=agent_definition.id,
+            status="FAILED",
+            step_count=len(strategy_result.step_results),
+            metadata={
+                "task": task,
+                "plan_id": plan.plan_id,
+                "error_message": strategy_result.error,
+            },
+        )
+        from app.runtime.event_stream.models import EXECUTION_FAILED
+
+        self._publish_execution_stream_event(
+            tracker=stream_tracker,
+            event_type=EXECUTION_FAILED,
+            execution_id=session.execution_id,
+            correlation_id=correlation_id,
+            payload={
+                "agent_id": agent_definition.id,
+                "task": task,
+                "plan_id": plan.plan_id,
+                "error": strategy_result.error or "execution strategy failed",
+            },
+        )
         return AgentExecutionResult(
             execution_id=session.execution_id,
             agent_id=agent_definition.id,
