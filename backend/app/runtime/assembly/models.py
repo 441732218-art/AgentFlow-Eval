@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from app.runtime.correlation.manager import RuntimeCorrelationManager
     from app.runtime.event_stream.publisher import EventPublisher
     from app.runtime.evidence.collector import RuntimeEvidenceCollector
+    from app.runtime.governance.hooks.adapter import GovernanceRuntimeHookAdapter
     from app.runtime.governance.lifecycle.manager import GovernanceLifecycleManager
     from app.runtime.hooks.manager import RuntimeHookManager
     from app.runtime.permissions.evaluator import PermissionEvaluator
@@ -49,6 +50,7 @@ class RuntimeProfile:
     enable_audit_recorder: bool = False
     enable_evidence_collector: bool = False
     enable_governance_lifecycle: bool = False
+    enable_governance_hook_adapter: bool = False
     blocked_tools: tuple[str, ...] = ()
 
 
@@ -83,4 +85,5 @@ class RuntimeAssembly:
     audit_recorder: RuntimeAuditRecorder | None = None
     evidence_collector: RuntimeEvidenceCollector | None = None
     governance_lifecycle_manager: GovernanceLifecycleManager | None = None
+    governance_hook_adapter: GovernanceRuntimeHookAdapter | None = None
     runtime_hook_manager: RuntimeHookManager | None = None

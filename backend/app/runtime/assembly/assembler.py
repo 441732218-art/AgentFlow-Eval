@@ -88,6 +88,18 @@ class RuntimeAssembler:
             if profile.enable_governance_lifecycle
             else None
         )
+        runtime_hook_manager = None
+        governance_hook_adapter = None
+        if (
+            profile.enable_governance_hook_adapter
+            and governance_lifecycle_manager is not None
+        ):
+            runtime_hook_manager, governance_hook_adapter = (
+                self._build_governance_hook_stack(
+                    governance_lifecycle_manager,
+                    evidence_collector=evidence_collector,
+                )
+            )
 
         agent_runtime = AgentRuntime(
             production_runtime,
@@ -107,6 +119,7 @@ class RuntimeAssembler:
             event_publisher=event_publisher,
             audit_recorder=audit_recorder,
             evidence_collector=evidence_collector,
+            runtime_hook_manager=runtime_hook_manager,
         )
 
         return RuntimeAssembly(
@@ -127,7 +140,26 @@ class RuntimeAssembler:
             audit_recorder=audit_recorder,
             evidence_collector=evidence_collector,
             governance_lifecycle_manager=governance_lifecycle_manager,
+            governance_hook_adapter=governance_hook_adapter,
+            runtime_hook_manager=runtime_hook_manager,
         )
+
+    @staticmethod
+    def _build_governance_hook_stack(
+        governance_lifecycle_manager,
+        *,
+        evidence_collector=None,
+    ):
+        from app.runtime.governance.hooks.adapter import GovernanceRuntimeHookAdapter
+        from app.runtime.hooks.memory_manager import InMemoryRuntimeHookManager
+
+        runtime_hook_manager = InMemoryRuntimeHookManager()
+        governance_hook_adapter = GovernanceRuntimeHookAdapter(
+            governance_lifecycle_manager,
+            evidence_collector=evidence_collector,
+        )
+        runtime_hook_manager.register_hook(governance_hook_adapter)
+        return runtime_hook_manager, governance_hook_adapter
 
     @staticmethod
     def _build_permission_evaluator(
