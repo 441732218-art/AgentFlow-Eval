@@ -9,6 +9,8 @@ from typing import Any
 from app.runtime.agent.lifecycle import complete_session, fail_session, start_session
 from app.runtime.agent.models import AgentDefinition
 from app.runtime.bootstrap.factory import ProductionRuntime
+from app.runtime.checkpoint.manager import CheckpointManager
+from app.runtime.checkpoint.store import CheckpointStore
 from app.runtime.context import RuntimeContext
 from app.runtime.executor.context_fields import attach_execution_context
 from app.runtime.executor.execution_context import ExecutionContext
@@ -50,6 +52,72 @@ class _StateTrackingStepExecutor:
         return self._step_executor.execute_step(step, context)
 
 
+class _CheckpointTrackingStepExecutor:
+    """Persists step-level checkpoints around each planned step execution."""
+
+    def __init__(
+        self,
+        step_executor: StepExecutor,
+        checkpoint_manager: CheckpointManager,
+        *,
+        execution_id: str,
+        plan_id: str,
+        agent_id: str,
+        task: str,
+        completed_steps: list[str],
+    ) -> None:
+        self._step_executor = step_executor
+        self._checkpoint_manager = checkpoint_manager
+        self._execution_id = execution_id
+        self._plan_id = plan_id
+        self._agent_id = agent_id
+        self._task = task
+        self._completed_steps = completed_steps
+
+    def _snapshot(self, *, current_step: str | None, status: str) -> dict[str, Any]:
+        return {
+            "agent_id": self._agent_id,
+            "task": self._task,
+            "plan_id": self._plan_id,
+            "status": status,
+            "current_step": current_step,
+            "completed_steps": list(self._completed_steps),
+        }
+
+    def execute_step(
+        self,
+        step: ExecutionStep,
+        context: StepExecutionContext,
+    ) -> Any:
+        self._checkpoint_manager.save_checkpoint(
+            execution_id=self._execution_id,
+            plan_id=self._plan_id,
+            step_id=step.name,
+            state_snapshot=self._snapshot(current_step=step.name, status="RUNNING"),
+            metadata={"phase": "before_step"},
+        )
+        try:
+            output = self._step_executor.execute_step(step, context)
+        except Exception as exc:
+            self._checkpoint_manager.save_checkpoint(
+                execution_id=self._execution_id,
+                plan_id=self._plan_id,
+                step_id=step.name,
+                state_snapshot=self._snapshot(current_step=step.name, status="FAILED"),
+                metadata={"phase": "step_failed", "error_message": str(exc)},
+            )
+            raise
+        self._completed_steps.append(step.name)
+        self._checkpoint_manager.save_checkpoint(
+            execution_id=self._execution_id,
+            plan_id=self._plan_id,
+            step_id=step.name,
+            state_snapshot=self._snapshot(current_step=step.name, status="RUNNING"),
+            metadata={"phase": "after_step"},
+        )
+        return output
+
+
 class _PipelineStepExecutor:
     """Adapts the runtime execution pipeline to the ``StepExecutor`` protocol."""
 
@@ -77,11 +145,15 @@ class AgentExecutionPipeline:
         planner: Planner | None = None,
         strategy: ExecutionStrategy | None = None,
         state_store: ExecutionStateStore | None = None,
+        checkpoint_store: CheckpointStore | None = None,
     ) -> None:
         self._production_runtime = production_runtime
         self._planner = planner or DefaultPlanner()
         self._strategy = strategy or SequentialExecutionStrategy()
         self._state_store = state_store
+        self._checkpoint_manager = (
+            CheckpointManager(checkpoint_store) if checkpoint_store is not None else None
+        )
         self._execution_pipeline = ExecutionPipeline(
             tool_execution_engine=production_runtime.tool_execution_engine,
         )
@@ -95,6 +167,18 @@ class AgentExecutionPipeline:
         task: str,
     ) -> None:
         if self._state_store is None:
+            return
+        existing = self._state_store.get(execution_id)
+        if existing is not None:
+            self._state_store.update(
+                existing.with_updates(
+                    agent_id=agent_id,
+                    plan_id=plan_id,
+                    status="RUNNING",
+                    current_step=None,
+                    metadata={**existing.metadata, "task": task},
+                )
+            )
             return
         self._state_store.create(
             ExecutionState(
@@ -131,13 +215,58 @@ class AgentExecutionPipeline:
             )
         )
 
+    def _save_execution_checkpoint(
+        self,
+        *,
+        execution_id: str,
+        plan_id: str,
+        agent_id: str,
+        task: str,
+        status: str,
+        current_step: str | None = None,
+        completed_steps: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        if self._checkpoint_manager is None:
+            return
+        self._checkpoint_manager.save_checkpoint(
+            execution_id=execution_id,
+            plan_id=plan_id,
+            step_id=current_step,
+            state_snapshot={
+                "agent_id": agent_id,
+                "task": task,
+                "plan_id": plan_id,
+                "status": status,
+                "current_step": current_step,
+                "completed_steps": list(completed_steps or []),
+            },
+            metadata=dict(metadata or {}),
+        )
+
     def run(
         self,
         agent_definition: AgentDefinition,
         task: str,
         context: ExecutionContext,
+        *,
+        resume_from_checkpoint_id: str | None = None,
     ) -> AgentExecutionResult:
         """Run the agent execution pipeline and return a structured result."""
+        completed_steps: list[str] = []
+        resume_checkpoint = None
+        if resume_from_checkpoint_id is not None:
+            if self._checkpoint_manager is None:
+                raise RuntimeError("checkpoint store is required for resume")
+            resume_checkpoint = self._checkpoint_manager.get_checkpoint(
+                resume_from_checkpoint_id
+            )
+            if resume_checkpoint is None:
+                raise KeyError(f"Checkpoint not found: {resume_from_checkpoint_id}")
+            completed_steps = list(
+                resume_checkpoint.state_snapshot.get("completed_steps", [])
+            )
+            task = str(resume_checkpoint.state_snapshot.get("task", task))
         steps: list[ExecutionStep] = []
         prepare_step = create_step("prepare", "agent.prepare")
         steps.append(prepare_step)
@@ -159,11 +288,22 @@ class AgentExecutionPipeline:
         complete_step(prepare_step)
 
         plan = self._planner.create_plan(agent_definition, task, context)
+        if resume_checkpoint is not None:
+            plan = self._checkpoint_manager.plan_for_resume(plan, resume_checkpoint)
         self._create_running_state(
             execution_id=session.execution_id,
             agent_id=agent_definition.id,
             plan_id=plan.plan_id,
             task=task,
+        )
+        self._save_execution_checkpoint(
+            execution_id=session.execution_id,
+            plan_id=plan.plan_id,
+            agent_id=agent_definition.id,
+            task=task,
+            status="RUNNING",
+            completed_steps=completed_steps,
+            metadata={"phase": "execution_start"},
         )
         step_context = StepExecutionContext(runtime_context=runtime_context, task=task)
         step_executor = _PipelineStepExecutor(self._execution_pipeline, task)
@@ -172,6 +312,16 @@ class AgentExecutionPipeline:
                 step_executor,
                 self._state_store,
                 session.execution_id,
+            )
+        if self._checkpoint_manager is not None:
+            step_executor = _CheckpointTrackingStepExecutor(
+                step_executor,
+                self._checkpoint_manager,
+                execution_id=session.execution_id,
+                plan_id=plan.plan_id,
+                agent_id=agent_definition.id,
+                task=task,
+                completed_steps=completed_steps,
             )
         strategy_result = self._strategy.execute_plan(
             plan,
@@ -199,6 +349,15 @@ class AgentExecutionPipeline:
                 status="COMPLETED",
                 current_step=None,
             )
+            self._save_execution_checkpoint(
+                execution_id=session.execution_id,
+                plan_id=plan.plan_id,
+                agent_id=agent_definition.id,
+                task=task,
+                status="COMPLETED",
+                completed_steps=completed_steps,
+                metadata={"phase": "execution_completed"},
+            )
             return AgentExecutionResult(
                 execution_id=session.execution_id,
                 agent_id=agent_definition.id,
@@ -224,6 +383,19 @@ class AgentExecutionPipeline:
             status="FAILED",
             current_step=failed_step,
             error=strategy_result.error or "execution strategy failed",
+        )
+        self._save_execution_checkpoint(
+            execution_id=session.execution_id,
+            plan_id=plan.plan_id,
+            agent_id=agent_definition.id,
+            task=task,
+            status="FAILED",
+            current_step=failed_step,
+            completed_steps=completed_steps,
+            metadata={
+                "phase": "execution_failed",
+                "error_message": strategy_result.error or "execution strategy failed",
+            },
         )
         return AgentExecutionResult(
             execution_id=session.execution_id,
