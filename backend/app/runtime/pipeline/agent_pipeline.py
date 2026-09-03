@@ -38,6 +38,8 @@ if TYPE_CHECKING:
     from app.runtime.analytics.collector import RuntimeAnalyticsCollector
     from app.runtime.audit.recorder import RuntimeAuditRecorder
     from app.runtime.event_stream.publisher import EventPublisher
+    from app.runtime.evidence.collector import RuntimeEvidenceCollector
+    from app.runtime.hooks.manager import RuntimeHookManager
 
 
 @dataclass
@@ -272,6 +274,82 @@ class _EventStreamTrackingStepExecutor:
         return output
 
 
+class _HookTrackingStepExecutor:
+    """Dispatches step lifecycle hooks around step execution."""
+
+    def __init__(
+        self,
+        step_executor: StepExecutor,
+        runtime_hook_manager: RuntimeHookManager,
+        *,
+        execution_id: str,
+        agent_id: str,
+    ) -> None:
+        self._step_executor = step_executor
+        self._runtime_hook_manager = runtime_hook_manager
+        self._execution_id = execution_id
+        self._agent_id = agent_id
+
+    def execute_step(
+        self,
+        step: ExecutionStep,
+        context: StepExecutionContext,
+    ) -> Any:
+        from app.runtime.hooks.models import STEP_COMPLETED, STEP_FAILED, STEP_STARTED
+
+        self._runtime_hook_manager.dispatch(
+            _build_runtime_hook_event(
+                event_type=STEP_STARTED,
+                execution_id=self._execution_id,
+                agent_id=self._agent_id,
+                payload={"step_id": step.name, "step_type": step.step_type},
+            )
+        )
+        try:
+            output = self._step_executor.execute_step(step, context)
+        except Exception as exc:
+            self._runtime_hook_manager.dispatch(
+                _build_runtime_hook_event(
+                    event_type=STEP_FAILED,
+                    execution_id=self._execution_id,
+                    agent_id=self._agent_id,
+                    payload={
+                        "step_id": step.name,
+                        "step_type": step.step_type,
+                        "error": str(exc),
+                    },
+                )
+            )
+            raise
+        self._runtime_hook_manager.dispatch(
+            _build_runtime_hook_event(
+                event_type=STEP_COMPLETED,
+                execution_id=self._execution_id,
+                agent_id=self._agent_id,
+                payload={"step_id": step.name, "step_type": step.step_type},
+            )
+        )
+        return output
+
+
+def _build_runtime_hook_event(
+    *,
+    event_type: str,
+    execution_id: str,
+    agent_id: str,
+    payload: dict[str, Any] | None = None,
+) -> Any:
+    from app.runtime.hooks.models import RuntimeHookEvent
+
+    return RuntimeHookEvent(
+        event_id=uuid.uuid4().hex,
+        event_type=event_type,  # type: ignore[arg-type]
+        execution_id=execution_id,
+        agent_id=agent_id,
+        payload=dict(payload or {}),
+    )
+
+
 class _StateTrackingStepExecutor:
     """Updates execution state before each planned step runs."""
 
@@ -451,6 +529,8 @@ class AgentExecutionPipeline:
         analytics_collector: RuntimeAnalyticsCollector | None = None,
         event_publisher: EventPublisher | None = None,
         audit_recorder: RuntimeAuditRecorder | None = None,
+        evidence_collector: RuntimeEvidenceCollector | None = None,
+        runtime_hook_manager: RuntimeHookManager | None = None,
     ) -> None:
         self._production_runtime = production_runtime
         self._planner = planner or DefaultPlanner()
@@ -465,6 +545,8 @@ class AgentExecutionPipeline:
         self._analytics_collector = analytics_collector
         self._event_publisher = event_publisher
         self._audit_recorder = audit_recorder
+        self._evidence_collector = evidence_collector
+        self._runtime_hook_manager = runtime_hook_manager
         self._execution_pipeline = ExecutionPipeline(
             tool_execution_engine=production_runtime.tool_execution_engine,
         )
@@ -563,6 +645,83 @@ class AgentExecutionPipeline:
             action=event_type,
             error=error,
             metadata=metadata,
+        )
+
+    def _dispatch_runtime_hook(
+        self,
+        *,
+        event_type: str,
+        execution_id: str,
+        agent_id: str,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        if self._runtime_hook_manager is None:
+            return
+        self._runtime_hook_manager.dispatch(
+            _build_runtime_hook_event(
+                event_type=event_type,
+                execution_id=execution_id,
+                agent_id=agent_id,
+                payload=payload,
+            )
+        )
+
+    def _collect_execution_evidence(
+        self,
+        *,
+        execution_id: str,
+        agent_id: str,
+        correlation_id: str,
+        status: str,
+        checkpoint: Checkpoint | None = None,
+        memory_context: MemoryContext | None = None,
+    ) -> None:
+        if self._evidence_collector is None:
+            return
+
+        from app.runtime.analytics.models import ExecutionMetric
+        from app.runtime.audit.models import AuditRecord
+        from app.runtime.context.snapshot import RuntimeContextSnapshot
+        from app.runtime.event_stream.models import RuntimeEventEnvelope
+
+        context_snapshot: RuntimeContextSnapshot | None = None
+        if self._runtime_context_manager is not None:
+            try:
+                context_snapshot = self._runtime_context_manager.snapshot(execution_id)
+            except KeyError:
+                context_snapshot = None
+
+        execution_state = (
+            self._state_store.get(execution_id) if self._state_store is not None else None
+        )
+
+        audit_records: list[AuditRecord] = []
+        if self._audit_recorder is not None:
+            audit_records = self._audit_recorder.store.list_by_execution(execution_id)
+
+        runtime_events: list[RuntimeEventEnvelope] = []
+        if self._event_publisher is not None and hasattr(self._event_publisher, "list"):
+            runtime_events = self._event_publisher.list(execution_id=execution_id)
+
+        execution_metric: ExecutionMetric | None = None
+        if self._analytics_collector is not None:
+            metrics = self._analytics_collector.store.get_execution_metrics(execution_id)
+            if metrics:
+                execution_metric = metrics[-1]
+
+        evidence_status = "COMPLETED" if status == "COMPLETED" else "FAILED"
+        self._evidence_collector.collect_and_save(
+            execution_id=execution_id,
+            agent_id=agent_id,
+            correlation_id=correlation_id,
+            status=evidence_status,  # type: ignore[arg-type]
+            context_snapshot=context_snapshot,
+            execution_state=execution_state,
+            checkpoint=checkpoint,
+            memory_context=memory_context,
+            audit_records=audit_records,
+            runtime_events=runtime_events,
+            execution_metric=execution_metric,
         )
 
     def _create_running_state(
@@ -925,6 +1084,23 @@ class AgentExecutionPipeline:
                 execution_correlation,
                 runtime_context,
             )
+        if self._runtime_hook_manager is not None:
+            step_executor = _HookTrackingStepExecutor(
+                step_executor,
+                self._runtime_hook_manager,
+                execution_id=session.execution_id,
+                agent_id=agent_definition.id,
+            )
+        self._dispatch_runtime_hook(
+            event_type="execution.started",
+            execution_id=session.execution_id,
+            agent_id=agent_definition.id,
+            payload={
+                "agent_id": agent_definition.id,
+                "task": task,
+                "plan_id": plan.plan_id,
+            },
+        )
         strategy_result = self._strategy.execute_plan(
             plan,
             step_context,
@@ -986,6 +1162,25 @@ class AgentExecutionPipeline:
                 event_type=EXECUTION_COMPLETE,
                 execution_id=session.execution_id,
                 correlation_id=correlation_id,
+                payload={
+                    "agent_id": agent_definition.id,
+                    "task": task,
+                    "plan_id": plan.plan_id,
+                    "step_count": len(strategy_result.step_results),
+                },
+            )
+            self._collect_execution_evidence(
+                execution_id=session.execution_id,
+                agent_id=agent_definition.id,
+                correlation_id=correlation_id,
+                status="COMPLETED",
+                checkpoint=completion_checkpoint,
+                memory_context=memory_context,
+            )
+            self._dispatch_runtime_hook(
+                event_type="execution.completed",
+                execution_id=session.execution_id,
+                agent_id=agent_definition.id,
                 payload={
                     "agent_id": agent_definition.id,
                     "task": task,
@@ -1079,6 +1274,25 @@ class AgentExecutionPipeline:
                 "agent_id": agent_definition.id,
                 "task": task,
                 "plan_id": plan.plan_id,
+            },
+        )
+        self._collect_execution_evidence(
+            execution_id=session.execution_id,
+            agent_id=agent_definition.id,
+            correlation_id=correlation_id,
+            status="FAILED",
+            checkpoint=failure_checkpoint,
+            memory_context=memory_context,
+        )
+        self._dispatch_runtime_hook(
+            event_type="execution.failed",
+            execution_id=session.execution_id,
+            agent_id=agent_definition.id,
+            payload={
+                "agent_id": agent_definition.id,
+                "task": task,
+                "plan_id": plan.plan_id,
+                "error": strategy_result.error or "execution strategy failed",
             },
         )
         return AgentExecutionResult(

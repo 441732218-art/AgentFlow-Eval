@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from app.runtime.event_stream.publisher import EventPublisher
     from app.runtime.evidence.collector import RuntimeEvidenceCollector
     from app.runtime.governance.lifecycle.manager import GovernanceLifecycleManager
+    from app.runtime.hooks.manager import RuntimeHookManager
     from app.runtime.permissions.evaluator import PermissionEvaluator
     from app.runtime.pipeline.agent_pipeline import AgentExecutionPipeline
     from app.runtime.registry.registry import AgentRegistry
@@ -82,3 +83,4 @@ class RuntimeAssembly:
     audit_recorder: RuntimeAuditRecorder | None = None
     evidence_collector: RuntimeEvidenceCollector | None = None
     governance_lifecycle_manager: GovernanceLifecycleManager | None = None
+    runtime_hook_manager: RuntimeHookManager | None = None
