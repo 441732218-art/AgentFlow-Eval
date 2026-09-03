@@ -12,6 +12,8 @@ from app.runtime.bootstrap.factory import ProductionRuntime
 from app.runtime.checkpoint.manager import CheckpointManager
 from app.runtime.checkpoint.store import CheckpointStore
 from app.runtime.context import RuntimeContext
+from app.runtime.context_memory.manager import MemoryContextManager
+from app.runtime.context_memory.models import MemoryContext
 from app.runtime.executor.context_fields import attach_execution_context
 from app.runtime.executor.execution_context import ExecutionContext
 from app.runtime.execution.executor import StepExecutionContext, StepExecutor
@@ -146,6 +148,7 @@ class AgentExecutionPipeline:
         strategy: ExecutionStrategy | None = None,
         state_store: ExecutionStateStore | None = None,
         checkpoint_store: CheckpointStore | None = None,
+        memory_manager: MemoryContextManager | None = None,
     ) -> None:
         self._production_runtime = production_runtime
         self._planner = planner or DefaultPlanner()
@@ -154,6 +157,7 @@ class AgentExecutionPipeline:
         self._checkpoint_manager = (
             CheckpointManager(checkpoint_store) if checkpoint_store is not None else None
         )
+        self._memory_manager = memory_manager
         self._execution_pipeline = ExecutionPipeline(
             tool_execution_engine=production_runtime.tool_execution_engine,
         )
@@ -244,6 +248,42 @@ class AgentExecutionPipeline:
             metadata=dict(metadata or {}),
         )
 
+    def _load_memory_context(
+        self,
+        *,
+        execution_id: str,
+        agent_id: str,
+    ) -> MemoryContext | None:
+        if self._memory_manager is None:
+            return None
+        return self._memory_manager.load_context(
+            execution_id=execution_id,
+            agent_id=agent_id,
+        )
+
+    def _finalize_memory_context(
+        self,
+        memory_context: MemoryContext | None,
+        *,
+        task: str,
+        plan_id: str,
+        status: str,
+        output: Any | None = None,
+        error: str | None = None,
+    ) -> None:
+        if self._memory_manager is None or memory_context is None:
+            return
+        updates: dict[str, Any] = {
+            "task": task,
+            "plan_id": plan_id,
+            "status": status,
+            "output": output,
+        }
+        if error is not None:
+            updates["error_message"] = error
+        updated = self._memory_manager.update_context(memory_context, updates)
+        self._memory_manager.persist_context(updated)
+
     def run(
         self,
         agent_definition: AgentDefinition,
@@ -305,6 +345,10 @@ class AgentExecutionPipeline:
             completed_steps=completed_steps,
             metadata={"phase": "execution_start"},
         )
+        memory_context = self._load_memory_context(
+            execution_id=session.execution_id,
+            agent_id=agent_definition.id,
+        )
         step_context = StepExecutionContext(runtime_context=runtime_context, task=task)
         step_executor = _PipelineStepExecutor(self._execution_pipeline, task)
         if self._state_store is not None:
@@ -358,6 +402,13 @@ class AgentExecutionPipeline:
                 completed_steps=completed_steps,
                 metadata={"phase": "execution_completed"},
             )
+            self._finalize_memory_context(
+                memory_context,
+                task=task,
+                plan_id=plan.plan_id,
+                status="COMPLETED",
+                output=output,
+            )
             return AgentExecutionResult(
                 execution_id=session.execution_id,
                 agent_id=agent_definition.id,
@@ -396,6 +447,13 @@ class AgentExecutionPipeline:
                 "phase": "execution_failed",
                 "error_message": strategy_result.error or "execution strategy failed",
             },
+        )
+        self._finalize_memory_context(
+            memory_context,
+            task=task,
+            plan_id=plan.plan_id,
+            status="FAILED",
+            error=strategy_result.error or "execution strategy failed",
         )
         return AgentExecutionResult(
             execution_id=session.execution_id,
