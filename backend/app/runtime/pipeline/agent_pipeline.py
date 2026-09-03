@@ -10,8 +10,10 @@ from app.runtime.agent.lifecycle import complete_session, fail_session, start_se
 from app.runtime.agent.models import AgentDefinition
 from app.runtime.bootstrap.factory import ProductionRuntime
 from app.runtime.checkpoint.manager import CheckpointManager
+from app.runtime.checkpoint.models import Checkpoint
 from app.runtime.checkpoint.store import CheckpointStore
 from app.runtime.context import RuntimeContext
+from app.runtime.context.manager import RuntimeContextManager
 from app.runtime.context_memory.manager import MemoryContextManager
 from app.runtime.context_memory.models import MemoryContext
 from app.runtime.executor.context_fields import attach_execution_context
@@ -149,6 +151,7 @@ class AgentExecutionPipeline:
         state_store: ExecutionStateStore | None = None,
         checkpoint_store: CheckpointStore | None = None,
         memory_manager: MemoryContextManager | None = None,
+        runtime_context_manager: RuntimeContextManager | None = None,
     ) -> None:
         self._production_runtime = production_runtime
         self._planner = planner or DefaultPlanner()
@@ -158,6 +161,7 @@ class AgentExecutionPipeline:
             CheckpointManager(checkpoint_store) if checkpoint_store is not None else None
         )
         self._memory_manager = memory_manager
+        self._runtime_context_manager = runtime_context_manager
         self._execution_pipeline = ExecutionPipeline(
             tool_execution_engine=production_runtime.tool_execution_engine,
         )
@@ -230,10 +234,10 @@ class AgentExecutionPipeline:
         current_step: str | None = None,
         completed_steps: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> Checkpoint | None:
         if self._checkpoint_manager is None:
-            return
-        self._checkpoint_manager.save_checkpoint(
+            return None
+        return self._checkpoint_manager.save_checkpoint(
             execution_id=execution_id,
             plan_id=plan_id,
             step_id=current_step,
@@ -270,9 +274,9 @@ class AgentExecutionPipeline:
         status: str,
         output: Any | None = None,
         error: str | None = None,
-    ) -> None:
+    ) -> MemoryContext | None:
         if self._memory_manager is None or memory_context is None:
-            return
+            return memory_context
         updates: dict[str, Any] = {
             "task": task,
             "plan_id": plan_id,
@@ -283,6 +287,52 @@ class AgentExecutionPipeline:
             updates["error_message"] = error
         updated = self._memory_manager.update_context(memory_context, updates)
         self._memory_manager.persist_context(updated)
+        return updated
+
+    def _create_aggregated_context(
+        self,
+        *,
+        execution_id: str,
+        agent_id: str,
+        task: str,
+    ) -> None:
+        if self._runtime_context_manager is None:
+            return
+        self._runtime_context_manager.create_context(
+            execution_id=execution_id,
+            agent_id=agent_id,
+            metadata={"task": task},
+        )
+
+    def _sync_aggregated_state(self, execution_id: str) -> None:
+        if self._runtime_context_manager is None or self._state_store is None:
+            return
+        state = self._state_store.get(execution_id)
+        if state is not None:
+            self._runtime_context_manager.update_state(execution_id, state)
+
+    def _sync_aggregated_checkpoint(
+        self,
+        execution_id: str,
+        checkpoint: Checkpoint | None,
+    ) -> None:
+        if self._runtime_context_manager is None or checkpoint is None:
+            return
+        self._runtime_context_manager.update_checkpoint(execution_id, checkpoint)
+
+    def _sync_aggregated_memory(
+        self,
+        execution_id: str,
+        memory_context: MemoryContext | None,
+    ) -> None:
+        if self._runtime_context_manager is None or memory_context is None:
+            return
+        self._runtime_context_manager.update_memory(execution_id, memory_context)
+
+    def _finalize_aggregated_context(self, execution_id: str) -> None:
+        if self._runtime_context_manager is None:
+            return
+        self._runtime_context_manager.snapshot(execution_id)
 
     def run(
         self,
@@ -330,13 +380,19 @@ class AgentExecutionPipeline:
         plan = self._planner.create_plan(agent_definition, task, context)
         if resume_checkpoint is not None:
             plan = self._checkpoint_manager.plan_for_resume(plan, resume_checkpoint)
+        self._create_aggregated_context(
+            execution_id=session.execution_id,
+            agent_id=agent_definition.id,
+            task=task,
+        )
         self._create_running_state(
             execution_id=session.execution_id,
             agent_id=agent_definition.id,
             plan_id=plan.plan_id,
             task=task,
         )
-        self._save_execution_checkpoint(
+        self._sync_aggregated_state(session.execution_id)
+        start_checkpoint = self._save_execution_checkpoint(
             execution_id=session.execution_id,
             plan_id=plan.plan_id,
             agent_id=agent_definition.id,
@@ -345,10 +401,12 @@ class AgentExecutionPipeline:
             completed_steps=completed_steps,
             metadata={"phase": "execution_start"},
         )
+        self._sync_aggregated_checkpoint(session.execution_id, start_checkpoint)
         memory_context = self._load_memory_context(
             execution_id=session.execution_id,
             agent_id=agent_definition.id,
         )
+        self._sync_aggregated_memory(session.execution_id, memory_context)
         step_context = StepExecutionContext(runtime_context=runtime_context, task=task)
         step_executor = _PipelineStepExecutor(self._execution_pipeline, task)
         if self._state_store is not None:
@@ -393,7 +451,8 @@ class AgentExecutionPipeline:
                 status="COMPLETED",
                 current_step=None,
             )
-            self._save_execution_checkpoint(
+            self._sync_aggregated_state(session.execution_id)
+            completion_checkpoint = self._save_execution_checkpoint(
                 execution_id=session.execution_id,
                 plan_id=plan.plan_id,
                 agent_id=agent_definition.id,
@@ -402,13 +461,16 @@ class AgentExecutionPipeline:
                 completed_steps=completed_steps,
                 metadata={"phase": "execution_completed"},
             )
-            self._finalize_memory_context(
+            self._sync_aggregated_checkpoint(session.execution_id, completion_checkpoint)
+            memory_context = self._finalize_memory_context(
                 memory_context,
                 task=task,
                 plan_id=plan.plan_id,
                 status="COMPLETED",
                 output=output,
             )
+            self._sync_aggregated_memory(session.execution_id, memory_context)
+            self._finalize_aggregated_context(session.execution_id)
             return AgentExecutionResult(
                 execution_id=session.execution_id,
                 agent_id=agent_definition.id,
@@ -435,7 +497,8 @@ class AgentExecutionPipeline:
             current_step=failed_step,
             error=strategy_result.error or "execution strategy failed",
         )
-        self._save_execution_checkpoint(
+        self._sync_aggregated_state(session.execution_id)
+        failure_checkpoint = self._save_execution_checkpoint(
             execution_id=session.execution_id,
             plan_id=plan.plan_id,
             agent_id=agent_definition.id,
@@ -448,13 +511,16 @@ class AgentExecutionPipeline:
                 "error_message": strategy_result.error or "execution strategy failed",
             },
         )
-        self._finalize_memory_context(
+        self._sync_aggregated_checkpoint(session.execution_id, failure_checkpoint)
+        memory_context = self._finalize_memory_context(
             memory_context,
             task=task,
             plan_id=plan.plan_id,
             status="FAILED",
             error=strategy_result.error or "execution strategy failed",
         )
+        self._sync_aggregated_memory(session.execution_id, memory_context)
+        self._finalize_aggregated_context(session.execution_id)
         return AgentExecutionResult(
             execution_id=session.execution_id,
             agent_id=agent_definition.id,
