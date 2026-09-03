@@ -14,16 +14,24 @@ from app.runtime.governance.memory_engine import InMemoryGovernanceEngine
 from app.runtime.governance.middleware import use_governance_lifecycle
 from app.runtime.governance.models import GovernanceDecision, GovernanceRule
 from app.runtime.governance.rules import GovernanceRule as GovernanceRuleProtocol
+from app.runtime.governance.versioning import (
+    GovernancePolicyRegistry,
+    GovernancePolicyVersion,
+    InMemoryGovernancePolicyRegistry,
+)
 
 __all__ = [
     "GovernanceAction",
     "GovernanceDecision",
     "GovernanceEnforcer",
     "GovernanceEvaluator",
+    "GovernancePolicyRegistry",
+    "GovernancePolicyVersion",
     "GovernanceRule",
     "GovernanceRuleProtocol",
     "InMemoryGovernanceEngine",
     "InMemoryGovernanceEnforcer",
+    "InMemoryGovernancePolicyRegistry",
     "RuntimeGovernanceLifecycle",
     "use_governance_lifecycle",
 ]
