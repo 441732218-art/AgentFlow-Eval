@@ -20,6 +20,7 @@ from app.runtime.tools.executor_registry import (
 
 if TYPE_CHECKING:
     from app.runtime.executor.execution_context import ExecutionContext
+    from app.runtime.invocation.guard import ToolInvocationGuard
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +37,13 @@ class ToolExecutionResult:
 class ToolExecutionEngine:
     """Resolve ``executor_type`` and delegate execution to a registered adapter."""
 
-    def __init__(self, adapter_registry: ToolExecutorRegistry | None = None) -> None:
+    def __init__(
+        self,
+        adapter_registry: ToolExecutorRegistry | None = None,
+        invocation_guard: ToolInvocationGuard | None = None,
+    ) -> None:
         self.adapter_registry = adapter_registry or ToolExecutorRegistry()
+        self.invocation_guard = invocation_guard
 
     def execute(
         self,
@@ -63,6 +69,33 @@ class ToolExecutionEngine:
         if adapter is None:
             raise UnknownExecutorTypeError(executor_type)
 
+        guard_handled_policy = False
+        if self.invocation_guard is not None:
+            from app.runtime.invocation.errors import ToolInvocationDeniedError
+            from app.runtime.invocation.models import ToolInvocationContext
+
+            invocation_context = ToolInvocationContext(
+                tool_name=tool_definition.name,
+                execution_id=context.execution_id if context is not None else "",
+                agent_id=context.agent_id if context is not None else None,
+            )
+            guard_decision = self.invocation_guard.authorize(
+                invocation_context,
+                tool_definition,
+                context,
+            )
+            if not guard_decision.allowed:
+                self._publish_invocation_denied(
+                    context,
+                    tool_definition,
+                    guard_decision,
+                )
+                raise ToolInvocationDeniedError(
+                    tool_definition.name,
+                    guard_decision.reason,
+                )
+            guard_handled_policy = self.invocation_guard.handles_policy_evaluation
+
         if use_governance_lifecycle(context):
             assert context is not None
             return context.governance_lifecycle.run_tool_execution(
@@ -73,7 +106,9 @@ class ToolExecutionEngine:
                 executor_type=executor_type,
             )
 
-        decision = self._evaluate_policy(context, tool_definition)
+        decision = allow_decision("invocation_guard")
+        if not guard_handled_policy:
+            decision = self._evaluate_policy(context, tool_definition)
         if not decision.allowed:
             self._publish_policy_denied(context, tool_definition, decision)
             raise PolicyDeniedError(decision, tool_definition.name)
@@ -114,6 +149,27 @@ class ToolExecutionEngine:
             build_runtime_event(
                 context,
                 RuntimeEventType.TOOL_POLICY_DENIED,
+                tool_name=tool_definition.name,
+                status="denied",
+                metadata={
+                    "policy_name": decision.policy_name,
+                    "reason": decision.reason,
+                    **decision.metadata,
+                },
+            ),
+        )
+
+    @staticmethod
+    def _publish_invocation_denied(
+        context: ExecutionContext | None,
+        tool_definition: ToolDefinition,
+        decision: PolicyDecision,
+    ) -> None:
+        record_runtime_event(
+            context,
+            build_runtime_event(
+                context,
+                RuntimeEventType.TOOL_INVOCATION_DENIED,
                 tool_name=tool_definition.name,
                 status="denied",
                 metadata={
