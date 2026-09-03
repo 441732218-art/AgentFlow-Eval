@@ -14,6 +14,7 @@ from app.runtime.executor.context_fields import (
     get_tool_definition,
 )
 from app.runtime.governance.middleware import use_governance_lifecycle
+from app.runtime.correlation.context import get_correlation_context
 from app.runtime.observability.events import RuntimeEventType
 from app.runtime.observability.recording import build_runtime_event, record_runtime_event
 from app.runtime.tools.engine import ToolExecutionEngine
@@ -50,6 +51,7 @@ def execute_tool_via_engine(
         return result.output
 
     tool_name = tool_definition.name
+    correlation = get_correlation_context(context)
     start_time = time.monotonic()
     record_runtime_event(
         execution_context,
@@ -58,6 +60,7 @@ def execute_tool_via_engine(
             RuntimeEventType.TOOL_STARTED,
             tool_name=tool_name,
             metadata={"executor_type": tool_definition.executor_type},
+            correlation=correlation,
         ),
     )
 
@@ -89,6 +92,7 @@ def execute_tool_via_engine(
                     "executor_type": tool_definition.executor_type,
                     "error_type": invocation.error_type,
                 },
+                correlation=correlation,
             ),
         )
         raise
@@ -110,6 +114,7 @@ def execute_tool_via_engine(
             status="success",
             duration_ms=invocation.duration_ms,
             metadata={"executor_type": tool_definition.executor_type},
+            correlation=correlation,
         ),
     )
     return result.output

@@ -16,6 +16,9 @@ from app.runtime.context import RuntimeContext
 from app.runtime.context.manager import RuntimeContextManager
 from app.runtime.context_memory.manager import MemoryContextManager
 from app.runtime.context_memory.models import MemoryContext
+from app.runtime.correlation.context import attach_correlation_context, get_correlation_context
+from app.runtime.correlation.manager import RuntimeCorrelationManager
+from app.runtime.correlation.models import CorrelationContext
 from app.runtime.executor.context_fields import attach_execution_context
 from app.runtime.executor.execution_context import ExecutionContext
 from app.runtime.execution.executor import StepExecutionContext, StepExecutor
@@ -125,9 +128,15 @@ class _CheckpointTrackingStepExecutor:
 class _PipelineStepExecutor:
     """Adapts the runtime execution pipeline to the ``StepExecutor`` protocol."""
 
-    def __init__(self, execution_pipeline: ExecutionPipeline, task: str) -> None:
+    def __init__(
+        self,
+        execution_pipeline: ExecutionPipeline,
+        task: str,
+        correlation_manager: RuntimeCorrelationManager | None = None,
+    ) -> None:
         self._execution_pipeline = execution_pipeline
         self._task = task
+        self._correlation_manager = correlation_manager
 
     def execute_step(
         self,
@@ -136,8 +145,55 @@ class _PipelineStepExecutor:
     ) -> Any:
         if step.step_type == "execute":
             step_task = str(step.metadata.get("task", context.task))
-            return self._execution_pipeline.run(context.runtime_context, step_task)
+            parent_correlation = get_correlation_context(context.runtime_context)
+            tool_correlation: CorrelationContext | None = None
+            if self._correlation_manager is not None and parent_correlation is not None:
+                tool_correlation = self._correlation_manager.create_child_context(
+                    parent_correlation
+                )
+                attach_correlation_context(context.runtime_context, tool_correlation)
+            try:
+                return self._execution_pipeline.run(context.runtime_context, step_task)
+            finally:
+                if tool_correlation is not None and self._correlation_manager is not None:
+                    self._correlation_manager.close_context(tool_correlation.span_id)
+                    if parent_correlation is not None:
+                        attach_correlation_context(
+                            context.runtime_context,
+                            parent_correlation,
+                        )
         raise RuntimeError(f"Unsupported planned step type: {step.step_type}")
+
+
+class _CorrelationStepExecutor:
+    """Creates step-level child correlation contexts during plan execution."""
+
+    def __init__(
+        self,
+        step_executor: StepExecutor,
+        correlation_manager: RuntimeCorrelationManager,
+        execution_correlation: CorrelationContext,
+        runtime_context: RuntimeContext,
+    ) -> None:
+        self._step_executor = step_executor
+        self._correlation_manager = correlation_manager
+        self._execution_correlation = execution_correlation
+        self._runtime_context = runtime_context
+
+    def execute_step(
+        self,
+        step: ExecutionStep,
+        context: StepExecutionContext,
+    ) -> Any:
+        step_correlation = self._correlation_manager.create_child_context(
+            self._execution_correlation
+        )
+        attach_correlation_context(self._runtime_context, step_correlation)
+        try:
+            return self._step_executor.execute_step(step, context)
+        finally:
+            self._correlation_manager.close_context(step_correlation.span_id)
+            attach_correlation_context(self._runtime_context, self._execution_correlation)
 
 
 class AgentExecutionPipeline:
@@ -152,6 +208,7 @@ class AgentExecutionPipeline:
         checkpoint_store: CheckpointStore | None = None,
         memory_manager: MemoryContextManager | None = None,
         runtime_context_manager: RuntimeContextManager | None = None,
+        correlation_manager: RuntimeCorrelationManager | None = None,
     ) -> None:
         self._production_runtime = production_runtime
         self._planner = planner or DefaultPlanner()
@@ -162,6 +219,7 @@ class AgentExecutionPipeline:
         )
         self._memory_manager = memory_manager
         self._runtime_context_manager = runtime_context_manager
+        self._correlation_manager = correlation_manager
         self._execution_pipeline = ExecutionPipeline(
             tool_execution_engine=production_runtime.tool_execution_engine,
         )
@@ -357,6 +415,7 @@ class AgentExecutionPipeline:
                 resume_checkpoint.state_snapshot.get("completed_steps", [])
             )
             task = str(resume_checkpoint.state_snapshot.get("task", task))
+        execution_correlation: CorrelationContext | None = None
         steps: list[ExecutionStep] = []
         prepare_step = create_step("prepare", "agent.prepare")
         steps.append(prepare_step)
@@ -377,6 +436,41 @@ class AgentExecutionPipeline:
         attach_execution_context(runtime_context, context)
         complete_step(prepare_step)
 
+        if self._correlation_manager is not None:
+            execution_correlation = self._correlation_manager.create_execution_context(
+                session.execution_id
+            )
+            attach_correlation_context(runtime_context, execution_correlation)
+
+        try:
+            return self._run_with_correlation(
+                agent_definition=agent_definition,
+                task=task,
+                context=context,
+                session=session,
+                runtime_context=runtime_context,
+                steps=steps,
+                resume_checkpoint=resume_checkpoint,
+                completed_steps=completed_steps,
+                execution_correlation=execution_correlation,
+            )
+        finally:
+            if self._correlation_manager is not None and execution_correlation is not None:
+                self._correlation_manager.close_context(execution_correlation.span_id)
+
+    def _run_with_correlation(
+        self,
+        *,
+        agent_definition: AgentDefinition,
+        task: str,
+        context: ExecutionContext,
+        session: Any,
+        runtime_context: RuntimeContext,
+        steps: list[ExecutionStep],
+        resume_checkpoint: Any,
+        completed_steps: list[str],
+        execution_correlation: CorrelationContext | None,
+    ) -> AgentExecutionResult:
         plan = self._planner.create_plan(agent_definition, task, context)
         if resume_checkpoint is not None:
             plan = self._checkpoint_manager.plan_for_resume(plan, resume_checkpoint)
@@ -408,7 +502,11 @@ class AgentExecutionPipeline:
         )
         self._sync_aggregated_memory(session.execution_id, memory_context)
         step_context = StepExecutionContext(runtime_context=runtime_context, task=task)
-        step_executor = _PipelineStepExecutor(self._execution_pipeline, task)
+        step_executor = _PipelineStepExecutor(
+            self._execution_pipeline,
+            task,
+            self._correlation_manager,
+        )
         if self._state_store is not None:
             step_executor = _StateTrackingStepExecutor(
                 step_executor,
@@ -424,6 +522,13 @@ class AgentExecutionPipeline:
                 agent_id=agent_definition.id,
                 task=task,
                 completed_steps=completed_steps,
+            )
+        if self._correlation_manager is not None and execution_correlation is not None:
+            step_executor = _CorrelationStepExecutor(
+                step_executor,
+                self._correlation_manager,
+                execution_correlation,
+                runtime_context,
             )
         strategy_result = self._strategy.execute_plan(
             plan,

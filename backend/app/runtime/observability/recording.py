@@ -11,6 +11,7 @@ from app.runtime.events.models import RuntimeEvent as PublisherRuntimeEvent
 from app.runtime.observability.events import RuntimeEvent
 
 if TYPE_CHECKING:
+    from app.runtime.correlation.models import CorrelationContext
     from app.runtime.executor.execution_context import ExecutionContext
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ def build_runtime_event(
     duration_ms: float | None = None,
     metadata: dict[str, Any] | None = None,
     timestamp: datetime | None = None,
+    correlation: CorrelationContext | None = None,
 ) -> RuntimeEvent:
     """Build a ``RuntimeEvent`` from execution context fields."""
     return RuntimeEvent(
@@ -37,6 +39,9 @@ def build_runtime_event(
         status=status,
         duration_ms=duration_ms,
         metadata=dict(metadata or {}),
+        correlation_id=correlation.correlation_id if correlation else None,
+        parent_event_id=correlation.parent_id if correlation else None,
+        span_id=correlation.span_id if correlation else None,
     )
 
 
@@ -48,6 +53,12 @@ def _to_publisher_event(event: RuntimeEvent) -> PublisherRuntimeEvent:
         payload["status"] = event.status
     if event.duration_ms is not None:
         payload["duration_ms"] = event.duration_ms
+    if event.correlation_id is not None:
+        payload["correlation_id"] = event.correlation_id
+    if event.parent_event_id is not None:
+        payload["parent_event_id"] = event.parent_event_id
+    if event.span_id is not None:
+        payload["span_id"] = event.span_id
     return PublisherRuntimeEvent(
         event_type=event.event_type,
         execution_id=event.execution_id,

@@ -35,3 +35,6 @@ class RuntimeEvent:
     status: str | None = None
     duration_ms: float | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    correlation_id: str | None = None
+    parent_event_id: str | None = None
+    span_id: str | None = None
