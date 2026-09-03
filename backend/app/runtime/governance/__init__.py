@@ -3,6 +3,11 @@
 
 from __future__ import annotations
 
+from app.runtime.governance.enforcement import (
+    GovernanceAction,
+    GovernanceEnforcer,
+    InMemoryGovernanceEnforcer,
+)
 from app.runtime.governance.evaluator import GovernanceEvaluator
 from app.runtime.governance.lifecycle import RuntimeGovernanceLifecycle
 from app.runtime.governance.memory_engine import InMemoryGovernanceEngine
@@ -11,11 +16,14 @@ from app.runtime.governance.models import GovernanceDecision, GovernanceRule
 from app.runtime.governance.rules import GovernanceRule as GovernanceRuleProtocol
 
 __all__ = [
+    "GovernanceAction",
     "GovernanceDecision",
+    "GovernanceEnforcer",
     "GovernanceEvaluator",
     "GovernanceRule",
     "GovernanceRuleProtocol",
     "InMemoryGovernanceEngine",
+    "InMemoryGovernanceEnforcer",
     "RuntimeGovernanceLifecycle",
     "use_governance_lifecycle",
 ]
