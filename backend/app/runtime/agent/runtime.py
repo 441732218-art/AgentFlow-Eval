@@ -16,6 +16,7 @@ from app.runtime.registry.registry import AgentNotFoundError
 
 if TYPE_CHECKING:
     from app.runtime.registry.registry import AgentRegistry
+    from app.runtime.tool_registry.registry import ToolRegistry
 
 
 class AgentDisabledError(RuntimeError):
@@ -47,9 +48,11 @@ class AgentRuntime:
         self,
         production_runtime: ProductionRuntime,
         agent_registry: AgentRegistry | None = None,
+        tool_registry: ToolRegistry | None = None,
     ) -> None:
         self._production_runtime = production_runtime
         self._agent_registry = agent_registry
+        self._tool_registry = tool_registry
         from app.runtime.pipeline.agent_pipeline import AgentExecutionPipeline
 
         self._agent_pipeline = AgentExecutionPipeline(production_runtime)
@@ -93,12 +96,21 @@ class AgentRuntime:
             raise AgentDisabledError(agent_id)
         return agent_definition
 
+    def _validate_tool_capabilities(self, agent_definition: AgentDefinition) -> None:
+        if self._tool_registry is None:
+            return
+        from app.runtime.tool_registry.registry import resolve_tool_capability
+
+        for tool_name in agent_definition.tool_names:
+            resolve_tool_capability(self._tool_registry, tool_name)
+
     def _execute_definition(
         self,
         agent_definition: AgentDefinition,
         task: str,
         context: ExecutionContext | None,
     ) -> AgentRuntimeExecutionResult:
+        self._validate_tool_capabilities(agent_definition)
         execution_context = context or create_execution_context(
             self._production_runtime,
             execution_id=uuid.uuid4().hex,
