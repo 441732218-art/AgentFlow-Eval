@@ -94,3 +94,6 @@ tmp*.txt
 ~$*.pdf
 scripts/~$*
 *.tmp
+*.db.bak
+*.db.api
+软著_源代码_最终版.md
