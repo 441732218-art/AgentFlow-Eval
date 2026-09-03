@@ -20,6 +20,7 @@ class RuntimeEventType:
     TOOL_COMPLETED = "tool.completed"
     TOOL_FAILED = "tool.failed"
     TOOL_POLICY_DENIED = "tool.policy.denied"
+    TOOL_PERMISSION_DENIED = "tool.permission.denied"
 
 
 @dataclass
