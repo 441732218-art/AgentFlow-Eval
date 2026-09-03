@@ -20,6 +20,34 @@ from app.runtime.pipeline.pipeline import ExecutionPipeline
 from app.runtime.pipeline.steps import complete_step, create_step
 from app.runtime.planning.default_planner import DefaultPlanner
 from app.runtime.planning.planner import Planner
+from app.runtime.state.models import ExecutionState
+from app.runtime.state.store import ExecutionStateStore
+
+
+class _StateTrackingStepExecutor:
+    """Updates execution state before each planned step runs."""
+
+    def __init__(
+        self,
+        step_executor: StepExecutor,
+        state_store: ExecutionStateStore,
+        execution_id: str,
+    ) -> None:
+        self._step_executor = step_executor
+        self._state_store = state_store
+        self._execution_id = execution_id
+
+    def execute_step(
+        self,
+        step: ExecutionStep,
+        context: StepExecutionContext,
+    ) -> Any:
+        existing = self._state_store.get(self._execution_id)
+        if existing is not None:
+            self._state_store.update(
+                existing.with_updates(current_step=step.name)
+            )
+        return self._step_executor.execute_step(step, context)
 
 
 class _PipelineStepExecutor:
@@ -48,12 +76,59 @@ class AgentExecutionPipeline:
         production_runtime: ProductionRuntime,
         planner: Planner | None = None,
         strategy: ExecutionStrategy | None = None,
+        state_store: ExecutionStateStore | None = None,
     ) -> None:
         self._production_runtime = production_runtime
         self._planner = planner or DefaultPlanner()
         self._strategy = strategy or SequentialExecutionStrategy()
+        self._state_store = state_store
         self._execution_pipeline = ExecutionPipeline(
             tool_execution_engine=production_runtime.tool_execution_engine,
+        )
+
+    def _create_running_state(
+        self,
+        *,
+        execution_id: str,
+        agent_id: str,
+        plan_id: str,
+        task: str,
+    ) -> None:
+        if self._state_store is None:
+            return
+        self._state_store.create(
+            ExecutionState(
+                execution_id=execution_id,
+                agent_id=agent_id,
+                plan_id=plan_id,
+                status="RUNNING",
+                current_step=None,
+                metadata={"task": task},
+            )
+        )
+
+    def _finalize_state(
+        self,
+        execution_id: str,
+        *,
+        status: str,
+        current_step: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        if self._state_store is None:
+            return
+        existing = self._state_store.get(execution_id)
+        if existing is None:
+            return
+        metadata = dict(existing.metadata)
+        if error is not None:
+            metadata["error_message"] = error
+        self._state_store.update(
+            existing.with_updates(
+                status=status,
+                current_step=current_step,
+                metadata=metadata,
+            )
         )
 
     def run(
@@ -84,8 +159,20 @@ class AgentExecutionPipeline:
         complete_step(prepare_step)
 
         plan = self._planner.create_plan(agent_definition, task, context)
+        self._create_running_state(
+            execution_id=session.execution_id,
+            agent_id=agent_definition.id,
+            plan_id=plan.plan_id,
+            task=task,
+        )
         step_context = StepExecutionContext(runtime_context=runtime_context, task=task)
         step_executor = _PipelineStepExecutor(self._execution_pipeline, task)
+        if self._state_store is not None:
+            step_executor = _StateTrackingStepExecutor(
+                step_executor,
+                self._state_store,
+                session.execution_id,
+            )
         strategy_result = self._strategy.execute_plan(
             plan,
             step_context,
@@ -107,6 +194,11 @@ class AgentExecutionPipeline:
                 agent_definition=agent_definition,
                 output=output,
             )
+            self._finalize_state(
+                session.execution_id,
+                status="COMPLETED",
+                current_step=None,
+            )
             return AgentExecutionResult(
                 execution_id=session.execution_id,
                 agent_id=agent_definition.id,
@@ -120,6 +212,17 @@ class AgentExecutionPipeline:
             session,
             context,
             agent_definition=agent_definition,
+            error=strategy_result.error or "execution strategy failed",
+        )
+        failed_step = (
+            strategy_result.step_results[-1].step.name
+            if strategy_result.step_results
+            else None
+        )
+        self._finalize_state(
+            session.execution_id,
+            status="FAILED",
+            current_step=failed_step,
             error=strategy_result.error or "execution strategy failed",
         )
         return AgentExecutionResult(
