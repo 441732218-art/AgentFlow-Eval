@@ -3,10 +3,19 @@
 
 from __future__ import annotations
 
+from app.runtime.governance.evaluator import GovernanceEvaluator
 from app.runtime.governance.lifecycle import RuntimeGovernanceLifecycle
+from app.runtime.governance.memory_engine import InMemoryGovernanceEngine
 from app.runtime.governance.middleware import use_governance_lifecycle
+from app.runtime.governance.models import GovernanceDecision, GovernanceRule
+from app.runtime.governance.rules import GovernanceRule as GovernanceRuleProtocol
 
 __all__ = [
+    "GovernanceDecision",
+    "GovernanceEvaluator",
+    "GovernanceRule",
+    "GovernanceRuleProtocol",
+    "InMemoryGovernanceEngine",
     "RuntimeGovernanceLifecycle",
     "use_governance_lifecycle",
 ]
