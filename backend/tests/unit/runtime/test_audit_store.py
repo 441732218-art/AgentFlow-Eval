@@ -35,28 +35,28 @@ _FORBIDDEN_STRINGS = ("trade_provider", "CRM", "Email", "database")
 def test_audit_record_creation() -> None:
     timestamp = datetime(2026, 3, 1, tzinfo=timezone.utc)
     record = AuditRecord(
-        id="audit-1",
+        audit_id="audit-1",
         event_type=RuntimeEventType.TOOL_STARTED,
         execution_id="exec-1",
         agent_id="agent-1",
-        tenant_id="tenant-1",
         timestamp=timestamp,
-        payload={"tool_name": "probe.tool"},
+        metadata={"tool_name": "probe.tool", "tenant_id": "tenant-1"},
     )
 
     assert record.id == "audit-1"
     assert record.execution_id == "exec-1"
     assert record.payload["tool_name"] == "probe.tool"
+    assert record.tenant_id == "tenant-1"
 
 
 def test_memory_store_append_and_query() -> None:
     store = InMemoryAuditStore()
     record = AuditRecord(
-        id="audit-2",
+        audit_id="audit-2",
         event_type=RuntimeEventType.EXECUTION_STARTED,
         execution_id="exec-2",
         timestamp=datetime.now(timezone.utc),
-        payload={"task": "run"},
+        metadata={"task": "run"},
     )
 
     store.append(record)
@@ -70,7 +70,7 @@ def test_query_by_execution_id() -> None:
     store = InMemoryAuditStore()
     store.append(
         AuditRecord(
-            id="audit-3a",
+            audit_id="audit-3a",
             event_type=RuntimeEventType.TOOL_STARTED,
             execution_id="exec-a",
             timestamp=datetime.now(timezone.utc),
@@ -78,7 +78,7 @@ def test_query_by_execution_id() -> None:
     )
     store.append(
         AuditRecord(
-            id="audit-3b",
+            audit_id="audit-3b",
             event_type=RuntimeEventType.TOOL_STARTED,
             execution_id="exec-b",
             timestamp=datetime.now(timezone.utc),
@@ -95,20 +95,20 @@ def test_query_by_tenant_id() -> None:
     store = InMemoryAuditStore()
     store.append(
         AuditRecord(
-            id="audit-4a",
+            audit_id="audit-4a",
             event_type=RuntimeEventType.TOOL_COMPLETED,
             execution_id="exec-4a",
-            tenant_id="tenant-x",
             timestamp=datetime.now(timezone.utc),
+            metadata={"tenant_id": "tenant-x"},
         )
     )
     store.append(
         AuditRecord(
-            id="audit-4b",
+            audit_id="audit-4b",
             event_type=RuntimeEventType.TOOL_COMPLETED,
             execution_id="exec-4b",
-            tenant_id="tenant-y",
             timestamp=datetime.now(timezone.utc),
+            metadata={"tenant_id": "tenant-y"},
         )
     )
 

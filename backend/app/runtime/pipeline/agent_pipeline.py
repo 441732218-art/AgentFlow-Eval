@@ -36,6 +36,7 @@ from app.runtime.state.store import ExecutionStateStore
 
 if TYPE_CHECKING:
     from app.runtime.analytics.collector import RuntimeAnalyticsCollector
+    from app.runtime.audit.recorder import RuntimeAuditRecorder
     from app.runtime.event_stream.publisher import EventPublisher
 
 
@@ -156,6 +157,51 @@ class _AnalyticsTrackingStepExecutor:
                 )
             )
         return output
+
+
+class _AuditTrackingStepExecutor:
+    """Records step failure audit events around step execution."""
+
+    def __init__(
+        self,
+        step_executor: StepExecutor,
+        audit_recorder: RuntimeAuditRecorder,
+        *,
+        execution_id: str,
+        agent_id: str,
+        fallback_correlation_id: str,
+    ) -> None:
+        self._step_executor = step_executor
+        self._audit_recorder = audit_recorder
+        self._execution_id = execution_id
+        self._agent_id = agent_id
+        self._fallback_correlation_id = fallback_correlation_id
+
+    def _resolve_correlation_id(self, context: StepExecutionContext) -> str:
+        correlation = get_correlation_context(context.runtime_context)
+        if correlation is not None:
+            return correlation.correlation_id
+        return self._fallback_correlation_id
+
+    def execute_step(
+        self,
+        step: ExecutionStep,
+        context: StepExecutionContext,
+    ) -> Any:
+        try:
+            return self._step_executor.execute_step(step, context)
+        except Exception as exc:
+            self._audit_recorder.record_failure_event(
+                event_type="step.failed",
+                execution_id=self._execution_id,
+                agent_id=self._agent_id,
+                correlation_id=self._resolve_correlation_id(context),
+                action="step.execute",
+                resource=step.name,
+                error=str(exc),
+                metadata={"step_type": step.step_type},
+            )
+            raise
 
 
 class _EventStreamTrackingStepExecutor:
@@ -404,6 +450,7 @@ class AgentExecutionPipeline:
         correlation_manager: RuntimeCorrelationManager | None = None,
         analytics_collector: RuntimeAnalyticsCollector | None = None,
         event_publisher: EventPublisher | None = None,
+        audit_recorder: RuntimeAuditRecorder | None = None,
     ) -> None:
         self._production_runtime = production_runtime
         self._planner = planner or DefaultPlanner()
@@ -417,6 +464,7 @@ class AgentExecutionPipeline:
         self._correlation_manager = correlation_manager
         self._analytics_collector = analytics_collector
         self._event_publisher = event_publisher
+        self._audit_recorder = audit_recorder
         self._execution_pipeline = ExecutionPipeline(
             tool_execution_engine=production_runtime.tool_execution_engine,
         )
@@ -467,6 +515,54 @@ class AgentExecutionPipeline:
             execution_id=execution_id,
             correlation_id=correlation_id,
             payload=payload,
+        )
+
+    def _record_execution_audit(
+        self,
+        *,
+        event_type: str,
+        execution_id: str,
+        agent_id: str,
+        correlation_id: str,
+        metadata: dict[str, Any] | None = None,
+        decision: str = "ALLOW",
+        severity: str = "INFO",
+    ) -> None:
+        if self._audit_recorder is None:
+            return
+        self._audit_recorder.record_execution_event(
+            event_type=event_type,
+            execution_id=execution_id,
+            agent_id=agent_id,
+            correlation_id=correlation_id,
+            actor=agent_id,
+            action=event_type,
+            decision=decision,  # type: ignore[arg-type]
+            severity=severity,  # type: ignore[arg-type]
+            metadata=metadata,
+        )
+
+    def _record_execution_failure_audit(
+        self,
+        *,
+        event_type: str,
+        execution_id: str,
+        agent_id: str,
+        correlation_id: str,
+        error: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        if self._audit_recorder is None:
+            return
+        self._audit_recorder.record_failure_event(
+            event_type=event_type,
+            execution_id=execution_id,
+            agent_id=agent_id,
+            correlation_id=correlation_id,
+            actor=agent_id,
+            action=event_type,
+            error=error,
+            metadata=metadata,
         )
 
     def _create_running_state(
@@ -767,6 +863,17 @@ class AgentExecutionPipeline:
                 "plan_id": plan.plan_id,
             },
         )
+        self._record_execution_audit(
+            event_type=EXECUTION_START,
+            execution_id=session.execution_id,
+            agent_id=agent_definition.id,
+            correlation_id=correlation_id,
+            metadata={
+                "agent_id": agent_definition.id,
+                "task": task,
+                "plan_id": plan.plan_id,
+            },
+        )
         step_executor = _PipelineStepExecutor(
             self._execution_pipeline,
             task,
@@ -778,6 +885,14 @@ class AgentExecutionPipeline:
                 self._event_publisher,
                 execution_id=session.execution_id,
                 tracker=stream_tracker,
+                fallback_correlation_id=correlation_id,
+            )
+        if self._audit_recorder is not None:
+            step_executor = _AuditTrackingStepExecutor(
+                step_executor,
+                self._audit_recorder,
+                execution_id=session.execution_id,
+                agent_id=agent_definition.id,
                 fallback_correlation_id=correlation_id,
             )
         if self._analytics_collector is not None:
@@ -952,6 +1067,18 @@ class AgentExecutionPipeline:
                 "task": task,
                 "plan_id": plan.plan_id,
                 "error": strategy_result.error or "execution strategy failed",
+            },
+        )
+        self._record_execution_failure_audit(
+            event_type=EXECUTION_FAILED,
+            execution_id=session.execution_id,
+            agent_id=agent_definition.id,
+            correlation_id=correlation_id,
+            error=strategy_result.error or "execution strategy failed",
+            metadata={
+                "agent_id": agent_definition.id,
+                "task": task,
+                "plan_id": plan.plan_id,
             },
         )
         return AgentExecutionResult(

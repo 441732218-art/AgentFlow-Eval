@@ -15,6 +15,7 @@ from app.runtime.executor.execution_context import ExecutionContext
 from app.runtime.registry.registry import AgentNotFoundError
 
 if TYPE_CHECKING:
+    from app.runtime.audit.recorder import RuntimeAuditRecorder
     from app.runtime.permissions.evaluator import PermissionEvaluator
     from app.runtime.registry.registry import AgentRegistry
     from app.runtime.tool_registry.registry import ToolRegistry
@@ -51,14 +52,19 @@ class AgentRuntime:
         agent_registry: AgentRegistry | None = None,
         tool_registry: ToolRegistry | None = None,
         permission_evaluator: PermissionEvaluator | None = None,
+        audit_recorder: RuntimeAuditRecorder | None = None,
     ) -> None:
         self._production_runtime = production_runtime
         self._agent_registry = agent_registry
         self._tool_registry = tool_registry
         self._permission_evaluator = permission_evaluator
+        self._audit_recorder = audit_recorder
         from app.runtime.pipeline.agent_pipeline import AgentExecutionPipeline
 
-        self._agent_pipeline = AgentExecutionPipeline(production_runtime)
+        self._agent_pipeline = AgentExecutionPipeline(
+            production_runtime,
+            audit_recorder=audit_recorder,
+        )
 
     @overload
     def execute(
@@ -140,6 +146,21 @@ class AgentRuntime:
                     },
                 ),
             )
+            if self._audit_recorder is not None:
+                self._audit_recorder.record_permission_event(
+                    event_type=RuntimeEventType.TOOL_PERMISSION_DENIED,
+                    execution_id=execution_context.execution_id,
+                    agent_id=agent_definition.id,
+                    correlation_id=execution_context.execution_id,
+                    actor=execution_context.user_id or agent_definition.id,
+                    resource=tool_name,
+                    decision="DENY",
+                    severity="WARNING",
+                    metadata={
+                        "policy_name": decision.policy_name,
+                        "reason": decision.reason,
+                    },
+                )
             raise PolicyDeniedError(decision, tool_name)
 
     def _execute_definition(
