@@ -3,6 +3,12 @@
 
 from __future__ import annotations
 
+from app.runtime.governance.approval import (
+    ApprovalDecision,
+    ApprovalRequest,
+    ApprovalStore,
+    InMemoryApprovalStore,
+)
 from app.runtime.governance.enforcement import (
     GovernanceAction,
     GovernanceEnforcer,
@@ -21,6 +27,9 @@ from app.runtime.governance.versioning import (
 )
 
 __all__ = [
+    "ApprovalDecision",
+    "ApprovalRequest",
+    "ApprovalStore",
     "GovernanceAction",
     "GovernanceDecision",
     "GovernanceEnforcer",
@@ -29,6 +38,7 @@ __all__ = [
     "GovernancePolicyVersion",
     "GovernanceRule",
     "GovernanceRuleProtocol",
+    "InMemoryApprovalStore",
     "InMemoryGovernanceEngine",
     "InMemoryGovernanceEnforcer",
     "InMemoryGovernancePolicyRegistry",
