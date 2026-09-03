@@ -83,6 +83,9 @@ test-results/
 *.tsbuildinfo
 fix_ruff.py
 
+# Quarantined cleanup artifacts (do not commit; history may retain prior snapshots)
+_cleanup_quarantine/
+
 # Temp / scratch / Office lock files
 tmp/
 tmp*.txt
