@@ -12,11 +12,32 @@ from app.runtime.bootstrap.factory import ProductionRuntime
 from app.runtime.context import RuntimeContext
 from app.runtime.executor.context_fields import attach_execution_context
 from app.runtime.executor.execution_context import ExecutionContext
+from app.runtime.execution.executor import StepExecutionContext, StepExecutor
+from app.runtime.execution.sequential import SequentialExecutionStrategy
+from app.runtime.execution.strategy import ExecutionStrategy
 from app.runtime.pipeline.models import AgentExecutionResult, ExecutionStep
 from app.runtime.pipeline.pipeline import ExecutionPipeline
-from app.runtime.pipeline.steps import complete_step, create_step, fail_step
+from app.runtime.pipeline.steps import complete_step, create_step
 from app.runtime.planning.default_planner import DefaultPlanner
 from app.runtime.planning.planner import Planner
+
+
+class _PipelineStepExecutor:
+    """Adapts the runtime execution pipeline to the ``StepExecutor`` protocol."""
+
+    def __init__(self, execution_pipeline: ExecutionPipeline, task: str) -> None:
+        self._execution_pipeline = execution_pipeline
+        self._task = task
+
+    def execute_step(
+        self,
+        step: ExecutionStep,
+        context: StepExecutionContext,
+    ) -> Any:
+        if step.step_type == "execute":
+            step_task = str(step.metadata.get("task", context.task))
+            return self._execution_pipeline.run(context.runtime_context, step_task)
+        raise RuntimeError(f"Unsupported planned step type: {step.step_type}")
 
 
 class AgentExecutionPipeline:
@@ -26,9 +47,11 @@ class AgentExecutionPipeline:
         self,
         production_runtime: ProductionRuntime,
         planner: Planner | None = None,
+        strategy: ExecutionStrategy | None = None,
     ) -> None:
         self._production_runtime = production_runtime
         self._planner = planner or DefaultPlanner()
+        self._strategy = strategy or SequentialExecutionStrategy()
         self._execution_pipeline = ExecutionPipeline(
             tool_execution_engine=production_runtime.tool_execution_engine,
         )
@@ -61,23 +84,23 @@ class AgentExecutionPipeline:
         complete_step(prepare_step)
 
         plan = self._planner.create_plan(agent_definition, task, context)
-        output: Any = None
+        step_context = StepExecutionContext(runtime_context=runtime_context, task=task)
+        step_executor = _PipelineStepExecutor(self._execution_pipeline, task)
+        strategy_result = self._strategy.execute_plan(
+            plan,
+            step_context,
+            step_executor,
+        )
 
-        try:
-            for planned_step in plan.steps:
-                active_step = create_step(
-                    planned_step.name,
-                    planned_step.step_type,
-                    metadata=dict(planned_step.metadata),
-                )
-                steps.append(active_step)
-                output = self._execute_planned_step(
-                    active_step,
-                    runtime_context,
-                    task,
-                )
-                complete_step(active_step)
+        for outcome in strategy_result.step_results:
+            steps.append(outcome.step)
 
+        if strategy_result.status == "COMPLETED":
+            output = (
+                strategy_result.step_results[-1].output
+                if strategy_result.step_results
+                else None
+            )
             complete_session(
                 session,
                 context,
@@ -92,36 +115,22 @@ class AgentExecutionPipeline:
                 steps=steps,
                 metadata={"task": task, "plan_id": plan.plan_id},
             )
-        except Exception as exc:
-            if steps and steps[-1].status == "RUNNING":
-                fail_step(steps[-1], exc)
-            fail_session(
-                session,
-                context,
-                agent_definition=agent_definition,
-                error=exc,
-            )
-            return AgentExecutionResult(
-                execution_id=session.execution_id,
-                agent_id=agent_definition.id,
-                status="FAILED",
-                output=None,
-                steps=steps,
-                metadata={
-                    "task": task,
-                    "plan_id": plan.plan_id,
-                    "error_type": type(exc).__name__,
-                    "error_message": str(exc),
-                },
-            )
 
-    def _execute_planned_step(
-        self,
-        step: ExecutionStep,
-        runtime_context: RuntimeContext,
-        task: str,
-    ) -> Any:
-        if step.step_type == "execute":
-            step_task = str(step.metadata.get("task", task))
-            return self._execution_pipeline.run(runtime_context, step_task)
-        raise RuntimeError(f"Unsupported planned step type: {step.step_type}")
+        fail_session(
+            session,
+            context,
+            agent_definition=agent_definition,
+            error=strategy_result.error or "execution strategy failed",
+        )
+        return AgentExecutionResult(
+            execution_id=session.execution_id,
+            agent_id=agent_definition.id,
+            status="FAILED",
+            output=None,
+            steps=steps,
+            metadata={
+                "task": task,
+                "plan_id": plan.plan_id,
+                "error_message": strategy_result.error,
+            },
+        )

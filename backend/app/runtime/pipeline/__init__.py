@@ -3,9 +3,6 @@
 
 from __future__ import annotations
 
-from app.runtime.pipeline.hooks import ExecutionHook
-from app.runtime.pipeline.pipeline import ExecutionPipeline
-
 __all__ = [
     "AgentExecutionPipeline",
     "AgentExecutionResult",
@@ -19,6 +16,14 @@ __all__ = [
 
 
 def __getattr__(name: str):
+    if name == "ExecutionHook":
+        from app.runtime.pipeline.hooks import ExecutionHook
+
+        return ExecutionHook
+    if name == "ExecutionPipeline":
+        from app.runtime.pipeline.pipeline import ExecutionPipeline
+
+        return ExecutionPipeline
     if name == "AgentExecutionPipeline":
         from app.runtime.pipeline.agent_pipeline import AgentExecutionPipeline
 
