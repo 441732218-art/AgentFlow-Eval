@@ -24,6 +24,8 @@ DEVELOPMENT_PROFILE = RuntimeProfile(
     enable_audit_recorder=True,
     enable_evidence_collector=True,
     enable_governance_lifecycle=True,
+    enable_governance_runtime=True,
+    enable_governance_activation=True,
 )
 
 PRODUCTION_PROFILE = RuntimeProfile(
@@ -45,6 +47,8 @@ PRODUCTION_PROFILE = RuntimeProfile(
     enable_audit_recorder=True,
     enable_evidence_collector=True,
     enable_governance_lifecycle=True,
+    enable_governance_runtime=True,
+    enable_governance_activation=True,
 )
 
 TESTING_PROFILE = RuntimeProfile(

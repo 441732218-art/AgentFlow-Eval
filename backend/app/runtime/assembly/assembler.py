@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 from app.runtime.agent.runtime import AgentRuntime
 from app.runtime.assembly.models import RuntimeAssembly, RuntimeAssemblyConfig, RuntimeProfile
 from app.runtime.assembly.profiles import PRODUCTION_PROFILE, get_profile
@@ -19,6 +21,19 @@ from app.runtime.policy.engine import InMemoryPolicyEngine
 from app.runtime.registry.memory_registry import InMemoryAgentRegistry
 from app.runtime.state.memory_store import InMemoryExecutionStateStore
 from app.runtime.tool_registry.memory_registry import InMemoryToolRegistry
+
+
+class _GovernanceRuntimeStack(TypedDict):
+    governance_decision_router: object
+    governance_runtime_orchestrator: object
+    governance_configuration_registry: object
+    governance_snapshot_store: object
+    governance_snapshot_builder: object
+    governance_evidence_correlation_store: object
+    governance_evidence_correlation_builder: object
+    governance_execution_contract: object
+    governance_effect_resolver: object
+    governance_runtime_decision_adapter: object
 
 
 class RuntimeAssembler:
@@ -116,6 +131,16 @@ class RuntimeAssembler:
                 )
             )
 
+        governance_stack: _GovernanceRuntimeStack | None = None
+        if profile.enable_governance_runtime:
+            governance_stack = RuntimeAssembler._build_governance_runtime_stack()
+
+        governance_runtime_activator = (
+            RuntimeAssembler._build_governance_activation_stack()
+            if profile.enable_governance_activation
+            else None
+        )
+
         agent_runtime = AgentRuntime(
             production_runtime,
             agent_registry=agent_registry,
@@ -135,6 +160,23 @@ class RuntimeAssembler:
             audit_recorder=audit_recorder,
             evidence_collector=evidence_collector,
             runtime_hook_manager=runtime_hook_manager,
+        )
+
+        governance_fields = (
+            dict(governance_stack)
+            if governance_stack is not None
+            else {
+                "governance_decision_router": None,
+                "governance_runtime_orchestrator": None,
+                "governance_configuration_registry": None,
+                "governance_snapshot_store": None,
+                "governance_snapshot_builder": None,
+                "governance_evidence_correlation_store": None,
+                "governance_evidence_correlation_builder": None,
+                "governance_execution_contract": None,
+                "governance_effect_resolver": None,
+                "governance_runtime_decision_adapter": None,
+            }
         )
 
         return RuntimeAssembly(
@@ -158,6 +200,8 @@ class RuntimeAssembler:
             governance_hook_adapter=governance_hook_adapter,
             tool_governance_adapter=tool_governance_adapter,
             runtime_hook_manager=runtime_hook_manager,
+            **governance_fields,
+            governance_runtime_activator=governance_runtime_activator,
         )
 
     @staticmethod
@@ -252,6 +296,89 @@ class RuntimeAssembler:
             report_generator=GovernanceReportGenerator(),
             approval_store=InMemoryApprovalStore(),
         )
+
+    @staticmethod
+    def _build_governance_runtime_stack() -> _GovernanceRuntimeStack:
+        """Compose governance runtime plane components without executing governance logic."""
+        from app.runtime.governance.binding.memory_binder import InMemoryRuntimeEnforcementBinder
+        from app.runtime.governance.configuration.memory_registry import (
+            InMemoryGovernanceConfigurationRegistry,
+        )
+        from app.runtime.governance.enforcement_pipeline.memory_pipeline import (
+            InMemoryRuntimeEnforcementPipeline,
+        )
+        from app.runtime.governance.evidence_correlation.builder import (
+            DefaultEvidenceCorrelationBuilder,
+        )
+        from app.runtime.governance.evidence_correlation.memory_store import (
+            InMemoryEvidenceCorrelationStore,
+        )
+        from app.runtime.governance.execution.memory_executor import (
+            InMemoryGovernanceExecutionContract,
+        )
+        from app.runtime.governance.orchestrator.memory_orchestrator import (
+            InMemoryGovernanceRuntimeOrchestrator,
+        )
+        from app.runtime.governance.policy_binding.memory_binder import (
+            InMemoryPolicyExecutionBinder,
+        )
+        from app.runtime.governance.reporting.generator import GovernanceReportGenerator
+        from app.runtime.governance.resolver.memory_resolver import (
+            InMemoryGovernanceEffectResolver,
+        )
+        from app.runtime.governance.routing.memory_router import InMemoryGovernanceDecisionRouter
+        from app.runtime.governance.runtime_adapter.memory_adapter import (
+            InMemoryGovernanceRuntimeDecisionAdapter,
+        )
+        from app.runtime.governance.snapshot.builder import DefaultGovernanceSnapshotBuilder
+        from app.runtime.governance.snapshot.memory_store import InMemoryGovernanceSnapshotStore
+        from app.runtime.governance.versioning.memory_registry import (
+            InMemoryGovernancePolicyRegistry,
+        )
+
+        configuration_registry = InMemoryGovernanceConfigurationRegistry()
+        policy_registry = InMemoryGovernancePolicyRegistry()
+        decision_router = InMemoryGovernanceDecisionRouter()
+        enforcement_pipeline = InMemoryRuntimeEnforcementPipeline()
+        enforcement_binder = InMemoryRuntimeEnforcementBinder()
+        policy_binder = InMemoryPolicyExecutionBinder(policy_registry=policy_registry)
+        report_generator = GovernanceReportGenerator()
+        orchestrator = InMemoryGovernanceRuntimeOrchestrator(
+            decision_router=decision_router,
+            enforcement_pipeline=enforcement_pipeline,
+            enforcement_binder=enforcement_binder,
+            policy_binder=policy_binder,
+            report_generator=report_generator,
+        )
+        snapshot_builder = DefaultGovernanceSnapshotBuilder()
+        snapshot_store = InMemoryGovernanceSnapshotStore()
+        evidence_correlation_builder = DefaultEvidenceCorrelationBuilder()
+        evidence_correlation_store = InMemoryEvidenceCorrelationStore()
+        execution_contract = InMemoryGovernanceExecutionContract()
+        effect_resolver = InMemoryGovernanceEffectResolver()
+        decision_adapter = InMemoryGovernanceRuntimeDecisionAdapter()
+
+        return {
+            "governance_decision_router": decision_router,
+            "governance_runtime_orchestrator": orchestrator,
+            "governance_configuration_registry": configuration_registry,
+            "governance_snapshot_store": snapshot_store,
+            "governance_snapshot_builder": snapshot_builder,
+            "governance_evidence_correlation_store": evidence_correlation_store,
+            "governance_evidence_correlation_builder": evidence_correlation_builder,
+            "governance_execution_contract": execution_contract,
+            "governance_effect_resolver": effect_resolver,
+            "governance_runtime_decision_adapter": decision_adapter,
+        }
+
+    @staticmethod
+    def _build_governance_activation_stack():
+        """Compose governance runtime activator without executing governance logic."""
+        from app.runtime.governance.activation.memory_activator import (
+            InMemoryGovernanceRuntimeActivator,
+        )
+
+        return InMemoryGovernanceRuntimeActivator()
 
 
 def create_runtime(
