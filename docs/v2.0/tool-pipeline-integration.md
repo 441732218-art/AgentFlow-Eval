@@ -1,7 +1,7 @@
 # Tool Pipeline Integration (Phase 8.4)
 
 **Project:** AgentFlow Intelligence v2.0  
-**Phase:** 8.4 â€” ToolExecutionEngine â†’ ExecutionPipeline Integration  
+**Phase:** 8.4 â€?ToolExecutionEngine â†?ExecutionPipeline Integration  
 **Date:** 2026-08-31
 
 ---
@@ -17,15 +17,15 @@ AgentExecutor           (minimal context metadata extension)
        v
 ExecutionPipeline       (Phase 8.4 primary change)
        |
-       +-- before_hooks (TraceHook, MemoryHook â€” unchanged order)
+       +-- before_hooks (TraceHook, MemoryHook â€?unchanged order)
        +-- execute_step
        |      |
-       |      +-- no tool â†’ default stub output
-       |      +-- tool_definition present â†’ ToolExecutionEngine.execute()
+       |      +-- no tool â†?default stub output
+       |      +-- tool_definition present â†?ToolExecutionEngine.execute()
        +-- after_hooks (unchanged order)
        |
        v
-ToolExecutionEngine     (frozen since Phase 8.2â€“8.3)
+ToolExecutionEngine     (frozen since Phase 8.2â€?.3)
        |
        +----------------+
        |                |
@@ -65,10 +65,8 @@ All tool execution flows through:
 
 ```text
 ToolDefinition
-    â†“
-ToolExecutionEngine.execute()
-    â†“
-Adapter
+    â†?ToolExecutionEngine.execute()
+    â†?Adapter
 ```
 
 Implementation: `backend/app/runtime/pipeline/tool_step.py`
@@ -81,12 +79,9 @@ Pipeline lifecycle is **unchanged**:
 
 ```text
 before_hooks
-    â†“
-execute_step
-    â†“
-after_hooks
-    â†“
-return result â†’ AgentExecutor â†’ ExecutionResult
+    â†?execute_step
+    â†?after_hooks
+    â†?return result â†?AgentExecutor â†?ExecutionResult
 ```
 
 Hook order must not be modified to accommodate tools. Tool execution happens **inside** `execute_step` only.
@@ -131,7 +126,7 @@ Existing unit tests, API tests, and memory round-trip tests remain valid.
 
 ## 8. Phase 8.5 Preparation
 
-Next: Tool Registry lifecycle â€” register definitions + handlers at service bootstrap, resolve tool by name in pipeline.
+Next: Tool Registry lifecycle â€?register definitions + handlers at service bootstrap, resolve tool by name in pipeline.
 
 ---
 

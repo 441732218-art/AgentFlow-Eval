@@ -8,20 +8,13 @@ Phase 10.6 adds enterprise execution control on top of the Phase 10.5 execution 
 
 ```
 ExecutionPlan
-        â†“
-SequentialExecutionStrategy
-        â†“
-ExecutionController.execute_step()
-        â†“
-RetryPolicy (per-step attempts)
-        â†“
-StepExecutor.execute_step()
-        â†“
-FailurePolicy (plan-level STOP / CONTINUE)
-        â†“
-StepControlOutcome
-        â†“
-ExecutionStrategyResult
+        â†?SequentialExecutionStrategy
+        â†?ExecutionController.execute_step()
+        â†?RetryPolicy (per-step attempts)
+        â†?StepExecutor.execute_step()
+        â†?FailurePolicy (plan-level STOP / CONTINUE)
+        â†?StepControlOutcome
+        â†?ExecutionStrategyResult
 ```
 
 ## Components
@@ -37,8 +30,8 @@ ExecutionStrategyResult
 
 ## Default Behavior
 
-- **Retry:** `max_attempts=1` â€” single attempt, no retry (backward compatible with Phase 10.5)
-- **Failure:** `STOP` â€” halt plan execution on first step failure
+- **Retry:** `max_attempts=1` â€?single attempt, no retry (backward compatible with Phase 10.5)
+- **Failure:** `STOP` â€?halt plan execution on first step failure
 
 ## Future Extensions
 

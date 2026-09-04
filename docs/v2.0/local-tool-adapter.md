@@ -1,7 +1,7 @@
 # Local Tool Adapter (Phase 8.2.2)
 
 **Project:** AgentFlow Intelligence v2.0  
-**Phase:** 8.2.2 â€” Local Tool Executor Adapter  
+**Phase:** 8.2.2 â€?Local Tool Executor Adapter  
 **Date:** 2026-08-31
 
 ---
@@ -42,10 +42,10 @@ Python callable
 
 **Validation:**
 
-- Empty name â†’ `ValueError`
-- Non-callable handler â†’ `TypeError`
-- Duplicate name â†’ `DuplicateLocalHandlerError`
-- Missing handler at execution â†’ `MissingLocalHandlerError`
+- Empty name â†?`ValueError`
+- Non-callable handler â†?`TypeError`
+- Duplicate name â†?`DuplicateLocalHandlerError`
+- Missing handler at execution â†?`MissingLocalHandlerError`
 
 The handler registry is **separate** from `ToolRegistry`. Capability metadata and executable handlers are registered independently.
 
@@ -83,7 +83,7 @@ It does **not** store:
 Execution is resolved at runtime:
 
 ```text
-definition.name  â†’  LocalHandlerRegistry.get(name)  â†’  handler(**arguments)
+definition.name  â†? LocalHandlerRegistry.get(name)  â†? handler(**arguments)
 ```
 
 ---
@@ -108,7 +108,7 @@ register_legacy_tool_handler(handler_registry, tool_instance)
 LocalHandlerRegistry["tool.name"] = tool.execute
    |
    v
-LocalToolExecutorAdapter â†’ handler(**arguments)
+LocalToolExecutorAdapter â†?handler(**arguments)
 ```
 
 **Rule:** `ToolExecutionEngine` never calls `Tool.execute()` directly. Legacy tools work when both:
@@ -131,7 +131,7 @@ engine = create_default_tool_execution_engine(handler_registry)
 Registers:
 
 ```text
-"local" â†’ LocalToolExecutorAdapter
+"local" â†?LocalToolExecutorAdapter
 ```
 
 Does **not** register remote or future adapters.
@@ -142,7 +142,7 @@ Does **not** register remote or future adapters.
 
 | Phase | Deliverable |
 |-------|-------------|
-| 8.2.2 âœ… | `LocalToolExecutorAdapter` + `LocalHandlerRegistry` |
+| 8.2.2 âœ?| `LocalToolExecutorAdapter` + `LocalHandlerRegistry` |
 | 8.2.3 / 8.3 | `RemoteToolExecutorAdapter` + Tool Provider Protocol |
 
 **Remote path (future):**

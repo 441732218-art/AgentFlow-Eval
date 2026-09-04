@@ -2,7 +2,7 @@
 
 ## Overview
 
-Phase 9.1 adds **`trade_provider`** ‚Äî a template for future trade/export
+Phase 9.1 adds **`trade_provider`** ‚Ä?a template for future trade/export
 customer-acquisition systems to register tools with Runtime **without modifying
 Runtime Core**.
 
@@ -15,11 +15,11 @@ database, or real external integration.
 
 | Concern | Application Layer | Runtime Core |
 |---------|-------------------|--------------|
-| Business tool names (`trade.*`) | ‚úÖ | ‚ùå |
-| Domain input schemas | ‚úÖ | ‚ùå |
-| Mock / real business logic | ‚úÖ | ‚ùå |
-| Tool execution routing | ‚ùå | ‚úÖ |
-| Adapter protocol | ‚ùå | ‚úÖ |
+| Business tool names (`trade.*`) | ‚ú?| ‚ù?|
+| Domain input schemas | ‚ú?| ‚ù?|
+| Mock / real business logic | ‚ú?| ‚ù?|
+| Tool execution routing | ‚ù?| ‚ú?|
+| Adapter protocol | ‚ù?| ‚ú?|
 
 Runtime answers: *how* tools execute. Applications answer: *what* tools exist
 and *what* they mean for a business domain.
@@ -57,9 +57,9 @@ Registered via `DEFAULT_APPLICATION_PROVIDERS` in
 
 | Name | executor_type | Handler | Purpose |
 |------|---------------|---------|---------|
-| `trade.search_customer` | remote | ‚Äî (definition only) | Customer search contract |
+| `trade.search_customer` | remote | ‚Ä?(definition only) | Customer search contract |
 | `trade.generate_email` | local | mock draft generator | Email draft contract |
-| `trade.create_followup` | remote | ‚Äî (definition only) | Follow-up task contract |
+| `trade.create_followup` | remote | ‚Ä?(definition only) | Follow-up task contract |
 
 Remote tools register **definitions only**. Remote client wiring is a later
 phase (HTTP provider + credentials).
@@ -93,11 +93,11 @@ applications/
 
 ```
 TradeApplicationProvider.register_tools()
-    ‚Üí bootstrap_applications()
-    ‚Üí ToolRegistry / LocalHandlerRegistry
-    ‚Üí ToolExecutionEngine
-    ‚Üí LocalToolExecutorAdapter (trade.generate_email)
-    ‚Üí RemoteToolExecutorAdapter (remote definitions, when client wired)
+    ‚Ü?bootstrap_applications()
+    ‚Ü?ToolRegistry / LocalHandlerRegistry
+    ‚Ü?ToolExecutionEngine
+    ‚Ü?LocalToolExecutorAdapter (trade.generate_email)
+    ‚Ü?RemoteToolExecutorAdapter (remote definitions, when client wired)
 ```
 
 ---

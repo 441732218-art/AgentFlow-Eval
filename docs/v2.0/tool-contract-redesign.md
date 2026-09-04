@@ -1,7 +1,7 @@
 # Tool Contract Redesign (Phase 8.1)
 
 **Project:** AgentFlow Intelligence v2.0  
-**Phase:** 8.1 â€” Tool Contract Redesign  
+**Phase:** 8.1 â€?Tool Contract Redesign  
 **Date:** 2026-08-31
 
 ---
@@ -39,7 +39,7 @@ Tool Provider / Executor Adapter (Phase 8.2+)
 Remote Service API
 ```
 
-Phase 8.1 fixes the **contract layer only** â€” no execution, no HTTP, no CRM.
+Phase 8.1 fixes the **contract layer only** â€?no execution, no HTTP, no CRM.
 
 ---
 
@@ -59,11 +59,11 @@ class ToolDefinition:
 
 **Validation (`validate_tool_definition`):**
 
-- `name` â€” non-empty string
-- `description` â€” non-empty string
-- `executor_type` â€” must be `local`, `remote`, or `future_provider`
-- `input_schema` â€” must be `dict`
-- `metadata` â€” must be `dict`
+- `name` â€?non-empty string
+- `description` â€?non-empty string
+- `executor_type` â€?must be `local`, `remote`, or `future_provider`
+- `input_schema` â€?must be `dict`
+- `metadata` â€?must be `dict`
 
 **Design principle:** Registration represents **capability metadata**, not executable implementation.
 
@@ -75,9 +75,9 @@ class ToolDefinition:
 
 | Method | Input | Output | Notes |
 |--------|-------|--------|-------|
-| `register(tool)` | `ToolDefinition` (preferred) or legacy `Tool` | None | Coerces legacy â†’ `ToolDefinition` |
+| `register(tool)` | `ToolDefinition` (preferred) or legacy `Tool` | None | Coerces legacy â†?`ToolDefinition` |
 | `get(name)` | `str` | `ToolDefinition \| None` | Full definition including schema/metadata |
-| `list_tools()` | â€” | `[{name, description, executor_type}]` | **Public metadata only** |
+| `list_tools()` | â€?| `[{name, description, executor_type}]` | **Public metadata only** |
 
 **`list_tools()` never exposes:**
 
@@ -86,13 +86,13 @@ class ToolDefinition:
 - `metadata`
 - runtime objects
 
-**Internal storage:** `dict[str, ToolDefinition]` â€” definitions only.
+**Internal storage:** `dict[str, ToolDefinition]` â€?definitions only.
 
 ---
 
 ## 4. Migration Strategy
 
-### Compatibility Decision: **Option A â€” Temporarily Compatible**
+### Compatibility Decision: **Option A â€?Temporarily Compatible**
 
 | Option | Decision | Rationale |
 |--------|----------|-----------|
@@ -123,14 +123,14 @@ registry.register(EchoTool())  # warns DeprecationWarning
 
 Phase 8.2 will add (not in 8.1):
 
-1. **ToolExecutorAdapter** â€” routes by `executor_type`:
-   - `local` â†’ in-process handler
-   - `remote` â†’ HTTP/gRPC client stub
-   - `future_provider` â†’ plugin provider slot
+1. **ToolExecutorAdapter** â€?routes by `executor_type`:
+   - `local` â†?in-process handler
+   - `remote` â†?HTTP/gRPC client stub
+   - `future_provider` â†?plugin provider slot
 
-2. **Pipeline integration** â€” `ExecutionPipeline._execute_step` resolves tool via registry + adapter (no API change).
+2. **Pipeline integration** â€?`ExecutionPipeline._execute_step` resolves tool via registry + adapter (no API change).
 
-3. **Trace events** â€” optional `tool.invoked` in `runtime_trace` (not HTTP DTO).
+3. **Trace events** â€?optional `tool.invoked` in `runtime_trace` (not HTTP DTO).
 
 **Frozen boundaries (unchanged from Phase 7.3):**
 

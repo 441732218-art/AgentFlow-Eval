@@ -1,7 +1,7 @@
 # Remote Tool Provider Protocol (Phase 8.2.3)
 
 **Project:** AgentFlow Intelligence v2.0  
-**Phase:** 8.2.3 â€” Remote Tool Executor Adapter + Tool Provider Protocol Skeleton  
+**Phase:** 8.2.3 â€?Remote Tool Executor Adapter + Tool Provider Protocol Skeleton  
 **Date:** 2026-08-31
 
 ---
@@ -43,7 +43,7 @@ External systems own **business logic, authentication, and vendor APIs**.
 | Execution lifecycle routing | `ToolExecutionEngine` |
 | Provider request/response contract | `ToolProviderProtocol` |
 | Response validation | `RemoteToolExecutorAdapter` |
-| External error â†’ Runtime error mapping | `errors.py` |
+| External error â†?Runtime error mapping | `errors.py` |
 
 ### Provider (External)
 
@@ -141,8 +141,8 @@ engine = create_tool_execution_engine(remote_client=client)
 Registers:
 
 ```text
-"local"  â†’ LocalToolExecutorAdapter
-"remote" â†’ RemoteToolExecutorAdapter
+"local"  â†?LocalToolExecutorAdapter
+"remote" â†?RemoteToolExecutorAdapter
 ```
 
 `create_default_tool_execution_engine()` remains **local-only** for backward compatibility.

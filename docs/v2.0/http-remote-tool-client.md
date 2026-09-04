@@ -5,9 +5,9 @@
 ```
 ToolDefinition (metadata.endpoint)
         |
-RemoteToolExecutorAdapter  ‚Üê RemoteExecutionPolicy (retry / timeout guard)
+RemoteToolExecutorAdapter  ‚Ü?RemoteExecutionPolicy (retry / timeout guard)
         |
-HttpRemoteToolClient       ‚Üê single HTTP round-trip per send()
+HttpRemoteToolClient       ‚Ü?single HTTP round-trip per send()
         |
 External Provider (HTTP POST)
 ```
@@ -53,7 +53,7 @@ Transport is Runtime responsibility; business logic stays external.
 }
 ```
 
-‚Üí `HttpRemoteToolClient` raises `RemoteProviderError`.
+‚Ü?`HttpRemoteToolClient` raises `RemoteProviderError`.
 
 ---
 
@@ -145,18 +145,18 @@ engine = create_tool_execution_engine(remote_client=http_client)
 
 ```
 trade.search_customer
-    ‚Üí RemoteToolExecutorAdapter
-    ‚Üí HttpRemoteToolClient
-    ‚Üí External Trade Service HTTP endpoint
+    ‚Ü?RemoteToolExecutorAdapter
+    ‚Ü?HttpRemoteToolClient
+    ‚Ü?External Trade Service HTTP endpoint
 ```
 
 Requires `metadata.endpoint` on the tool definition and a production
-`CredentialResolver` ‚Äî not part of Phase 9.2.
+`CredentialResolver` ‚Ä?not part of Phase 9.2.
 
 ---
 
 ## Related Docs
 
-- `production-remote-tool-client.md` ‚Äî Phase 8.6 initial implementation notes
-- `remote-tool-provider-protocol.md` ‚Äî request/response dataclasses
-- `trade-application-provider.md` ‚Äî Application layer template
+- `production-remote-tool-client.md` ‚Ä?Phase 8.6 initial implementation notes
+- `remote-tool-provider-protocol.md` ‚Ä?request/response dataclasses
+- `trade-application-provider.md` ‚Ä?Application layer template

@@ -22,9 +22,9 @@ Payload is JSON-serializable and excludes sensitive field names (inherited from 
 
 ## AuditEventStore
 
-- `append(record)` â€” store one audit record
-- `query(execution_id=None, tenant_id=None)` â€” filter records
-- `clear()` â€” reset in-memory store
+- `append(record)` â€?store one audit record
+- `query(execution_id=None, tenant_id=None)` â€?filter records
+- `clear()` â€?reset in-memory store
 
 ## Publisher Integration
 
@@ -38,9 +38,9 @@ Optional `audit_store` field (default `None`) enables governance queries from th
 
 ```
 record_runtime_event()
-    â†’ event_publisher.publish(RuntimeEvent)
-        â†’ InMemoryEventPublisher._events
-        â†’ audit_store.append(AuditRecord)   (optional)
+    â†?event_publisher.publish(RuntimeEvent)
+        â†?InMemoryEventPublisher._events
+        â†?audit_store.append(AuditRecord)   (optional)
 ```
 
 ## Boundary

@@ -31,7 +31,7 @@ No Kafka, Redis, database, or third-party observability SDK is introduced in thi
 
 1. Records to `observation_collector` when present
 2. Publishes via `event_publisher` when present
-3. Swallows collector/publisher failures â€” execution is never interrupted
+3. Swallows collector/publisher failures â€?execution is never interrupted
 
 `ExecutionContext.to_remote_payload()` does not expose `event_publisher` or internal collectors.
 

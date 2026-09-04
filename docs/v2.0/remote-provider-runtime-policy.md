@@ -1,7 +1,7 @@
 # Remote Provider Runtime Policy (Phase 8.3)
 
 **Project:** AgentFlow Intelligence v2.0  
-**Phase:** 8.3 â€” Production Remote Provider Boundary  
+**Phase:** 8.3 â€?Production Remote Provider Boundary  
 **Date:** 2026-08-31
 
 ---
@@ -70,7 +70,7 @@ ToolProviderProtocol (external)
 **Retry flow:**
 
 ```text
-attempt 1 â†’ failure â†’ retryable? â†’ attempt 2 â†’ ...
+attempt 1 â†?failure â†?retryable? â†?attempt 2 â†?...
                               â””â†’ raise mapped ToolExecutionError
 ```
 

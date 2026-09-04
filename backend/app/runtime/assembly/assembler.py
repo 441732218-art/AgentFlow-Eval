@@ -90,6 +90,7 @@ class RuntimeAssembler:
         )
         runtime_hook_manager = None
         governance_hook_adapter = None
+        tool_governance_adapter = None
         if (
             profile.enable_governance_hook_adapter
             and governance_lifecycle_manager is not None
@@ -98,6 +99,20 @@ class RuntimeAssembler:
                 self._build_governance_hook_stack(
                     governance_lifecycle_manager,
                     evidence_collector=evidence_collector,
+                )
+            )
+        if (
+            profile.enable_tool_governance_hook
+            and governance_lifecycle_manager is not None
+            and permission_evaluator is not None
+        ):
+            runtime_hook_manager, tool_governance_adapter = (
+                self._build_tool_governance_hook_stack(
+                    governance_lifecycle_manager,
+                    permission_evaluator,
+                    runtime_hook_manager=runtime_hook_manager,
+                    evidence_collector=evidence_collector,
+                    audit_recorder=audit_recorder,
                 )
             )
 
@@ -141,6 +156,7 @@ class RuntimeAssembler:
             evidence_collector=evidence_collector,
             governance_lifecycle_manager=governance_lifecycle_manager,
             governance_hook_adapter=governance_hook_adapter,
+            tool_governance_adapter=tool_governance_adapter,
             runtime_hook_manager=runtime_hook_manager,
         )
 
@@ -160,6 +176,29 @@ class RuntimeAssembler:
         )
         runtime_hook_manager.register_hook(governance_hook_adapter)
         return runtime_hook_manager, governance_hook_adapter
+
+    @staticmethod
+    def _build_tool_governance_hook_stack(
+        governance_lifecycle_manager,
+        permission_evaluator,
+        *,
+        runtime_hook_manager=None,
+        evidence_collector=None,
+        audit_recorder=None,
+    ):
+        from app.runtime.governance.tool_hooks.adapter import ToolLifecycleGovernanceAdapter
+        from app.runtime.hooks.memory_manager import InMemoryRuntimeHookManager
+
+        if runtime_hook_manager is None:
+            runtime_hook_manager = InMemoryRuntimeHookManager()
+        tool_governance_adapter = ToolLifecycleGovernanceAdapter(
+            governance_lifecycle_manager,
+            permission_evaluator,
+            evidence_collector=evidence_collector,
+            audit_recorder=audit_recorder,
+        )
+        runtime_hook_manager.register_hook(tool_governance_adapter)
+        return runtime_hook_manager, tool_governance_adapter
 
     @staticmethod
     def _build_permission_evaluator(

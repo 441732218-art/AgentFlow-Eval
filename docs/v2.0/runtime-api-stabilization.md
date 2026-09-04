@@ -1,7 +1,7 @@
 # Runtime API Stabilization Review
 
 **Project:** AgentFlow Intelligence v2.0  
-**Phase:** 7.3 â€” Runtime API Stabilization & Boundary Verification  
+**Phase:** 7.3 â€?Runtime API Stabilization & Boundary Verification  
 **Date:** 2026-08-31  
 **Type:** Read-only audit + stabilization tests (no business code changes)
 
@@ -24,15 +24,15 @@ runtime.py (HTTP Adapter)
         |
         v
 RuntimeService (singleton via get_runtime_service)
-  - execute(agent_id, task, context?) â†’ ExecutionResponseDTO
-  - get_execution(execution_id) â†’ ExecutionRecord | None
+  - execute(agent_id, task, context?) â†?ExecutionResponseDTO
+  - get_execution(execution_id) â†?ExecutionRecord | None
         |
         v
 AgentExecutor.execute()
         |
         v
 ExecutionPipeline.run()
-  - TraceHook (runtime_trace events â†’ context.metadata)
+  - TraceHook (runtime_trace events â†?context.metadata)
   - MemoryHook (optional, memory_key session memory)
   - _execute_step (placeholder)
         |
@@ -56,9 +56,9 @@ app.core.runtime (AgentRegistry + AgentRuntime)
 
 ## 2. Stable Contract Decision
 
-### 2.1 Part 1 â€” API Contract Audit
+### 2.1 Part 1 â€?API Contract Audit
 
-#### POST `/api/v1/runtime/execute` â€” Execute Response
+#### POST `/api/v1/runtime/execute` â€?Execute Response
 
 **Verified fields (exact):**
 
@@ -82,7 +82,7 @@ app.core.runtime (AgentRegistry + AgentRuntime)
 
 **Implementation:** `_execution_response_to_dict()` maps only four DTO fields (`runtime.py:86-92`).
 
-#### GET `/api/v1/runtime/executions/{execution_id}` â€” Query Response
+#### GET `/api/v1/runtime/executions/{execution_id}` â€?Query Response
 
 **Verified fields (exact):**
 
@@ -99,7 +99,7 @@ app.core.runtime (AgentRegistry + AgentRuntime)
 
 | Internal model | Exposed raw? |
 |----------------|--------------|
-| `ExecutionRecord` | NO â€” mapped via `execution_record_to_query_dto()` |
+| `ExecutionRecord` | NO â€?mapped via `execution_record_to_query_dto()` |
 | `RuntimeContext` | NO |
 | `TraceEvent` / `runtime_trace.events` | NO |
 | `MemoryProvider` data | NO |
@@ -114,21 +114,21 @@ app.core.runtime (AgentRegistry + AgentRuntime)
 | **ExecutionResponseDTO** | **YES** | Matches execute response exactly |
 | **ExecutionQueryDTO** | **YES** | Matches query response (timestamps as ISO strings at HTTP layer) |
 
-### 2.3 Part 2 â€” Runtime Boundary Audit
+### 2.3 Part 2 â€?Runtime Boundary Audit
 
 | Path | Exists? | Location | Risk |
 |------|---------|----------|------|
-| `endpoint â†’ RuntimeService` | **YES** | `runtime_execute`, `runtime_get_execution` | **Expected** |
-| `endpoint â†’ AgentExecutor` | **NO** | â€” | None |
-| `endpoint â†’ ExecutionStore` | **NO** | â€” | None |
-| `endpoint â†’ MemoryProvider` | **NO** | â€” | None |
-| `endpoint â†’ TraceHook` | **NO** | â€” | None |
-| `RuntimeService â†’ AgentExecutor` | YES | service layer | Expected |
-| `RuntimeService â†’ ExecutionStore` | YES | service layer | Expected |
+| `endpoint â†?RuntimeService` | **YES** | `runtime_execute`, `runtime_get_execution` | **Expected** |
+| `endpoint â†?AgentExecutor` | **NO** | â€?| None |
+| `endpoint â†?ExecutionStore` | **NO** | â€?| None |
+| `endpoint â†?MemoryProvider` | **NO** | â€?| None |
+| `endpoint â†?TraceHook` | **NO** | â€?| None |
+| `RuntimeService â†?AgentExecutor` | YES | service layer | Expected |
+| `RuntimeService â†?ExecutionStore` | YES | service layer | Expected |
 
 **HTTP adapter imports:** `RuntimeService`, `ExecutionResponseDTO`, `execution_record_to_query_dto`, `RuntimeContext` (request mapping only). No executor/store/memory imports in endpoint module.
 
-### 2.4 Part 3 â€” Feature Flag Audit
+### 2.4 Part 3 â€?Feature Flag Audit
 
 **Config:** `ENABLE_RUNTIME_V2: bool = False` (default)
 
@@ -139,7 +139,7 @@ app.core.runtime (AgentRegistry + AgentRuntime)
 
 **Legacy `app.core.runtime` routes:** Still present at `/runtime/agents/*`; same flag gate; **not replaced, not modified** in Phase 7.2/7.3.
 
-### 2.5 Part 4 â€” ExecutionStore Boundary Audit
+### 2.5 Part 4 â€?ExecutionStore Boundary Audit
 
 **ExecutionStore owns:**
 
@@ -158,14 +158,14 @@ app.core.runtime (AgentRegistry + AgentRuntime)
 **Backend swap path (future):**
 
 ```text
-InMemoryExecutionStore â†’ RedisExecutionStore â†’ DatabaseExecutionStore
+InMemoryExecutionStore â†?RedisExecutionStore â†?DatabaseExecutionStore
 ```
 
 **Requires changes:** ExecutionStore implementation only (+ DI wiring in `get_runtime_service` factory, future phase).
 
 **Does NOT require changes:** `RuntimeService` public methods, `ExecutionResponseDTO`, `ExecutionQueryDTO`, HTTP response shapes.
 
-### 2.6 Part 5 â€” Memory / Trace Isolation Verification
+### 2.6 Part 5 â€?Memory / Trace Isolation Verification
 
 | System | Owns | Does NOT own |
 |--------|------|--------------|
@@ -181,19 +181,19 @@ InMemoryExecutionStore â†’ RedisExecutionStore â†’ DatabaseExecutionStore
 
 ### Can enter Phase 8 (Tool Provider Protocol)?
 
-**YES â€” with constraints**
+**YES â€?with constraints**
 
 | Question | Answer |
 |----------|--------|
-| Does current Tool affect API? | **NO** â€” DTOs and HTTP responses have zero tool fields |
-| Must Runtime API change for Phase 8? | **NO** â€” tools integrate inside `ExecutionPipeline._execute_step` and evolution layer |
-| Tool HTTP API needed in Phase 8? | **NO** â€” defer `/runtime/tools*` until protocol frozen |
+| Does current Tool affect API? | **NO** â€?DTOs and HTTP responses have zero tool fields |
+| Must Runtime API change for Phase 8? | **NO** â€?tools integrate inside `ExecutionPipeline._execute_step` and evolution layer |
+| Tool HTTP API needed in Phase 8? | **NO** â€?defer `/runtime/tools*` until protocol frozen |
 
 **Phase 8 work stays inside:**
 
 - `app.runtime.tools` (Tool Provider Protocol)
 - `ExecutionPipeline._execute_step` (tool invocation)
-- Optional trace events (`tool.invoked`) in `runtime_trace` â€” **not** in HTTP DTO
+- Optional trace events (`tool.invoked`) in `runtime_trace` â€?**not** in HTTP DTO
 
 ---
 
@@ -205,7 +205,7 @@ InMemoryExecutionStore â†’ RedisExecutionStore â†’ DatabaseExecutionStore
 | **Feature Flag shared** | Low | Single `ENABLE_RUNTIME_V2` gates legacy + new routes; intentional for MVP |
 | **Legacy Runtime coexistence** | Medium | `/agents/{id}/run` vs `/execute` may confuse clients; document canonical path |
 | **Trace persistence** | Medium | Trace events not queryable via GET execution; future trace endpoint needed |
-| **Tool integration** | Low (if Phase 8 respects boundaries) | Risk only if tool fields leak into DTO â€” currently clean |
+| **Tool integration** | Low (if Phase 8 respects boundaries) | Risk only if tool fields leak into DTO â€?currently clean |
 | **Singleton RuntimeService** | Low | Shared store across requests in one process; correct for in-memory MVP |
 | **output: Any** | Low | Opaque output may embed arbitrary JSON from future tools; contract is field name not schema |
 
@@ -219,7 +219,7 @@ InMemoryExecutionStore â†’ RedisExecutionStore â†’ DatabaseExecutionStore
 |------|---------|
 | `test_runtime_api_execute_response_contract_snapshot` | Execute response exact 4-key contract |
 | `test_execution_query_isolation_from_trace_and_memory` | Query exact 6-key contract; no trace/memory |
-| `test_feature_flag_isolation_blocks_execute_and_query_without_side_effects` | Flag OFF â†’ 503 both routes; empty store |
+| `test_feature_flag_isolation_blocks_execute_and_query_without_side_effects` | Flag OFF â†?503 both routes; empty store |
 | `test_runtime_service_boundary_regression_http_handlers_use_service_only` | Handlers use service only; no core imports |
 
 ---
@@ -227,9 +227,9 @@ InMemoryExecutionStore â†’ RedisExecutionStore â†’ DatabaseExecutionStore
 ## 6. Test Verification (read-only run)
 
 ```text
-pytest backend/tests/unit/runtime/  â†’ 45 passed
-pytest backend/tests/api/runtime/   â†’ 10 passed (5 Phase 7.2 + 4 Phase 7.3 + shared)
-Total runtime-related:               â†’ 50 passed, 0 failed
+pytest backend/tests/unit/runtime/  â†?45 passed
+pytest backend/tests/api/runtime/   â†?10 passed (5 Phase 7.2 + 4 Phase 7.3 + shared)
+Total runtime-related:               â†?50 passed, 0 failed
 ```
 
 ---

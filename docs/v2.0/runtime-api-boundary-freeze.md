@@ -1,7 +1,7 @@
 # Runtime API Boundary Freeze Review
 
 **Project:** AgentFlow Intelligence v2.0  
-**Phase:** 7.1.8 ‚Äî API Boundary Freeze Review  
+**Phase:** 7.1.8 ‚Ä?API Boundary Freeze Review  
 **Date:** 2026-08-31  
 **Type:** Read-only boundary freeze (no code changes)  
 **Prerequisites:** Phase 7.1, Phase 7.1.5, Phase 6.8 Boundary Decision
@@ -12,7 +12,7 @@
 
 **Question:** Is Runtime Core ready to safely expose HTTP API boundaries?
 
-**Answer:** **YES ‚Äî with documented guardrails.** The in-process stack (`RuntimeService` ‚Üí `AgentExecutor` ‚Üí `ExecutionPipeline` ‚Üí Hooks ‚Üí `ExecutionStore`) is stable (45 unit tests passing). HTTP exposure has not started; Phase 7.2 must implement adapters that honor the frozen boundaries below. Legacy `app.core.runtime` HTTP routes coexist and must not be conflated with new routes.
+**Answer:** **YES ‚Ä?with documented guardrails.** The in-process stack (`RuntimeService` ‚Ü?`AgentExecutor` ‚Ü?`ExecutionPipeline` ‚Ü?Hooks ‚Ü?`ExecutionStore`) is stable (45 unit tests passing). HTTP exposure has not started; Phase 7.2 must implement adapters that honor the frozen boundaries below. Legacy `app.core.runtime` HTTP routes coexist and must not be conflated with new routes.
 
 ---
 
@@ -30,13 +30,13 @@ RuntimeService.execute(agent_id, task, context?)
 AgentExecutor.execute()
         |
         v
-ExecutionPipeline ‚Üí Hooks ‚Üí ExecutionResult
+ExecutionPipeline ‚Ü?Hooks ‚Ü?ExecutionResult
         |
         v
 ExecutionStore.save(ExecutionRecord)
         |
         v
-ExecutionResponseDTO  ‚Üí  HTTP response
+ExecutionResponseDTO  ‚Ü? HTTP response
 ```
 
 ### 1.2 Current state
@@ -56,7 +56,7 @@ ExecutionResponseDTO  ‚Üí  HTTP response
 POST /api/v1/runtime/agents/{id}/run
         |
         v
-app.core.runtime.AgentRuntime.run()   ‚Üê legacy Sprint 1 MVP
+app.core.runtime.AgentRuntime.run()   ‚Ü?legacy Sprint 1 MVP
 ```
 
 This path **does not** use `RuntimeService`. It is gated by `ENABLE_RUNTIME_V2` but targets the wrong stack for Phase 7.2 goals.
@@ -65,17 +65,17 @@ This path **does not** use `RuntimeService`. It is gated by `ENABLE_RUNTIME_V2` 
 
 | Question | Answer |
 |----------|--------|
-| **Does library layer satisfy `router ‚Üí RuntimeService ‚Üí AgentExecutor`?** | **YES** ‚Äî service encapsulates executor + store |
-| **Is HTTP layer compliant today?** | **N/A** ‚Äî no Phase 7.2 routes exist yet |
-| **Risk if Phase 7.2 skips RuntimeService** | **HIGH** ‚Äî would bypass persistence, DTO mapping, future cross-cutting concerns |
+| **Does library layer satisfy `router ‚Ü?RuntimeService ‚Ü?AgentExecutor`?** | **YES** ‚Ä?service encapsulates executor + store |
+| **Is HTTP layer compliant today?** | **N/A** ‚Ä?no Phase 7.2 routes exist yet |
+| **Risk if Phase 7.2 skips RuntimeService** | **HIGH** ‚Ä?would bypass persistence, DTO mapping, future cross-cutting concerns |
 
 ### 1.5 Frozen rule for Phase 7.2
 
 ```text
-ALLOW:   router.handler ‚Üí RuntimeService.execute() / get_execution()
-FORBID:  router.handler ‚Üí AgentExecutor.execute()
-FORBID:  router.handler ‚Üí ExecutionStore directly
-FORBID:  router.handler ‚Üí app.core.runtime (for new execute/query routes)
+ALLOW:   router.handler ‚Ü?RuntimeService.execute() / get_execution()
+FORBID:  router.handler ‚Ü?AgentExecutor.execute()
+FORBID:  router.handler ‚Ü?ExecutionStore directly
+FORBID:  router.handler ‚Ü?app.core.runtime (for new execute/query routes)
 ```
 
 ---
@@ -99,9 +99,9 @@ class ExecutionResponseDTO:
 
 | Model | Layer | HTTP exposure |
 |-------|-------|---------------|
-| `ExecutionResult` | Executor internal | **FORBIDDEN** ‚Äî executor return type only |
-| `ExecutionRecord` | ExecutionStore persistence | **FORBIDDEN direct** ‚Äî map via query DTO |
-| `ExecutionResponseDTO` | Service ‚Üí API (execute) | **ALLOWED** for `POST /runtime/execute` |
+| `ExecutionResult` | Executor internal | **FORBIDDEN** ‚Ä?executor return type only |
+| `ExecutionRecord` | ExecutionStore persistence | **FORBIDDEN direct** ‚Ä?map via query DTO |
+| `ExecutionResponseDTO` | Service ‚Ü?API (execute) | **ALLOWED** for `POST /runtime/execute` |
 
 ### 2.3 ExecutionResponse Contract
 
@@ -109,10 +109,10 @@ class ExecutionResponseDTO:
 
 **Reasons:**
 
-1. **No internal model leakage** ‚Äî DTO excludes `agent_id`, `trace_reference`, `created_at`, store internals.
-2. **ExecutionStore not API-locked** ‚Äî store can evolve (`ExecutionRecord` fields) if API uses adapter mapping, not raw record serialization.
-3. **No Tool coupling** ‚Äî DTO has zero tool name/metadata/execution fields; `RuntimeService` does not reference `ToolRegistry` in execute path.
-4. **Stable minimal surface** ‚Äî four fields sufficient for execute response; query endpoint needs separate DTO (see ¬ß3).
+1. **No internal model leakage** ‚Ä?DTO excludes `agent_id`, `trace_reference`, `created_at`, store internals.
+2. **ExecutionStore not API-locked** ‚Ä?store can evolve (`ExecutionRecord` fields) if API uses adapter mapping, not raw record serialization.
+3. **No Tool coupling** ‚Ä?DTO has zero tool name/metadata/execution fields; `RuntimeService` does not reference `ToolRegistry` in execute path.
+4. **Stable minimal surface** ‚Ä?four fields sufficient for execute response; query endpoint needs separate DTO (see ¬ß3).
 
 ### 2.4 Gap (design action, not blocker)
 
@@ -158,7 +158,7 @@ Do **not** return raw `ExecutionRecord` from HTTP handlers.
 | Boundary | Clear? | Notes |
 |----------|--------|-------|
 | ExecutionStore vs Trace | **YES** | `trace_reference = execution_id` only; events stay in context metadata during run, not copied to store |
-| ExecutionStore vs Memory | **YES** | Phase 7.1 removed `execution_id ‚Üí MemoryProvider` writes; Memory uses `memory_key` only |
+| ExecutionStore vs Memory | **YES** | Phase 7.1 removed `execution_id ‚Ü?MemoryProvider` writes; Memory uses `memory_key` only |
 | ExecutionStore vs Tool | **YES** | No tool data in `ExecutionRecord` |
 | Query API vs Trace | **NEEDS DISCIPLINE** | Phase 7.2 must not expose `runtime_trace.events` on GET execution |
 | Query API vs Memory | **NEEDS DISCIPLINE** | Phase 7.2 must not expose `memory_data` on GET execution |
@@ -180,7 +180,7 @@ Do **not** return raw `ExecutionRecord` from HTTP handlers.
 - `memory_data`
 - `tool_calls`
 - `knowledge results`
-- Full `ExecutionRecord.agent_id` (unless product explicitly requires ‚Äî default exclude)
+- Full `ExecutionRecord.agent_id` (unless product explicitly requires ‚Ä?default exclude)
 
 ### 3.4 Trace reference handling
 
@@ -209,8 +209,8 @@ ENABLE_RUNTIME_V2: bool = False
 **File:** `backend/app/api/v1/endpoints/runtime.py`
 
 - All legacy routes call `_runtime_disabled_response()`
-- When `ENABLE_RUNTIME_V2=False` ‚Üí HTTP 503 `{error: "runtime_disabled"}`
-- When `ENABLE_RUNTIME_V2=True` ‚Üí legacy agent registry/run endpoints active
+- When `ENABLE_RUNTIME_V2=False` ‚Ü?HTTP 503 `{error: "runtime_disabled"}`
+- When `ENABLE_RUNTIME_V2=True` ‚Ü?legacy agent registry/run endpoints active
 
 ### 4.3 v1 isolation verification
 
@@ -239,8 +239,8 @@ ENABLE_RUNTIME_V2: bool = False
 ### 4.5 Frozen rule
 
 ```text
-ENABLE_RUNTIME_V2=false  ‚Üí  ALL /api/v1/runtime/* including new execute/query ‚Üí 503
-ENABLE_RUNTIME_V2=true   ‚Üí  New + legacy runtime routes available (legacy marked deprecated)
+ENABLE_RUNTIME_V2=false  ‚Ü? ALL /api/v1/runtime/* including new execute/query ‚Ü?503
+ENABLE_RUNTIME_V2=true   ‚Ü? New + legacy runtime routes available (legacy marked deprecated)
 ```
 
 ---
@@ -259,11 +259,11 @@ ENABLE_RUNTIME_V2=true   ‚Üí  New + legacy runtime routes available (legacy mark
 **Approach:** Add new routes to existing `backend/app/api/v1/endpoints/runtime.py` (thin adapter file), wiring to `app.runtime.RuntimeService`.
 
 ```text
-/runtime/execute              ‚Üí RuntimeService.execute()     [NEW - app.runtime]
-/runtime/executions/{id}      ‚Üí RuntimeService.get_execution() [NEW - app.runtime]
+/runtime/execute              ‚Ü?RuntimeService.execute()     [NEW - app.runtime]
+/runtime/executions/{id}      ‚Ü?RuntimeService.get_execution() [NEW - app.runtime]
 
-/runtime/agents               ‚Üí AgentRegistry               [LEGACY - app.core.runtime]
-/runtime/agents/{id}/run      ‚Üí AgentRuntime.run()          [LEGACY - app.core.runtime]
+/runtime/agents               ‚Ü?AgentRegistry               [LEGACY - app.core.runtime]
+/runtime/agents/{id}/run      ‚Ü?AgentRuntime.run()          [LEGACY - app.core.runtime]
 ```
 
 ### 5.3 Constraints (frozen)
@@ -302,12 +302,12 @@ ENABLE_RUNTIME_V2=true   ‚Üí  New + legacy runtime routes available (legacy mark
 | `ExecutionResponseDTO` | None | **None** |
 | `RuntimeService.execute()` | None in execute path | **None** |
 | `ExecutionRecord` | None | **None** |
-| `AgentExecutor.tool_registry` | Stored, **not invoked** | **Low** ‚Äî constructor slot only; API must not expose registry injection over HTTP in Phase 7.2 |
+| `AgentExecutor.tool_registry` | Stored, **not invoked** | **Low** ‚Ä?constructor slot only; API must not expose registry injection over HTTP in Phase 7.2 |
 | `ExecutionPipeline._execute_step` | Placeholder, no tools | **None today** |
 
 ### 6.3 Tool Contract Isolation verdict
 
-**PASS** ‚Äî Phase 7.2 DTO/Service layer is Tool-free. Phase 7.2 implementation must not add tool routes or tool fields to response schemas.
+**PASS** ‚Ä?Phase 7.2 DTO/Service layer is Tool-free. Phase 7.2 implementation must not add tool routes or tool fields to response schemas.
 
 ---
 
@@ -317,7 +317,7 @@ ENABLE_RUNTIME_V2=true   ‚Üí  New + legacy runtime routes available (legacy mark
 
 ```text
 pytest backend/tests/unit/runtime/
-Result: 45 passed, 0 failed, 1 warning (structlog ‚Äî non-blocking)
+Result: 45 passed, 0 failed, 1 warning (structlog ‚Ä?non-blocking)
 ```
 
 ### 7.2 Proceed Phase 7.2
@@ -326,23 +326,23 @@ Result: 45 passed, 0 failed, 1 warning (structlog ‚Äî non-blocking)
 
 **Reason:**
 
-1. **RuntimeService** is the correct and implemented API boundary ‚Äî executor + store encapsulated.
+1. **RuntimeService** is the correct and implemented API boundary ‚Ä?executor + store encapsulated.
 2. **ExecutionResponseDTO** is a clean, Tool-free execute contract.
 3. **Memory / Execution / Trace** boundaries are separated and tested (including round-trip and failure paths in Phase 7.1.5).
 4. **Feature flag** pattern exists; new routes must reuse it.
 5. **Dual runtime** strategy is documented; legacy remains untouched.
-6. **45/45** runtime unit tests pass ‚Äî core is stable.
+6. **45/45** runtime unit tests pass ‚Ä?core is stable.
 
 ### 7.3 Required changes before Phase 7.2 (implementation checklist)
 
 These are **Phase 7.2 tasks**, not blockers to starting Phase 7.2:
 
-1. **Add HTTP adapter routes** in `endpoints/runtime.py`: `POST /execute`, `GET /executions/{execution_id}` ‚Üí `RuntimeService` only.
+1. **Add HTTP adapter routes** in `endpoints/runtime.py`: `POST /execute`, `GET /executions/{execution_id}` ‚Ü?`RuntimeService` only.
 2. **Define `ExecutionQueryDTO`** in API adapter layer; map from `ExecutionRecord` without exposing trace events or memory.
 3. **Apply `_runtime_disabled_response()`** to all new routes; keep `ENABLE_RUNTIME_V2=False` default.
-4. **Add API integration tests** (Phase 7.2) ‚Äî unit tests alone do not cover HTTP wiring.
+4. **Add API integration tests** (Phase 7.2) ‚Ä?unit tests alone do not cover HTTP wiring.
 5. **OpenAPI deprecation markers** on legacy `/agents/*` routes.
-6. **Do not add Tool HTTP endpoints** ‚Äî defer to Phase 8 (Tool Provider Protocol).
+6. **Do not add Tool HTTP endpoints** ‚Ä?defer to Phase 8 (Tool Provider Protocol).
 
 ### 7.4 Out of scope for Phase 7.2 (frozen)
 
@@ -359,11 +359,11 @@ These are **Phase 7.2 tasks**, not blockers to starting Phase 7.2:
 
 | # | Frozen boundary | Phase 7.2 compliance test |
 |---|-----------------|---------------------------|
-| 1 | HTTP ‚Üí RuntimeService only | Code review: no `AgentExecutor` import in router |
+| 1 | HTTP ‚Ü?RuntimeService only | Code review: no `AgentExecutor` import in router |
 | 2 | Execute response = ExecutionResponseDTO | OpenAPI schema matches 4 fields |
-| 3 | Query response ‚â† raw ExecutionRecord | Adapter maps to ExecutionQueryDTO |
+| 3 | Query response ‚â?raw ExecutionRecord | Adapter maps to ExecutionQueryDTO |
 | 4 | GET excludes trace events / memory | Response body inspection |
-| 5 | ENABLE_RUNTIME_V2 gates all /runtime/* | Test with flag false ‚Üí 503 |
+| 5 | ENABLE_RUNTIME_V2 gates all /runtime/* | Test with flag false ‚Ü?503 |
 | 6 | No Tool routes | Route list audit |
 | 7 | Legacy routes unchanged | Diff excludes `app/core/runtime` |
 

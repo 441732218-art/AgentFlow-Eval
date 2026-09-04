@@ -31,9 +31,9 @@ InMemoryPolicyEngine(blocked_tools=["dangerous.tool"])
 
 ```
 ToolExecutionEngine.execute()
-    â†’ PolicyEngine.evaluate(context, tool_definition)
-    â†’ denied: publish tool.policy.denied + raise PolicyDeniedError
-    â†’ allowed: adapter.execute(...)
+    â†?PolicyEngine.evaluate(context, tool_definition)
+    â†?denied: publish tool.policy.denied + raise PolicyDeniedError
+    â†?allowed: adapter.execute(...)
 ```
 
 When `policy_engine` is `None`, existing behavior is unchanged.

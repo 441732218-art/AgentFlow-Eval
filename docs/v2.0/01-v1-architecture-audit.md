@@ -16,7 +16,7 @@
 
 What v1.0 actually is:
 
-- A **Task → TestSuite → Agent Runner → Trace → Judge → Report** pipeline.
+- A **Task �?TestSuite �?Agent Runner �?Trace �?Judge �?Report** pipeline.
 - An observability cockpit (Dashboard / Trace DAG / Diagnosis / AOLS / Prometheus).
 - An enterprise shell (API Key + RBAC + tenancy + audit + billing skeleton + plugins).
 
@@ -65,7 +65,7 @@ Verified from `backend/requirements.txt`, `frontend/package.json`, `desktop/pack
 - `langgraph` / LangChain runtime
 - Anthropic / Google Gemini official SDKs
 - Vector DB (Pinecone / Qdrant / pgvector)
-- Java (`pom.xml` / `build.gradle`) — this is a Python + TypeScript monorepo
+- Java (`pom.xml` / `build.gradle`) �?this is a Python + TypeScript monorepo
 
 ---
 
@@ -76,26 +76,26 @@ Actual top-level layout (not assumed):
 ```
 AgentFlow-Eval/
 ├── backend/                 # FastAPI application
-│   ├── app/
-│   │   ├── main.py          # FastAPI entry, lifespan, health, /metrics
-│   │   ├── config.py        # pydantic-settings
-│   │   ├── api/v1/          # REST + WebSocket
-│   │   ├── core/            # business engines
-│   │   ├── models/          # SQLAlchemy ORM
-│   │   ├── schemas/         # Pydantic API schemas
-│   │   ├── plugins/         # example plugins
-│   │   └── utils/
-│   ├── alembic/versions/    # 001 … 016
-│   ├── tests/               # unit + scenarios + e2e
-│   ├── Dockerfile / docker-compose*.yml
-│   └── requirements.txt
+�?  ├── app/
+�?  �?  ├── main.py          # FastAPI entry, lifespan, health, /metrics
+�?  �?  ├── config.py        # pydantic-settings
+�?  �?  ├── api/v1/          # REST + WebSocket
+�?  �?  ├── core/            # business engines
+�?  �?  ├── models/          # SQLAlchemy ORM
+�?  �?  ├── schemas/         # Pydantic API schemas
+�?  �?  ├── plugins/         # example plugins
+�?  �?  └── utils/
+�?  ├── alembic/versions/    # 001 �?016
+�?  ├── tests/               # unit + scenarios + e2e
+�?  ├── Dockerfile / docker-compose*.yml
+�?  └── requirements.txt
 ├── frontend/                # Vite React workbench
-│   ├── src/pages/           # tasks, experiments, reports, benchmarks
-│   ├── src/dashboard/       # Command Center
-│   ├── src/traces/          # Trace explorer
-│   ├── src/components/TraceFlow/   # ReactFlow DAG
-│   ├── src/components/flow/        # Command Center topology
-│   └── src/auth/            # RouteGuard + permissions
+�?  ├── src/pages/           # tasks, experiments, reports, benchmarks
+�?  ├── src/dashboard/       # Command Center
+�?  ├── src/traces/          # Trace explorer
+�?  ├── src/components/TraceFlow/   # ReactFlow DAG
+�?  ├── src/components/flow/        # Command Center topology
+�?  └── src/auth/            # RouteGuard + permissions
 ├── desktop/                 # Electron shell
 ├── docs/                    # product, deploy, soft-copyright
 ├── 软著/                    # copyright submission materials
@@ -123,25 +123,17 @@ v1 is a **B/S evaluation workbench** with pluggable infrastructure ports.
 
 ```
 Browser / PWA / Electron
-        │  REST + WebSocket  /api/v1
-        ▼
-FastAPI (app.main:app)
-  middleware: CORS → RequestID → SecurityHeaders → Metrics → APIKeyAuth
-        │
-        ├─ TaskQueuePort  (celery | eager | memory)     app/core/profiles
+        �? REST + WebSocket  /api/v1
+        �?FastAPI (app.main:app)
+  middleware: CORS �?RequestID �?SecurityHeaders �?Metrics �?APIKeyAuth
+        �?        ├─ TaskQueuePort  (celery | eager | memory)     app/core/profiles
         ├─ CachePort      (memory | redis L2)
         ├─ EventBusPort   (in-process | redis pub/sub)
         └─ MeteringPort   (noop | sqlalchemy)
-                │
-                ▼
-     Celery / Eager: run_full_evaluation
-                │
-     ┌──────────┼──────────┐
-     ▼          ▼          ▼
- AgentRunner  Trace     LLMJudge
+                �?                �?     Celery / Eager: run_full_evaluation
+                �?     ┌──────────┼──────────�?     �?         �?         �? AgentRunner  Trace     LLMJudge
  (openai/http)  ORM      (rule+LLM)
-     │
- SQLite / PostgreSQL
+     �? SQLite / PostgreSQL
 ```
 
 **Deploy profiles** (`backend/app/core/profiles/__init__.py`):
@@ -158,47 +150,42 @@ This ports/adapters split is a **strength** and should be reused by v2 Runtime, 
 
 ## 4. Agent Execution Flow
 
-The following path is traced from real code. There is **no standalone “Agent Service”**. Execution is always **evaluation-driven**: a Task with TestSuites.
+The following path is traced from real code. There is **no standalone “Agent Service�?*. Execution is always **evaluation-driven**: a Task with TestSuites.
 
 ### 4.1 End-to-end path (verified)
 
 ```
 User (frontend: pages/tasks/create.tsx + pages/tasks/detail.tsx)
-        ↓
-POST /api/v1/tasks
+        �?POST /api/v1/tasks
   file: backend/app/api/v1/endpoints/tasks.py
   fn:   create_task()
   model: Task (status=CREATED, agent_config JSON)
-        ↓
-POST /api/v1/tasks/{task_id}/execute
+        �?POST /api/v1/tasks/{task_id}/execute
   file: backend/app/api/v1/endpoints/tasks.py
   fn:   execute_task()
   steps:
-    - TaskStatus.CREATED → QUEUED (state machine)
+    - TaskStatus.CREATED �?QUEUED (state machine)
     - billing quota gate (optional)
     - get_task_queue().enqueue("run_full_evaluation", args=(task_id,))
-        ↓
-TaskQueuePort adapter
+        �?TaskQueuePort adapter
   files:
     backend/app/core/ports/task_queue.py          (protocol)
     backend/app/core/adapters/queue/celery_queue.py
     backend/app/core/adapters/queue/eager_queue.py
-        ↓
-run_full_evaluation(task_id)
+        �?run_full_evaluation(task_id)
   file: backend/app/core/celery_app/tasks.py
   fn:   run_full_evaluation()
   steps:
     1. Load Task + TestSuites
-    2. Status → RUNNING
+    2. Status �?RUNNING
     3. Celery group: run_single_test_suite per suite
-    4. Status → JUDGING
+    4. Status �?JUDGING
     5. Celery group: run_judge_evaluation per trace
     6. aggregate_pipeline_results()
-    7. Status → COMPLETED | FAILED
-        ↓
-run_single_test_suite(test_suite_id, agent_config)
+    7. Status �?COMPLETED | FAILED
+        �?run_single_test_suite(test_suite_id, agent_config)
   file: backend/app/core/celery_app/tasks.py
-  fn:   run_single_test_suite() → inner _execute()
+  fn:   run_single_test_suite() �?inner _execute()
   steps:
     - resolve_tools_for_suite(suite.expected_tools)
     - hooks.emit(HOOK_PRE_AGENT_RUN)   [masked config]
@@ -206,62 +193,53 @@ run_single_test_suite(test_suite_id, agent_config)
     - raw = await runner.run(query, tools=..., agent_config=...)
     - ensure_pipeline_result(raw)
     - persist Trace
-        ↓
-build_agent_runner(agent_config)
+        �?build_agent_runner(agent_config)
   file: backend/app/core/agent_runner/factory.py
   fn:   build_agent_runner()
   selects:
     - plugin runner (capability registry)
     - HttpAgentRunner   if runner in {http, http_agent, remote, webhook}
     - OpenAIReActRunner otherwise (default)
-        ↓
-LLM call site
+        �?LLM call site
   file: backend/app/core/agent_runner/openai_runner.py
   class: OpenAIReActRunner
-  fn:   _chat_completion() → AsyncOpenAI.chat.completions.create()
-  loop: run()  Thought → Action → Observation → Final Answer
+  fn:   _chat_completion() �?AsyncOpenAI.chat.completions.create()
+  loop: run()  Thought �?Action �?Observation �?Final Answer
   tools: tool_sandbox.run_tool_sandboxed()
-        ↓
-  OR external agent
+        �?  OR external agent
   file: backend/app/core/agent_runner/http_runner.py
   class: HttpAgentRunner
-  fn:   run() → HTTP POST agentflow.http.v1
+  fn:   run() �?HTTP POST agentflow.http.v1
   guard: ssrf.validate_http_agent_url()
-        ↓
-Workflow execution
-  ★ DOES NOT EXIST as an executable engine.
+        �?Workflow execution
+  �?DOES NOT EXIST as an executable engine.
   Visualization only:
     frontend/src/components/TraceFlow/TraceFlowChart.tsx
     frontend/src/components/flow/AgentTopologyFlow.tsx
-        ↓
-Persist Trace
+        �?Persist Trace
   model: backend/app/models/trace.py  class Trace
   fields written in pipeline: user_query, steps, total_tokens,
                               response_time_ms, status
   fields defined but NOT filled by run_single_test_suite:
     prompt_tokens, completion_tokens, cost,
     agent_version, prompt_version, model_version, tool_version
-        ↓
-run_judge_evaluation(trace_id, expected_output, expected_tools)
+        �?run_judge_evaluation(trace_id, expected_output, expected_tools)
   file: backend/app/core/celery_app/tasks.py
   fn:   run_judge_evaluation()
-  judge: build_llm_judge() → LLMJudge.evaluate()
+  judge: build_llm_judge() �?LLMJudge.evaluate()
   file: backend/app/core/judge_engine/llm_judge.py
   persist: MetricScore rows
-        ↓
-Evaluation aggregation
+        �?Evaluation aggregation
   file: backend/app/core/evaluation/pipeline.py
   fn:   aggregate_pipeline_results()
-        ↓
-Trace / observability side-effects
+        �?Trace / observability side-effects
   - AOLS: emit_evaluation / emit_llm / emit_agent
     backend/app/core/observability/aols/
   - Prometheus: observe_suite_run / observe_judge
     backend/app/core/observability/metrics.py
   - Request TraceID: backend/app/core/observability/tracing.py
-  - WS live status: backend/app/core/events.py → ws_hub
-        ↓
-GET /api/v1/traces , GET /api/v1/reports , Dashboard / Diagnosis
+  - WS live status: backend/app/core/events.py �?ws_hub
+        �?GET /api/v1/traces , GET /api/v1/reports , Dashboard / Diagnosis
   final UI response
 ```
 
@@ -271,11 +249,11 @@ GET /api/v1/traces , GET /api/v1/reports , Dashboard / Diagnosis
 
 - Class: `BaseAgentRunner`
 - Method: `async run(query, tools=None, *, agent_config=None)`
-- Result: `AgentResult` or dict → `ensure_pipeline_result()`
+- Result: `AgentResult` or dict �?`ensure_pipeline_result()`
 
 This contract is the correct **compatibility layer** for v2. Do not break it.
 
-### 4.3 What “Agent” means in v1
+### 4.3 What “Agent�?means in v1
 
 | Concept | v1 reality |
 | --- | --- |
@@ -300,9 +278,9 @@ There is **no** `agents` resource, version table, or session store.
 | 4 | Workflow JSON / Schema | **None** for executable graphs. Trace step dicts are informal (`thought/action/observation/final_answer`). HTTP protocol: `docs/http-agent-protocol.md`. |
 | 5 | How executed? | Not executed. ReactFlow **renders** persisted steps. |
 | 6 | Node types | UI nodes: `thought`, `action`, `observation`, `final_answer` (`TraceFlowChart.tsx` `STEP_STYLES`). Dashboard topology kinds: pipeline stages from `dashboard.py`. |
-| 7 | Edges | Sequential UI edges only (`source → target` in ReactFlow). No runtime edge evaluator. |
+| 7 | Edges | Sequential UI edges only (`source �?target` in ReactFlow). No runtime edge evaluator. |
 | 8 | State? | **No graph State object.** Loop state is local variables in `OpenAIReActRunner.run()`. Task has a **status state machine** only. |
-| 9 | Conditional branch? | **No.** ReAct tool-choice is the only “branch”. |
+| 9 | Conditional branch? | **No.** ReAct tool-choice is the only “branch�? |
 | 10 | Agent Runtime prototype? | **Yes, a prototype:** `BaseAgentRunner` + ReAct loop + tool sandbox + HTTP runner + plugin runners. Not a lifecycle runtime. |
 
 ### 5.2 Real files / classes / functions
@@ -314,12 +292,12 @@ There is **no** `agents` resource, version table, or session store.
 | Topology payload | `backend/app/api/v1/endpoints/dashboard.py` | horizontal ReAct pipeline for ReactFlow |
 | ReAct loop | `backend/app/core/agent_runner/openai_runner.py` | `OpenAIReActRunner.run` |
 | Step dataclass | same file | `ReActStep` |
-| HTTP “workflow” | `backend/app/core/agent_runner/http_runner.py` | `HttpAgentRunner.run` |
+| HTTP “workflow�?| `backend/app/core/agent_runner/http_runner.py` | `HttpAgentRunner.run` |
 | Task status FSM | `backend/app/models/task.py` | `TaskStatus.allowed_transitions` |
 
 ### 5.3 Relationship to LangGraph
 
-Current “workflow” is **post-hoc visualization of a ReAct trace**, not a graph runtime.
+Current “workflow�?is **post-hoc visualization of a ReAct trace**, not a graph runtime.
 
 LangGraph should be introduced later as a **new execution backend** behind `BaseAgentRunner`, not as a replacement of Celery evaluation orchestration.
 
@@ -333,17 +311,13 @@ There is **one production client**: `openai.AsyncOpenAI`.
 
 ```
 Provider (string label only)
-    ↓
-factory.build_agent_runner()
+    �?factory.build_agent_runner()
     reads agent_config.provider | default "openai"
     reads agent_config.base_url | settings.OPENAI_BASE_URL
     reads agent_config.api_key  | settings.OPENAI_API_KEY
-    ↓
-OpenAIReActRunner / LLMJudge
-    ↓
-AsyncOpenAI(api_key, base_url).chat.completions.create(...)
-    ↓
-Call sites:
+    �?OpenAIReActRunner / LLMJudge
+    �?AsyncOpenAI(api_key, base_url).chat.completions.create(...)
+    �?Call sites:
   OpenAIReActRunner._chat_completion()
   LLMJudge (refine path in llm_judge.py)
   multimodal vision (VISION_MODEL, OpenAI-compatible)
@@ -361,13 +335,13 @@ Call sites:
 
 ### 6.2 LLM Gateway recommendation
 
-**Yes — add a new LLM Gateway / Provider Adapter layer in v2**, as a **new module**, without changing `OpenAIReActRunner` internals in Phase 1.
+**Yes �?add a new LLM Gateway / Provider Adapter layer in v2**, as a **new module**, without changing `OpenAIReActRunner` internals in Phase 1.
 
 Suggested evolution:
 
 ```
-v1: OpenAIReActRunner → AsyncOpenAI
-v2: Runtime / Judge → LlmGateway.port → adapters (openai | openai-compatible | later anthropic/gemini)
+v1: OpenAIReActRunner �?AsyncOpenAI
+v2: Runtime / Judge �?LlmGateway.port �?adapters (openai | openai-compatible | later anthropic/gemini)
 ```
 
 Do **not** rip out `AsyncOpenAI` from v1 runners. Wrap it.
@@ -411,7 +385,7 @@ Core types:
 
 **No standalone `datasets` / `evaluation_tasks` / `evaluation_results` tables.** Task + TestSuite play those roles.
 
-### 7.3 Evaluation APIs (existing — do not change)
+### 7.3 Evaluation APIs (existing �?do not change)
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -428,7 +402,7 @@ Core types:
 
 ### 7.4 Execution flow
 
-See §4. After traces exist: `LLMJudge.evaluate(trace_steps, expected_output, expected_tools)` → `MetricScore` rows → `aggregate_pipeline_results`.
+See §4. After traces exist: `LLMJudge.evaluate(trace_steps, expected_output, expected_tools)` �?`MetricScore` rows �?`aggregate_pipeline_results`.
 
 ### 7.5 Current metrics
 
@@ -456,7 +430,7 @@ Also: human review (`is_human_reviewed`, `human_score`, `reviewer`), `confidence
 
 ### 7.9 Gap vs v2 Evaluation Engine
 
-Already strong for a v1 product. Gaps to “enterprise Evaluation Engine v2”:
+Already strong for a v1 product. Gaps to “enterprise Evaluation Engine v2�?
 
 | Missing | Notes |
 | --- | --- |
@@ -469,7 +443,7 @@ Already strong for a v1 product. Gaps to “enterprise Evaluation Engine v2”:
 | Online eval / production traces as dataset | Offline suites only |
 | Evaluation versioning independent of Task FSM | Coupled to Task status |
 
-**Distance:** Evaluation is the **most mature** v1 subsystem (~60–70% of a v2 engine). v2 should **extend**, not replace.
+**Distance:** Evaluation is the **most mature** v1 subsystem (~60�?0% of a v2 engine). v2 should **extend**, not replace.
 
 ---
 
@@ -477,10 +451,10 @@ Already strong for a v1 product. Gaps to “enterprise Evaluation Engine v2”:
 
 ### 8.1 How Trace is implemented
 
-Two different “traces”:
+Two different “traces�?
 
-1. **Domain Trace (evaluation artifact)** — ORM `Trace`, JSON `steps`, API `/api/v1/traces`.
-2. **Correlation TraceID** — `contextvars` in `observability/tracing.py`, headers `X-Request-ID` / `X-Trace-ID`, passed into Celery as `_trace_id`.
+1. **Domain Trace (evaluation artifact)** �?ORM `Trace`, JSON `steps`, API `/api/v1/traces`.
+2. **Correlation TraceID** �?`contextvars` in `observability/tracing.py`, headers `X-Request-ID` / `X-Trace-ID`, passed into Celery as `_trace_id`.
 
 Plus **AOLS** structured events and **Prometheus** `/metrics`.
 
@@ -516,8 +490,8 @@ Diagnosis heuristics: `backend/app/core/diagnosis/engine.py` (`agent_loop`, `too
 
 Reasons:
 
-- Stronger than “basic logs”: domain Trace + DAG UI + correlation IDs + Prometheus + structured event taxonomy + diagnosis.
-- Weaker than “advanced”: no span tree, no OTel export, cost/token split not persisted, no user-facing LLM/tool span explorer, no sampling/retention productization.
+- Stronger than “basic logs�? domain Trace + DAG UI + correlation IDs + Prometheus + structured event taxonomy + diagnosis.
+- Weaker than “advanced�? no span tree, no OTel export, cost/token split not persisted, no user-facing LLM/tool span explorer, no sampling/retention productization.
 
 ---
 
@@ -563,7 +537,7 @@ No per-user / per-agent tool grants. No MCP permission model.
 
 ### 9.5 User permission
 
-**Yes — RBAC.**
+**Yes �?RBAC.**
 
 - `backend/app/core/rbac.py`: `Role`, `Permission`, `require_permission`
 - Roles: `system_admin`, `tenant_admin`, `manager`, `reviewer`, `member`, `viewer` (+ legacy aliases)
@@ -587,7 +561,7 @@ Auth is **API-key-as-user**, not OIDC/SSO/password users.
 ### 9.8 Data leak risks (record only)
 
 1. `agent_config` secrets persisted plaintext.
-2. AUTH defaults **off** (`AUTH_ENABLED=False`) — fine for lite demo, dangerous if prod misconfigured (mitigated by `settings_guard` when `ENV=prod`).
+2. AUTH defaults **off** (`AUTH_ENABLED=False`) �?fine for lite demo, dangerous if prod misconfigured (mitigated by `settings_guard` when `ENV=prod`).
 3. Trace `steps` may contain user data / tool I/O; redaction is for keys, not PII in content.
 4. Plugin directory scan unless `PLUGIN_STRICT_MODE`.
 5. No prompt-injection isolation between suite text and system prompt.
@@ -602,7 +576,7 @@ Treat Governance as **v3.0** (per product strategy). v2 only adds foundations (a
 
 ## 10. Database
 
-### 10.1 Existing tables (Alembic 001–016 + models)
+### 10.1 Existing tables (Alembic 001�?16 + models)
 
 | Table | Model | Origin |
 | --- | --- | --- |
@@ -622,15 +596,15 @@ Treat Governance as **v3.0** (per product strategy). v2 only adds foundations (a
 
 SQLite also gets additive `ALTER` in `main.py` `_ensure_sqlite_columns` (do not change).
 
-### 10.2 Tables that do **not** exist (v2 candidates only — no migration now)
+### 10.2 Tables that do **not** exist (v2 candidates only �?no migration now)
 
 | Suggested | Purpose | v2 phase |
 | --- | --- | --- |
 | `agents` | First-class agent identity / config pointer | Runtime MVP |
 | `agent_versions` | Reproducible agent snapshots | Runtime |
-| `agent_sessions` / `agent_runs` | Interactive / runtime executions ≠ eval Task | Runtime |
+| `agent_sessions` / `agent_runs` | Interactive / runtime executions �?eval Task | Runtime |
 | `tools` | Registered tools (beyond in-memory `BUILTIN_TOOLS`) | Tool Calling |
-| `tool_grants` | Agent/user → tool ACL | Security |
+| `tool_grants` | Agent/user �?tool ACL | Security |
 | `workflows`, `workflow_versions` | Graph definition JSON | LangGraph later |
 | `workflow_runs` | Graph execution instances | LangGraph later |
 | `models` / `model_providers` | LLM catalog | LLM Gateway |
@@ -728,9 +702,9 @@ v2 Runtime must run in **lite (eager)** first so copyright-era demo path keeps w
 
 ## 14. Technical Debt
 
-Recorded only — **do not fix in this phase.**
+Recorded only �?**do not fix in this phase.**
 
-### P0 (must address before / while adding Runtime — by isolation, not rewrite)
+### P0 (must address before / while adding Runtime �?by isolation, not rewrite)
 
 | ID | Debt | Evidence |
 | --- | --- | --- |
@@ -746,7 +720,7 @@ Recorded only — **do not fix in this phase.**
 | P1-1 | Single LLM SDK; `provider` is a log label |
 | P1-2 | Secrets in `agent_config` JSON at rest |
 | P1-3 | Frontend tests almost absent |
-| P1-4 | `tool_sandbox.py` contains garbled comments (encoding) — do not “clean up” during copyright freeze |
+| P1-4 | `tool_sandbox.py` contains garbled comments (encoding) �?do not “clean up�?during copyright freeze |
 | P1-5 | Judge/score persist does not write `Trace.cost` |
 | P1-6 | AUTH off by default (correct for lite; ops risk) |
 
@@ -758,32 +732,32 @@ Recorded only — **do not fix in this phase.**
 | P2-2 | No OTel spans |
 | P2-3 | Plugin market is in-memory catalog |
 | P2-4 | Billing/Stripe is mock-first |
-| P2-5 | Simulated RAG tool ≠ RAG system |
+| P2-5 | Simulated RAG tool �?RAG system |
 
 ---
 
 ## 15. Current Architecture Strengths
 
-1. **Clear evaluation domain model** — Task / TestSuite / Trace / MetricScore is coherent and copyright-worthy.
-2. **Unified runner contract** — `BaseAgentRunner.run()` already isolates OpenAI / HTTP / plugins.
-3. **Production-minded ops** — health probes, settings guard, rate limit, security headers, audit, AOLS redaction.
-4. **Ports & adapters** — queue/cache/bus/metering profiles enable lite vs private without rewriting business logic.
-5. **Judge + Scorecard + Experiment + Benchmark** — real product differentiation vs a chat UI.
-6. **SSRF + tool sandbox** — safer than typical “agent demo” code.
-7. **ReactFlow already in the UI stack** — can become a workflow editor later without a new graph library.
-8. **Plugin hooks** around agent run and judge — extension point for v2 without editing pipeline.
+1. **Clear evaluation domain model** �?Task / TestSuite / Trace / MetricScore is coherent and copyright-worthy.
+2. **Unified runner contract** �?`BaseAgentRunner.run()` already isolates OpenAI / HTTP / plugins.
+3. **Production-minded ops** �?health probes, settings guard, rate limit, security headers, audit, AOLS redaction.
+4. **Ports & adapters** �?queue/cache/bus/metering profiles enable lite vs private without rewriting business logic.
+5. **Judge + Scorecard + Experiment + Benchmark** �?real product differentiation vs a chat UI.
+6. **SSRF + tool sandbox** �?safer than typical “agent demo�?code.
+7. **ReactFlow already in the UI stack** �?can become a workflow editor later without a new graph library.
+8. **Plugin hooks** around agent run and judge �?extension point for v2 without editing pipeline.
 
 ---
 
 ## 16. Current Architecture Weaknesses
 
-1. Product name says “Intelligence / Agent platform”; **code is an eval workbench**.
+1. Product name says “Intelligence / Agent platform�? **code is an eval workbench**.
 2. **No Agent Runtime** as a product surface (no session, no graph, no streaming agent API).
 3. **Workflow is a screenshot feature**, not an engine.
 4. **LLM coupling** to OpenAI SDK.
-5. **Observability is Intermediate** — events exist, spans do not; cost not closed-loop.
+5. **Observability is Intermediate** �?events exist, spans do not; cost not closed-loop.
 6. **Identity is API keys**, not users/SSO.
-7. **main is not clean** — risky for a submitted copyright baseline.
+7. **main is not clean** �?risky for a submitted copyright baseline.
 8. Soft-copyright tree (`docs/soft-copyright/`, `软著/`, generators) is large and mixed with product code.
 
 ---
@@ -797,31 +771,27 @@ Recorded only — **do not fix in this phase.**
 | Changing `/api/v1/tasks` semantics | Breaks frontend + copyright API descriptions | Additive `/runtime` APIs |
 | New Alembic on v1 tables | Schema drift vs submitted design | New tables only, later, on develop |
 | Dependency upgrades (`openai`, FastAPI, React) | Reproducibility / legal baseline | Freeze v1 lockfiles |
-| “Cleanup” of garbled comments / refactors | Diff noise vs deposited source | Forbidden in Phase 0–1 |
+| “Cleanup�?of garbled comments / refactors | Diff noise vs deposited source | Forbidden in Phase 0�? |
 | Implementing RAG before Runtime | Distracts from Agent Quality Platform | Defer |
 | Running v2 work on `main` | Mixes freeze and evolution | Recommend `develop` + feature branches (do not auto-create) |
 
 ---
 
-## 18. v1.x → v2.0 Migration Strategy
+## 18. v1.x �?v2.0 Migration Strategy
 
 **Incremental Evolution, not Rewrite.**
 
 ```
 v1.0 frozen baseline (soft copyright)
-        ↓
-compatibility layer
+        �?compatibility layer
   - keep BaseAgentRunner
   - keep run_full_evaluation
   - keep mask_agent_config / redact_mapping / SSRF
-        ↓
-v2 Agent Runtime (new package)
+        �?v2 Agent Runtime (new package)
   - Agent identity + session/run
   - optional graph backend later
-        ↓
-v1 Evaluation pipeline calls Runtime OR still calls runners directly
-        ↓
-gradual migration of HTTP/OpenAI runners behind Runtime facade
+        �?v1 Evaluation pipeline calls Runtime OR still calls runners directly
+        �?gradual migration of HTTP/OpenAI runners behind Runtime facade
 ```
 
 **Compatibility rules:**
@@ -840,29 +810,13 @@ Do **not** explode the monorepo into a separate `agent-runtime/` top-level servi
 
 ```
 Frontend (existing workbench + new Runtime pages)
-        ↓
-API Gateway = existing FastAPI app (v1 routes frozen)
-        ↓
-┌─────────────────────────────────────────────┐
-│  Agent Platform (existing)                  │
-│  tasks / experiments / benchmarks / rbac    │
-└───────────────┬─────────────────────────────┘
-                │ calls (later)
-┌───────────────▼─────────────────────────────┐
-│  Agent Runtime (NEW, v2)                    │
-│  session / state / loop / tool broker       │
-│  adapters → existing OpenAIReActRunner      │
-│  future → LangGraph backend                 │
-└───────┬───────────┬───────────┬─────────────┘
-        ▼           ▼           ▼
-   LLM Gateway   Tools      Memory/RAG (later)
+        �?API Gateway = existing FastAPI app (v1 routes frozen)
+        �?┌─────────────────────────────────────────────�?�? Agent Platform (existing)                  �?�? tasks / experiments / benchmarks / rbac    �?└───────────────┬─────────────────────────────�?                �?calls (later)
+┌───────────────▼─────────────────────────────�?�? Agent Runtime (NEW, v2)                    �?�? session / state / loop / tool broker       �?�? adapters �?existing OpenAIReActRunner      �?�? future �?LangGraph backend                 �?└───────┬───────────┬───────────┬─────────────�?        �?          �?          �?   LLM Gateway   Tools      Memory/RAG (later)
    (NEW wrap)    (extend sandbox)
-        ▼
-   Evaluation (EXISTING, evolve in place via new datasets API)
-        ▼
-   Observability (EXISTING AOLS + future spans)
-        ▼
-   Security (EXISTING shell + future grants)
+        �?   Evaluation (EXISTING, evolve in place via new datasets API)
+        �?   Observability (EXISTING AOLS + future spans)
+        �?   Security (EXISTING shell + future grants)
 ```
 
 ### Recommended new directories (additive)
@@ -887,8 +841,8 @@ frontend/src/pages/runtime/        # later UI
 ## 20. Recommended Next Steps
 
 1. **Protect the v1.0 freeze** (process, not code): archive the exact submitted source tree; do not keep developing on dirty `main`.
-2. **Create `develop` from the freeze point** when you decide to start v2 (human action — this audit does not create branches).
-3. Confirm this audit, then enter **Sprint 1 — Agent Runtime MVP** only:
+2. **Create `develop` from the freeze point** when you decide to start v2 (human action �?this audit does not create branches).
+3. Confirm this audit, then enter **Sprint 1 �?Agent Runtime MVP** only:
    - new `core/runtime` package
    - wrap `build_agent_runner`
    - additive run API
@@ -902,7 +856,7 @@ frontend/src/pages/runtime/        # later UI
 
 ## Appendix A. Module reassessment (P0 / P1 / P2)
 
-### P0 — Agent Runtime
+### P0 �?Agent Runtime
 
 | Item | Assessment |
 | --- | --- |
@@ -917,7 +871,7 @@ frontend/src/pages/runtime/        # later UI
 | Risk | Accidental rewrite of `openai_runner.py` |
 | Order | **First** |
 
-### P0 — Tool Calling
+### P0 �?Tool Calling
 
 | Item | Assessment |
 | --- | --- |
@@ -932,7 +886,7 @@ frontend/src/pages/runtime/        # later UI
 | Risk | Enabling real network tools without SSRF/ACL |
 | Order | **Second** |
 
-### P0 — LangGraph Runtime
+### P0 �?LangGraph Runtime
 
 | Item | Assessment |
 | --- | --- |
@@ -947,7 +901,7 @@ frontend/src/pages/runtime/        # later UI
 | Risk | Replacing Celery pipeline; license/version freeze |
 | Order | **After Runtime MVP + Tool Calling** (not Sprint 1) |
 
-### P1 — RAG
+### P1 �?RAG
 
 | Item | Assessment |
 | --- | --- |
@@ -957,7 +911,7 @@ frontend/src/pages/runtime/        # later UI
 | Relation | New; can be a tool used by Runtime |
 | Order | After Runtime |
 
-### P1 — Memory
+### P1 �?Memory
 
 | Item | Assessment |
 | --- | --- |
@@ -965,7 +919,7 @@ frontend/src/pages/runtime/        # later UI
 | Missing | Short/long-term, per-agent, per-tenant memory |
 | Order | After RAG or parallel light session memory |
 
-### P1 — Evaluation v2
+### P1 �?Evaluation v2
 
 | Item | Assessment |
 | --- | --- |
@@ -975,7 +929,7 @@ frontend/src/pages/runtime/        # later UI
 | Relation | **Extend** `judge_engine` / benchmarks |
 | Order | After Runtime can produce richer traces |
 
-### P2 — Observability
+### P2 �?Observability
 
 | Item | Assessment |
 | --- | --- |
@@ -983,7 +937,7 @@ frontend/src/pages/runtime/        # later UI
 | Missing | Spans, persist cost, OTel |
 | Order | After Runtime emits richer events |
 
-### P2 — Security / Governance
+### P2 �?Security / Governance
 
 | Item | Assessment |
 | --- | --- |
@@ -999,8 +953,8 @@ frontend/src/pages/runtime/        # later UI
 | --- | --- | --- |
 | 1 | Introduce LangGraph? | **Yes, later.** Not Sprint 1. After Runtime facade exists. |
 | 2 | Which layer? | `core/runtime/backends/langgraph/` behind `BaseAgentRunner`. |
-| 3 | ReactFlow ↔ LangGraph | ReactFlow = editor/visualizer. LangGraph = executor. Shared JSON graph schema. |
-| 4 | Workflow JSON → Graph | New schema `agentflow.graph.v1` (nodes, edges, condition). Compiler in Runtime. v1 Trace JSON stays as **logs**, not source of graph. |
+| 3 | ReactFlow �?LangGraph | ReactFlow = editor/visualizer. LangGraph = executor. Shared JSON graph schema. |
+| 4 | Workflow JSON �?Graph | New schema `agentflow.graph.v1` (nodes, edges, condition). Compiler in Runtime. v1 Trace JSON stays as **logs**, not source of graph. |
 | 5 | State | Typed dict: `messages`, `iteration`, `tool_results`, `tenant_id`, `run_id`. Persist on `workflow_runs`. |
 | 6 | Node executor | Interface `execute(node, state) -> state`. Node kinds: llm, tool, judge, http_agent, condition. |
 | 7 | Tool node | Call existing `run_tool_sandboxed` / tool broker. |
@@ -1010,12 +964,12 @@ frontend/src/pages/runtime/        # later UI
 
 ---
 
-## Appendix C. Git strategy (recommendation only — not executed)
+## Appendix C. Git strategy (recommendation only �?not executed)
 
 Current:
 
 ```
-* main  → origin/main
+* main  �?origin/main
   (no develop)
 ```
 
@@ -1044,5 +998,5 @@ main          # frozen v1.0 / release
 - [x] No dependency upgrade
 - [x] No Alembic / API / DB change
 - [ ] Owner should snapshot the **exact** submitted file set (tag / zip) separately from the dirty working tree
-- [ ] Do not “format” or “fix encoding” in `tool_sandbox.py` or other deposited files
+- [ ] Do not “format�?or “fix encoding�?in `tool_sandbox.py` or other deposited files
 - [ ] v2 docs live under `docs/v2.0/` only (new copyright generation later, not now)

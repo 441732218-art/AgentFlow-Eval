@@ -8,14 +8,10 @@ Phase 10.5 separates **plan creation** from **plan execution** by introducing an
 
 ```
 Planner.create_plan()
-        â†“
-ExecutionPlan
-        â†“
-ExecutionStrategy.execute_plan(plan, context, step_executor)
-        â†“
-ExecutionStrategyResult
-        â†“
-AgentExecutionResult aggregation
+        â†?ExecutionPlan
+        â†?ExecutionStrategy.execute_plan(plan, context, step_executor)
+        â†?ExecutionStrategyResult
+        â†?AgentExecutionResult aggregation
 ```
 
 ## Separation of Concerns

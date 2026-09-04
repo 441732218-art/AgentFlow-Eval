@@ -8,16 +8,11 @@ Phase 10.8 adds durable execution checkpoints on top of Phase 10.7 execution sta
 
 ```
 AgentExecutionPipeline.run()
-        â†“
-CheckpointManager.save_checkpoint()     execution_start
-        â†“
-ExecutionStrategy.execute_plan()
-        â†“
-_CheckpointTrackingStepExecutor         before_step / after_step / step_failed
-        â†“
-CheckpointManager.get_resume_point()
-        â†“
-CheckpointManager.plan_for_resume()     resume foundation
+        â†?CheckpointManager.save_checkpoint()     execution_start
+        â†?ExecutionStrategy.execute_plan()
+        â†?_CheckpointTrackingStepExecutor         before_step / after_step / step_failed
+        â†?CheckpointManager.get_resume_point()
+        â†?CheckpointManager.plan_for_resume()     resume foundation
 ```
 
 ## Components
@@ -36,9 +31,9 @@ CheckpointManager.plan_for_resume()     resume foundation
 - `execution_id`
 - `plan_id`
 - `step_id`
-- `state_snapshot` â€” runtime recovery payload such as task, status, and completed steps
+- `state_snapshot` â€?runtime recovery payload such as task, status, and completed steps
 - `created_at`
-- `metadata` â€” checkpoint phase markers such as `before_step` or `execution_completed`
+- `metadata` â€?checkpoint phase markers such as `before_step` or `execution_completed`
 
 ## Resume Foundation
 

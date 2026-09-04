@@ -15,7 +15,12 @@ from app.runtime.governance.enforcement import (
     InMemoryGovernanceEnforcer,
 )
 from app.runtime.governance.evaluator import GovernanceEvaluator
-from app.runtime.governance.lifecycle import RuntimeGovernanceLifecycle
+from app.runtime.governance.lifecycle import (
+    GovernanceLifecycleContext,
+    GovernanceLifecycleManager,
+    GovernanceLifecycleResult,
+    RuntimeGovernanceLifecycle,
+)
 from app.runtime.governance.memory_engine import InMemoryGovernanceEngine
 from app.runtime.governance.middleware import use_governance_lifecycle
 from app.runtime.governance.models import GovernanceDecision, GovernanceRule
@@ -40,6 +45,9 @@ __all__ = [
     "GovernanceDecision",
     "GovernanceEnforcer",
     "GovernanceEvaluator",
+    "GovernanceLifecycleContext",
+    "GovernanceLifecycleManager",
+    "GovernanceLifecycleResult",
     "GovernancePolicyRegistry",
     "GovernancePolicyVersion",
     "GovernanceReport",

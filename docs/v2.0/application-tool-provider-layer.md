@@ -2,7 +2,7 @@
 
 ## Overview
 
-Phase 8.7 introduces the **Application Tool Provider Layer** â€” a boundary where
+Phase 8.7 introduces the **Application Tool Provider Layer** â€?a boundary where
 business systems register tools into Runtime without modifying Runtime Core.
 
 Runtime Core remains frozen. All application code lives under
@@ -23,9 +23,9 @@ class ApplicationToolProvider(ABC):
 
 | Principle | Detail |
 |-----------|--------|
-| Dependency direction | Application â†’ Runtime public types only |
-| No Runtime â†’ Application imports | Runtime never imports `applications/**` |
-| Explicit registries | `bootstrap_applications(registry, handler_registry)` receives instances â€” does not require mutating globals |
+| Dependency direction | Application â†?Runtime public types only |
+| No Runtime â†?Application imports | Runtime never imports `applications/**` |
+| Explicit registries | `bootstrap_applications(registry, handler_registry)` receives instances â€?does not require mutating globals |
 | Test isolation | Use `create_tool_registry(bootstrap=False)` + fresh `LocalHandlerRegistry()` |
 
 Orchestrator: `backend/app/applications/bootstrap.py`
@@ -53,11 +53,11 @@ Two **independent** example tool sets coexist by design:
 
 ### Why they do not conflict
 
-1. **Different names** â€” `DuplicateToolError` (Phase 8.5) would fire if both
+1. **Different names** â€?`DuplicateToolError` (Phase 8.5) would fire if both
    used `example.echo` on the same registry.
-2. **Different bootstrap paths** â€” Runtime tests never call
+2. **Different bootstrap paths** â€?Runtime tests never call
    `bootstrap_applications()`.
-3. **Optional composition** â€” Production wiring may call both bootstraps on the
+3. **Optional composition** â€?Production wiring may call both bootstraps on the
    same registry instance when both tool sets are desired (verified in tests).
 
 Task 0 conclusion: Application layer uses **`app_example.*`** prefix.
@@ -97,13 +97,13 @@ To add a future business system (e.g. trade/export application):
 
 | Claim | Verified? |
 |-------|-----------|
-| Runtime tests pass with zero Application code | âœ… `pytest backend/tests/unit/runtime/` unchanged |
-| Runtime source has no `applications` imports | âœ… scan test |
-| Application tools execute via Engine/Adapter | âœ… e2e tests |
-| New business = new provider directory only | âœ… by design |
+| Runtime tests pass with zero Application code | âœ?`pytest backend/tests/unit/runtime/` unchanged |
+| Runtime source has no `applications` imports | âœ?scan test |
+| Application tools execute via Engine/Adapter | âœ?e2e tests |
+| New business = new provider directory only | âœ?by design |
 
 **Conclusion:** Adding a business tool provider requires only Application-layer
-code + orchestrator registration â€” **no Runtime Core changes**.
+code + orchestrator registration â€?**no Runtime Core changes**.
 
 ---
 

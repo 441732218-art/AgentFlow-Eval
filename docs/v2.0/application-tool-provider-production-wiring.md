@@ -3,7 +3,7 @@
 ## Overview
 
 Phase 8.8 connects the Application Tool Provider layer to the **production
-Runtime execution path** via `RuntimeService` ‚Äî without modifying frozen
+Runtime execution path** via `RuntimeService` ‚Ä?without modifying frozen
 Runtime Core modules (`tools`, `pipeline`, `executor`, `memory`, `tracing`).
 
 ---
@@ -14,27 +14,27 @@ Runtime Core modules (`tools`, `pipeline`, `executor`, `memory`, `tracing`).
 Application providers (applications/bootstrap.py)
         |
         v
-runtime/service/tooling_bootstrap.py   ‚Üê wiring boundary (may import applications)
+runtime/service/tooling_bootstrap.py   ‚Ü?wiring boundary (may import applications)
         |
         +-- get_tool_registry()          (Runtime self-check tools)
         +-- get_local_handler_registry()
         +-- bootstrap_applications()
         |
         v
-RuntimeService ‚Üí AgentExecutor ‚Üí ExecutionPipeline ‚Üí ToolExecutionEngine
+RuntimeService ‚Ü?AgentExecutor ‚Ü?ExecutionPipeline ‚Ü?ToolExecutionEngine
 ```
 
 ---
 
 ## Bootstrap Boundary (Task 1)
 
-**Application layer** ‚Äî explicit, no hidden globals:
+**Application layer** ‚Ä?explicit, no hidden globals:
 
 ```python
 bootstrap_applications(registry, handler_registry)
 ```
 
-**Production wiring** ‚Äî idempotent, service-layer only:
+**Production wiring** ‚Ä?idempotent, service-layer only:
 
 ```python
 bootstrap_production_tooling()  # once per process
@@ -85,7 +85,7 @@ dto = service.execute(agent_id=..., task=..., context=context)
 # dto.output == {"app_echo": "..."}
 ```
 
-Chain verified: Registry ‚Üí Engine ‚Üí LocalAdapter ‚Üí Handler ‚Üí Pipeline output.
+Chain verified: Registry ‚Ü?Engine ‚Ü?LocalAdapter ‚Ü?Handler ‚Ü?Pipeline output.
 
 ---
 
@@ -105,4 +105,4 @@ Default non-tool execution still returns `"pipeline execution completed"`.
 - Wire `RuntimeService` into HTTP API when boundary opens (separate phase)
 - Production `CredentialResolver` for remote application tools
 - Real business providers: add under `applications/<name>_provider/`, register in
-  `DEFAULT_APPLICATION_PROVIDERS` ‚Äî no Runtime Core changes
+  `DEFAULT_APPLICATION_PROVIDERS` ‚Ä?no Runtime Core changes

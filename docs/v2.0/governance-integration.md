@@ -2,7 +2,7 @@
 
 ## Overview
 
-Phase 9.9 unifies Phase 9.5â€“9.8 into a single **RuntimeGovernanceLifecycle** that coordinates policy, observation, event publishing, and audit without duplicating subsystem logic.
+Phase 9.9 unifies Phase 9.5â€?.8 into a single **RuntimeGovernanceLifecycle** that coordinates policy, observation, event publishing, and audit without duplicating subsystem logic.
 
 ## Components
 
@@ -16,15 +16,15 @@ Phase 9.9 unifies Phase 9.5â€“9.8 into a single **RuntimeGovernanceLifecycle** t
 
 ```
 ToolExecutionEngine.execute()
-    â†’ use_governance_lifecycle(context)?
-        â†’ RuntimeGovernanceLifecycle.run_tool_execution()
-            â†’ before_tool_execution (tool.started)
-            â†’ evaluate_policy
-            â†’ denied â†’ tool.policy.denied â†’ PolicyDeniedError
-            â†’ adapter.execute()
-            â†’ after_tool_success (tool.completed)
-            â†’ after_tool_failure (tool.failed)
-    â†’ legacy path (unchanged when governance_lifecycle is None)
+    â†?use_governance_lifecycle(context)?
+        â†?RuntimeGovernanceLifecycle.run_tool_execution()
+            â†?before_tool_execution (tool.started)
+            â†?evaluate_policy
+            â†?denied â†?tool.policy.denied â†?PolicyDeniedError
+            â†?adapter.execute()
+            â†?after_tool_success (tool.completed)
+            â†?after_tool_failure (tool.failed)
+    â†?legacy path (unchanged when governance_lifecycle is None)
 ```
 
 All recording uses existing `record_runtime_event()`, which forwards to:

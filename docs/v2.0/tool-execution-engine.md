@@ -1,7 +1,7 @@
 # Tool Execution Engine (Phase 8.2.1)
 
 **Project:** AgentFlow Intelligence v2.0  
-**Phase:** 8.2.1 â€” Tool Execution Engine Skeleton  
+**Phase:** 8.2.1 â€?Tool Execution Engine Skeleton  
 **Date:** 2026-08-31
 
 ---
@@ -36,7 +36,7 @@ ToolExecutorAdapter (by executor_type)
 [Future: LocalAdapter | RemoteAdapter | FutureProviderAdapter]
 ```
 
-**Phase 8.2.1 scope:** Abstraction only â€” no pipeline wiring, no HTTP, no CRM.
+**Phase 8.2.1 scope:** Abstraction only â€?no pipeline wiring, no HTTP, no CRM.
 
 ---
 
@@ -59,7 +59,7 @@ class ToolExecutorAdapter(ABC):
 |----------------|-------|
 | Know `executor_type` | Adapter |
 | Execute tool with arguments | Adapter |
-| Know CRM/HTTP/business APIs | **NOT adapter in 8.2.1** â€” future concrete adapters |
+| Know CRM/HTTP/business APIs | **NOT adapter in 8.2.1** â€?future concrete adapters |
 
 Adapters are **pluggable** via `ToolExecutorRegistry`.
 
@@ -85,7 +85,7 @@ Adapters are **pluggable** via `ToolExecutorRegistry`.
 
 **Errors:**
 
-- `UnknownExecutorTypeError` â€” no adapter registered for type
+- `UnknownExecutorTypeError` â€?no adapter registered for type
 
 ---
 
@@ -100,7 +100,7 @@ adapter = registry.get("local")
 
 | Method | Behavior |
 |--------|----------|
-| `register(adapter)` | One adapter per `executor_type`; duplicate â†’ `DuplicateExecutorAdapterError` |
+| `register(adapter)` | One adapter per `executor_type`; duplicate â†?`DuplicateExecutorAdapterError` |
 | `get(executor_type)` | Returns adapter or `None` |
 
 ---
@@ -117,7 +117,7 @@ ToolDefinition (executor_type="local", metadata.legacy_tool=True)
    |
 ToolExecutionEngine
    |
-LocalAdapter (Phase 8.2.2 â€” not yet implemented)
+LocalAdapter (Phase 8.2.2 â€?not yet implemented)
 ```
 
 **Rule:** `Tool.execute()` is **never** called by `ToolExecutionEngine`. Legacy tools become `ToolDefinition` metadata; execution routes through adapters.
@@ -128,9 +128,9 @@ LocalAdapter (Phase 8.2.2 â€” not yet implemented)
 
 | Phase | Deliverable |
 |-------|-------------|
-| 8.2.2 | `LocalToolExecutorAdapter` â€” real local execution |
-| 8.2.3 | `RemoteToolExecutorAdapter` â€” HTTP client, auth, timeout, retry, schema validation |
-| 8.3 | Remote Tool Provider Protocol â€” endpoint, error mapping, provider registration |
+| 8.2.2 | `LocalToolExecutorAdapter` â€?real local execution |
+| 8.2.3 | `RemoteToolExecutorAdapter` â€?HTTP client, auth, timeout, retry, schema validation |
+| 8.3 | Remote Tool Provider Protocol â€?endpoint, error mapping, provider registration |
 
 **`executor_type="remote"`** in `ToolDefinition` is metadata today; execution requires registered `RemoteStubAdapter` or future implementation.
 

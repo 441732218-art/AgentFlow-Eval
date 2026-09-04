@@ -1,7 +1,7 @@
 # AgentFlow Intelligence v2.0 Development Roadmap
 
 > **Companion to:** `docs/v2.0/01-v1-architecture-audit.md`  
-> **Strategy:** Incremental Evolution ‚Äî **new modules + compatibility**, never a v1 rewrite.  
+> **Strategy:** Incremental Evolution ‚Ä?**new modules + compatibility**, never a v1 rewrite.  
 > **v1.0 status:** Soft-copyright submitted. Treat as frozen baseline.  
 > **This document does not authorize coding.** Wait for owner confirmation before Sprint 1.
 
@@ -18,14 +18,14 @@
 
 v2.0 core capabilities (product, not a shopping list of models):
 
-1. **Agent Runtime** ‚Äî execute, state, (later) workflow, tool calls  
-2. **Agent Evaluation** ‚Äî quality scores, LLM Judge, benchmark, datasets  
-3. **Observability foundation** ‚Äî trace, LLM/tool, token, cost, latency  
-4. **Security foundation** ‚Äî keep v1 secret redaction / SSRF / RBAC; add agent/tool ACL seeds  
+1. **Agent Runtime** ‚Ä?execute, state, (later) workflow, tool calls  
+2. **Agent Evaluation** ‚Ä?quality scores, LLM Judge, benchmark, datasets  
+3. **Observability foundation** ‚Ä?trace, LLM/tool, token, cost, latency  
+4. **Security foundation** ‚Ä?keep v1 secret redaction / SSRF / RBAC; add agent/tool ACL seeds  
 
 ---
 
-## Phase 0 ‚Äî Architecture Audit
+## Phase 0 ‚Ä?Architecture Audit
 
 **Status: complete (this folder).**
 
@@ -42,7 +42,7 @@ v2.0 core capabilities (product, not a shopping list of models):
 
 ---
 
-## Phase 1 ‚Äî Agent Runtime MVP
+## Phase 1 ‚Ä?Agent Runtime MVP
 
 ### Goal
 
@@ -51,18 +51,18 @@ Give the platform a **first-class Agent Run** surface without replacing the eval
 A user (or eval Task) can:
 
 - register an Agent configuration as an identity (not only `Task.agent_config`)
-- start a **single-shot run** (query in ‚Üí `AgentResult` out)
+- start a **single-shot run** (query in ‚Ü?`AgentResult` out)
 - reuse the **existing** `OpenAIReActRunner` / `HttpAgentRunner` via adapter
 - persist a **runtime run** record that Evaluation can later attach to
 
 ### Tech
 
 - New package inside the existing FastAPI app (no new microservice)
-- Adapter pattern: Runtime ‚Üí `build_agent_runner()`  
+- Adapter pattern: Runtime ‚Ü?`build_agent_runner()`  
 - Feature flag: `RUNTIME_ENABLED=false` by default
 - Lite/eager compatible (no Redis required)
 
-### Involve (read / wrap ‚Äî do not rewrite)
+### Involve (read / wrap ‚Ä?do not rewrite)
 
 | File | Why |
 | --- | --- |
@@ -108,25 +108,25 @@ GET  /api/v1/runtime/runs/{id}
 
 | Risk | Mitigation |
 | --- | --- |
-| Editing `openai_runner.py` ‚Äúto make it cleaner‚Äù | Forbidden |
+| Editing `openai_runner.py` ‚Äúto make it cleaner‚Ä?| Forbidden |
 | Breaking `/tasks/{id}/execute` | Runtime is unused by v1 pipeline in Phase 1 |
 | Shadowing `/agents/http` | Namespace `/runtime/agents` |
 | Creating tables on dirty `main` | Work on `develop` after owner creates it |
 
 ### Estimated effort
 
-**1.5‚Äì2.5 weeks** (1 senior + tests). MVP = facade + one run path + tests + lite demo.
+**1.5‚Ä?.5 weeks** (1 senior + tests). MVP = facade + one run path + tests + lite demo.
 
 ### Phase 1 exit criteria
 
 - [ ] v1 eval happy path still green without code changes to `celery_app/tasks.py`
 - [ ] Runtime run returns the same shape as `ensure_pipeline_result`
 - [ ] Secrets masked via `mask_agent_config`
-- [ ] Feature flag off ‚Üí zero behavior change
+- [ ] Feature flag off ‚Ü?zero behavior change
 
 ---
 
-## Phase 2 ‚Äî Tool Calling
+## Phase 2 ‚Ä?Tool Calling
 
 ### Goal
 
@@ -138,14 +138,14 @@ Keep v1 safety: timeout, output cap, no implicit network, SSRF for HTTP.
 
 - Tool catalog interface over `BUILTIN_TOOLS` + plugin tools
 - Per-run tool allowlist (from agent spec, not only `expected_tools`)
-- Structured tool events already defined: `LogEvent.TOOL_*` ‚Äî emit consistently from broker
+- Structured tool events already defined: `LogEvent.TOOL_*` ‚Ä?emit consistently from broker
 
 ### Involve (extend via new files; do not gut sandbox)
 
 | File | Why |
 | --- | --- |
 | `backend/app/core/agent_runner/tool_sandbox.py` | `BUILTIN_TOOLS`, `run_tool_sandboxed`, `resolve_tools_for_suite` |
-| `backend/app/api/v1/endpoints/tools.py` | List/probe ‚Äî additive endpoints only |
+| `backend/app/api/v1/endpoints/tools.py` | List/probe ‚Ä?additive endpoints only |
 | `backend/app/core/plugins/registry.py` | Plugin tools |
 | `backend/app/core/agent_runner/ssrf.py` | Any future HTTP tool must call this |
 
@@ -174,7 +174,7 @@ None for built-ins. **Do not** add MCP / real web search until policy exists.
 
 ### Estimated effort
 
-**1‚Äì2 weeks.**
+**1‚Ä? weeks.**
 
 ### Phase 2 exit criteria
 
@@ -185,7 +185,7 @@ None for built-ins. **Do not** add MCP / real web search until policy exists.
 
 ---
 
-## Phase 3 ‚Äî Evaluation Engine
+## Phase 3 ‚Ä?Evaluation Engine
 
 ### Goal
 
@@ -196,12 +196,12 @@ Focus:
 - First-class **Dataset** (import / version / reuse across Task, Experiment, Benchmark)
 - Evaluation can score a **Runtime run** (not only Task-owned TestSuite)
 - Close the metric loop: persist **cost + prompt/completion tokens** on *new* runtime artifacts (do not silently rewrite historical Trace rows in a migration)
-- Optional extra judge dimensions ‚Äî via scorecard JSON already supported
+- Optional extra judge dimensions ‚Ä?via scorecard JSON already supported
 
 ### Tech
 
 - New `core/evaluation/dataset.py` (or `core/datasets/`)
-- Adapter: `Trace` / Runtime run ‚Üí judge input (already `trace.steps`)
+- Adapter: `Trace` / Runtime run ‚Ü?judge input (already `trace.steps`)
 - Benchmark service stays; Dataset feeds BenchmarkCase
 
 ### Involve (call, do not rewrite)
@@ -244,7 +244,7 @@ None. Continue OpenAI-compatible Judge.
 
 ### Estimated effort
 
-**2‚Äì3 weeks** for Dataset + runtime-bridge + tests. Full ‚Äúpanel judge / pairwise‚Äù is extra and can slip to v2.1.
+**2‚Ä? weeks** for Dataset + runtime-bridge + tests. Full ‚Äúpanel judge / pairwise‚Ä?is extra and can slip to v2.1.
 
 ### Phase 3 exit criteria
 
@@ -254,11 +254,11 @@ None. Continue OpenAI-compatible Judge.
 
 ---
 
-## Phase 4 ‚Äî Observability
+## Phase 4 ‚Ä?Observability
 
 ### Goal
 
-Raise domain observability from **Intermediate ‚Üí Intermediate+** (not full APM).
+Raise domain observability from **Intermediate ‚Ü?Intermediate+** (not full APM).
 
 - Persist LLM/tool events that Runtime already emits
 - Fill **token split + cost** on **new** runtime runs (`utils/cost.py`)
@@ -279,7 +279,7 @@ Raise domain observability from **Intermediate ‚Üí Intermediate+** (not full APM
 | `backend/app/core/observability/tracing.py` | TraceID |
 | `backend/app/core/observability/metrics.py` | Prometheus |
 | `backend/app/utils/cost.py` | `calculate_cost` |
-| `backend/app/models/trace.py` | Schema already has cost fields ‚Äî **do not migrate**; write on new run model |
+| `backend/app/models/trace.py` | Schema already has cost fields ‚Ä?**do not migrate**; write on new run model |
 | `frontend/src/components/TraceFlow/TraceFlowChart.tsx` | Reuse for runtime steps |
 
 ### New modules
@@ -303,7 +303,7 @@ None. **No OpenTelemetry SDK in this phase** (avoids freeze/dep risk).
 
 ### Estimated effort
 
-**1‚Äì1.5 weeks** for persist + API + reuse DAG. Full OTel = later.
+**1‚Ä?.5 weeks** for persist + API + reuse DAG. Full OTel = later.
 
 ### Phase 4 exit criteria
 
@@ -313,7 +313,7 @@ None. **No OpenTelemetry SDK in this phase** (avoids freeze/dep risk).
 
 ---
 
-## Phase 5 ‚Äî Security
+## Phase 5 ‚Ä?Security
 
 ### Goal
 
@@ -321,14 +321,14 @@ v2 **foundation**, not v3 Governance.
 
 - Agent identity as a permission resource (`runtime:run`, `runtime:manage`)
 - Tool allowlist persisted per agent
-- Secret-at-rest **plan** (vault/env pointer instead of JSON key) ‚Äî implement only if it does **not** change v1 `agent_config` schema
+- Secret-at-rest **plan** (vault/env pointer instead of JSON key) ‚Ä?implement only if it does **not** change v1 `agent_config` schema
 - Prompt-injection **basic** guard (length, delimiter, untrusted user block) on Runtime path only
 
 **Do not modify** `mask_agent_config`, `redact_mapping`, `ssrf.py`, v1 RBAC matrices except **additive** permissions.
 
 ### Tech
 
-- Additive `Permission` values (new enum members only ‚Äî coordinate with frontend `permissions.ts`)
+- Additive `Permission` values (new enum members only ‚Ä?coordinate with frontend `permissions.ts`)
 - Runtime policy module
 - Optional `tool_grants` table
 
@@ -361,12 +361,12 @@ None.
 | Risk | Mitigation |
 | --- | --- |
 | Changing RBAC so old keys lose access | New perms default-granted to manager+ only |
-| ‚ÄúFixing‚Äù redaction | Forbidden |
+| ‚ÄúFixing‚Ä?redaction | Forbidden |
 | Prompt guard breaking Chinese eval suites | Off by default; eval path unchanged |
 
 ### Estimated effort
 
-**1‚Äì1.5 weeks** for ACL + optional guard. Vault = separate spike.
+**1‚Ä?.5 weeks** for ACL + optional guard. Vault = separate spike.
 
 ### Phase 5 exit criteria
 
@@ -379,7 +379,7 @@ None.
 
 ## Later (v2.x, not the first five phases)
 
-These remain **designed, not scheduled as Sprint 1‚Äì5**:
+These remain **designed, not scheduled as Sprint 1‚Ä?**:
 
 | Later phase | Why wait |
 | --- | --- |
@@ -392,9 +392,9 @@ LangGraph placement (when approved):
 
 ```
 ReactFlow editor (frontend)
-    ‚Üí agentflow.graph.v1 JSON
-        ‚Üí core/runtime/backends/langgraph
-            ‚Üí Tool broker + LLM gateway
+    ‚Ü?agentflow.graph.v1 JSON
+        ‚Ü?core/runtime/backends/langgraph
+            ‚Ü?Tool broker + LLM gateway
 v1 OpenAIReActRunner remains default backend
 ```
 
@@ -408,8 +408,8 @@ backend/app/
     runtime.py              # NEW
     datasets.py             # NEW (Phase 3)
   core/
-    agent_runner/           # FROZEN v1 ‚Äî wrap only
-    judge_engine/           # FROZEN core ‚Äî extend via new files
+    agent_runner/           # FROZEN v1 ‚Ä?wrap only
+    judge_engine/           # FROZEN core ‚Ä?extend via new files
     celery_app/             # FROZEN orchestration
     runtime/                # NEW
     datasets/               # NEW
@@ -470,7 +470,7 @@ Rules:
 - RAG / Memory
 - dependency upgrades
 
-**Success:** one lite demo: create runtime agent (openai or http) ‚Üí run one query ‚Üí see steps ‚Üí v1 Task execute still works.
+**Success:** one lite demo: create runtime agent (openai or http) ‚Ü?run one query ‚Ü?see steps ‚Ü?v1 Task execute still works.
 
 ---
 

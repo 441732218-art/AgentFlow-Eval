@@ -37,8 +37,8 @@ execution_context = ExecutionContext(
 
 Interface:
 
-- `record(event)` â€” append a `RuntimeEvent`
-- `get_events()` â€” return all recorded events
+- `record(event)` â€?append a `RuntimeEvent`
+- `get_events()` â€?return all recorded events
 
 No database or external SDK is used. `InMemoryObservationCollector` is thread-safe for test usage.
 
@@ -54,11 +54,11 @@ If no collector is attached, recording is skipped silently. Collector failures a
 
 ```
 ExecutionContext.observation_collector
-    â†’ pipeline/tool_step.py (tool.started / completed / failed)
-    â†’ remote_adapter.py (remote transport observation)
+    â†?pipeline/tool_step.py (tool.started / completed / failed)
+    â†?remote_adapter.py (remote transport observation)
 ```
 
-`ExecutionContext.to_remote_payload()` is unchanged â€” the collector is never sent to remote providers.
+`ExecutionContext.to_remote_payload()` is unchanged â€?the collector is never sent to remote providers.
 
 ## Relationship to TraceHook
 

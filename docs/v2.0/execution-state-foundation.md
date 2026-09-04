@@ -8,14 +8,10 @@ Phase 10.7 introduces runtime execution state management for agent pipeline runs
 
 ```
 AgentExecutionPipeline.run()
-        â†“
-ExecutionStateStore.create()     status=RUNNING
-        â†“
-ExecutionStrategy.execute_plan()
-        â†“
-_StateTrackingStepExecutor       update current_step per step
-        â†“
-ExecutionStateStore.update()     status=COMPLETED | FAILED
+        â†?ExecutionStateStore.create()     status=RUNNING
+        â†?ExecutionStrategy.execute_plan()
+        â†?_StateTrackingStepExecutor       update current_step per step
+        â†?ExecutionStateStore.update()     status=COMPLETED | FAILED
 ```
 
 ## Components
@@ -32,9 +28,9 @@ ExecutionStateStore.update()     status=COMPLETED | FAILED
 - `execution_id`
 - `agent_id`
 - `plan_id`
-- `status` â€” `RUNNING`, `COMPLETED`, or `FAILED`
-- `current_step` â€” active planned step name while running
-- `metadata` â€” runtime metadata such as task and error message
+- `status` â€?`RUNNING`, `COMPLETED`, or `FAILED`
+- `current_step` â€?active planned step name while running
+- `metadata` â€?runtime metadata such as task and error message
 - `created_at` / `updated_at`
 
 ## Default Behavior

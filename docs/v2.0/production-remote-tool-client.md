@@ -37,7 +37,7 @@ were modified.
 
 `RemoteExecutionPolicy` **is actively used** in:
 
-`RemoteToolExecutorAdapter.execute()` (`remote_adapter.py`, lines 52–70)
+`RemoteToolExecutorAdapter.execute()` (`remote_adapter.py`, lines 52�?0)
 
 ```python
 for attempt in range(1, self.policy.max_attempts + 1):
@@ -70,7 +70,7 @@ class CredentialResolver(ABC):
     def resolve(self, credential_ref: str) -> str: ...
 
 class InMemoryCredentialResolver(CredentialResolver):
-    # dict[credential_ref -> secret] — tests only
+    # dict[credential_ref -> secret] �?tests only
 ```
 
 `HttpRemoteToolClient._build_headers()`:
@@ -83,12 +83,11 @@ class InMemoryCredentialResolver(CredentialResolver):
 ### Why secrets are not persisted
 
 - `ToolProviderAuth.to_metadata()` exports **references only**
-- Trace observation (`build_observation`) includes tool name, duration, status —
-  never headers or resolved credentials
+- Trace observation (`build_observation`) includes tool name, duration, status �?  never headers or resolved credentials
 - ExecutionRecord / logging must not store secrets (Phase 8.6 constraint)
 
 Production should use Vault / env / cloud secret manager implementing
-`CredentialResolver` — not `InMemoryCredentialResolver`.
+`CredentialResolver` �?not `InMemoryCredentialResolver`.
 
 ---
 
@@ -99,7 +98,7 @@ Production should use Vault / env / cloud secret manager implementing
 | HTTP 401 / 403 | `RemoteAuthError` | `HTTP {code}: …` (no body/headers) |
 | HTTP 408 | `RemoteTimeoutError` | `HTTP 408: …` |
 | httpx timeout | `RemoteTimeoutError` | `HTTP request timed out ({N}s)` |
-| HTTP 429 / 500 / other ≥400 | `RemoteProviderError` | `HTTP {code}: …` |
+| HTTP 429 / 500 / other �?00 | `RemoteProviderError` | `HTTP {code}: …` |
 | Invalid JSON / wrong shape | `RemoteProviderError` | `HTTP {code}: invalid JSON …` |
 | Missing endpoint | `RemoteProviderError` | metadata must include endpoint |
 | Missing resolver / ref | `RemoteAuthError` | `HTTP 401: …` |
@@ -114,7 +113,7 @@ Class name **`RemoteTimeoutError`** matches `RemoteExecutionPolicy.retryable_err
 |------------|-------|
 | No real external services in tests | `httpx.MockTransport` only |
 | `InMemoryCredentialResolver` | Test/dev only |
-| **Vault / env resolver** | **Required before production Application Provider接入** — must implement `CredentialResolver` without storing secrets in Runtime state |
+| **Vault / env resolver** | **Required before production Application Provider接入** �?must implement `CredentialResolver` without storing secrets in Runtime state |
 | Single POST protocol | No streaming / webhook callbacks |
 | Endpoint in metadata | Not a first-class `ToolProviderRequest` field (frozen) |
 
@@ -146,5 +145,5 @@ No Runtime Core changes required beyond configuration and resolver implementatio
 
 ## Files Extended
 
-- `backend/app/runtime/tools/errors.py` — `RemoteAuthError`
-- `backend/app/runtime/tools/__init__.py` — exports
+- `backend/app/runtime/tools/errors.py` �?`RemoteAuthError`
+- `backend/app/runtime/tools/__init__.py` �?exports

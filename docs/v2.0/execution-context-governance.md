@@ -22,11 +22,11 @@ The model is intentionally free of business-domain fields (no trade, CRM, or ema
 
 ```
 AgentExecutor
-    â†’ ensure_execution_context(RuntimeContext)
-    â†’ ExecutionPipeline
-    â†’ ToolExecutionEngine.execute(..., context=ExecutionContext)
-    â†’ ToolExecutorAdapter.execute(..., execution_context=...)
-    â†’ RemoteToolExecutorAdapter â†’ HttpRemoteToolClient
+    â†?ensure_execution_context(RuntimeContext)
+    â†?ExecutionPipeline
+    â†?ToolExecutionEngine.execute(..., context=ExecutionContext)
+    â†?ToolExecutorAdapter.execute(..., execution_context=...)
+    â†?RemoteToolExecutorAdapter â†?HttpRemoteToolClient
 ```
 
 When no execution context is available, existing behavior is preserved (optional parameter defaults to `None`).
