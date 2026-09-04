@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from app.runtime.evidence.collector import RuntimeEvidenceCollector
     from app.runtime.governance.hooks.adapter import GovernanceRuntimeHookAdapter
     from app.runtime.governance.lifecycle.manager import GovernanceLifecycleManager
+    from app.runtime.governance.orchestrator.orchestrator import GovernanceRuntimeOrchestrator
     from app.runtime.governance.routing.router import GovernanceDecisionRouter
     from app.runtime.governance.tool_hooks.adapter import ToolLifecycleGovernanceAdapter
     from app.runtime.hooks.manager import RuntimeHookManager
@@ -92,3 +93,4 @@ class RuntimeAssembly:
     tool_governance_adapter: ToolLifecycleGovernanceAdapter | None = None
     runtime_hook_manager: RuntimeHookManager | None = None
     governance_decision_router: GovernanceDecisionRouter | None = None
+    governance_orchestrator: GovernanceRuntimeOrchestrator | None = None
