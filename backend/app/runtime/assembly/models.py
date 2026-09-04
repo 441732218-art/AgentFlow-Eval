@@ -18,10 +18,14 @@ if TYPE_CHECKING:
     from app.runtime.correlation.manager import RuntimeCorrelationManager
     from app.runtime.event_stream.publisher import EventPublisher
     from app.runtime.evidence.collector import RuntimeEvidenceCollector
+    from app.runtime.governance.configuration.registry import GovernanceConfigurationRegistry
+    from app.runtime.governance.evidence_correlation.store import EvidenceCorrelationStore
     from app.runtime.governance.hooks.adapter import GovernanceRuntimeHookAdapter
     from app.runtime.governance.lifecycle.manager import GovernanceLifecycleManager
     from app.runtime.governance.orchestrator.orchestrator import GovernanceRuntimeOrchestrator
+    from app.runtime.governance.runtime_adapter.adapter import GovernanceRuntimeDecisionAdapter
     from app.runtime.governance.routing.router import GovernanceDecisionRouter
+    from app.runtime.governance.snapshot.store import SnapshotStore
     from app.runtime.governance.tool_hooks.adapter import ToolLifecycleGovernanceAdapter
     from app.runtime.hooks.manager import RuntimeHookManager
     from app.runtime.permissions.evaluator import PermissionEvaluator
@@ -94,3 +98,7 @@ class RuntimeAssembly:
     runtime_hook_manager: RuntimeHookManager | None = None
     governance_decision_router: GovernanceDecisionRouter | None = None
     governance_orchestrator: GovernanceRuntimeOrchestrator | None = None
+    governance_configuration_registry: GovernanceConfigurationRegistry | None = None
+    governance_snapshot_store: SnapshotStore | None = None
+    governance_evidence_correlation_store: EvidenceCorrelationStore | None = None
+    governance_runtime_decision_adapter: GovernanceRuntimeDecisionAdapter | None = None
