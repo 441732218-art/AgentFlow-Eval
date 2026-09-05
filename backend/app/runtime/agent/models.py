@@ -16,4 +16,5 @@ class AgentDefinition:
     tool_names: list[str]
     version: str = "1.0"
     enabled: bool = True
+    roles: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)

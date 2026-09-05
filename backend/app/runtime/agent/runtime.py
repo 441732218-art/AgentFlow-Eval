@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, overload
 
 from app.runtime.agent.models import AgentDefinition
+from app.runtime.agent.roles import attach_agent_roles
 from app.runtime.agent.session import ExecutionSession
 from app.runtime.bootstrap.context_factory import create_execution_context
 from app.runtime.bootstrap.factory import ProductionRuntime
@@ -174,6 +175,7 @@ class AgentRuntime:
             execution_id=uuid.uuid4().hex,
             agent_id=agent_definition.id,
         )
+        attach_agent_roles(execution_context, agent_definition)
         self._validate_tool_capabilities(agent_definition)
         self._validate_tool_permissions(agent_definition, execution_context)
         pipeline_result = self._agent_pipeline.run(

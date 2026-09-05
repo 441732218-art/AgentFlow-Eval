@@ -41,6 +41,7 @@ def test_trade_tool_definitions_exist() -> None:
     assert by_name["trade.search_customer"].metadata == {
         "provider": "trade",
         "category": "customer",
+        "permission_scope": ["sales"],
     }
 
     assert by_name["trade.generate_email"].executor_type == "local"

@@ -1,16 +1,19 @@
 # AgentFlow Intelligence v2.0 — Agent Runtime Platform
 """Role-aware policy engine — optional alternative to ``InMemoryPolicyEngine``.
 
-NOTE: Role extraction keys (``metadata['roles']`` / ``metadata['role']``) are a
-provisional convention and are NOT yet aligned with the ``app.core.rbac`` role
-model. This must be resolved before wiring this engine into the HTTP production
-path.
+Agent-instance roles are read from ``ExecutionContext.metadata[AGENT_ROLES_METADATA_KEY]``,
+populated by ``AgentRuntime`` from ``AgentDefinition.roles`` before policy evaluation.
+
+Legacy direct metadata keys (``metadata['roles']`` / ``metadata['role']``) remain
+supported as a lower-level fallback for unit tests and callers that inject roles
+without an ``AgentDefinition``.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from app.runtime.agent.roles import AGENT_ROLES_METADATA_KEY
 from app.runtime.policy.models import PolicyDecision
 from app.runtime.policy.rules import allow_decision, evaluate_blocked_tool
 from app.runtime.tools.definition import ToolDefinition
@@ -18,7 +21,7 @@ from app.runtime.tools.definition import ToolDefinition
 if TYPE_CHECKING:
     from app.runtime.executor.execution_context import ExecutionContext
 
-# Provisional keys — no repo-wide convention exists yet (see module docstring / audit report).
+# Legacy provisional keys — direct metadata injection (tests / low-level callers).
 _ROLE_METADATA_KEY = "role"
 _ROLES_METADATA_KEY = "roles"
 
@@ -44,16 +47,20 @@ def _normalize_role_values(raw: Any) -> tuple[str, ...]:
 
 
 def extract_context_roles(context: ExecutionContext | None) -> frozenset[str]:
-    """Extract caller roles from ``ExecutionContext.metadata``.
+    """Extract effective roles for policy evaluation from ``ExecutionContext.metadata``.
 
-    Reads provisional keys ``roles`` (preferred, list or str) then ``role`` (str).
-    No production caller convention is established in ``backend/app/`` yet.
+    Priority:
+    1. ``agent_roles`` — agent-instance roles (from ``AgentDefinition.roles``)
+    2. ``roles`` / ``role`` — legacy direct metadata injection
     """
     if context is None:
         return frozenset()
 
     metadata = context.metadata or {}
     roles: list[str] = []
+    roles.extend(_normalize_role_values(metadata.get(AGENT_ROLES_METADATA_KEY)))
+    if roles:
+        return frozenset(roles)
     roles.extend(_normalize_role_values(metadata.get(_ROLES_METADATA_KEY)))
     roles.extend(_normalize_role_values(metadata.get(_ROLE_METADATA_KEY)))
     return frozenset(roles)

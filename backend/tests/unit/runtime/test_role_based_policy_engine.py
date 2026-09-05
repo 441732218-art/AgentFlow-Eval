@@ -91,3 +91,49 @@ def test_permission_evaluator_with_role_based_engine_denies_support() -> None:
     decision = evaluator.evaluate_tool_access(_context(role="support"), capability)
 
     assert decision.allowed is False
+
+
+def test_agent_roles_metadata_allowed_for_sales_scoped_tool() -> None:
+    production_runtime = create_production_runtime()
+    context = create_execution_context(
+        production_runtime,
+        execution_id="exec-agent-roles-allow",
+        agent_id="trade.sales_agent",
+        metadata={"agent_roles": ["sales"]},
+    )
+    engine = RoleBasedPolicyEngine()
+
+    decision = engine.evaluate(context, _tool_with_scope(("sales",)))
+
+    assert decision.allowed is True
+
+
+def test_agent_roles_metadata_denied_when_role_mismatch() -> None:
+    production_runtime = create_production_runtime()
+    context = create_execution_context(
+        production_runtime,
+        execution_id="exec-agent-roles-deny",
+        agent_id="trade.support_agent",
+        metadata={"agent_roles": ["support"]},
+    )
+    engine = RoleBasedPolicyEngine()
+
+    decision = engine.evaluate(context, _tool_with_scope(("sales",)))
+
+    assert decision.allowed is False
+    assert decision.metadata["caller_roles"] == ["support"]
+
+
+def test_agent_roles_take_priority_over_legacy_metadata_roles() -> None:
+    production_runtime = create_production_runtime()
+    context = create_execution_context(
+        production_runtime,
+        execution_id="exec-agent-roles-priority",
+        agent_id="trade.support_agent",
+        metadata={"agent_roles": ["sales"], "roles": ["support"], "role": "support"},
+    )
+    engine = RoleBasedPolicyEngine()
+
+    decision = engine.evaluate(context, _tool_with_scope(("sales",)))
+
+    assert decision.allowed is True

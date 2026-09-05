@@ -20,6 +20,7 @@ TOOL_DEFINITIONS: list[ToolDefinition] = [
         metadata={
             "provider": "trade",
             "category": "customer",
+            "permission_scope": ["sales"],
         },
     ),
     ToolDefinition(
