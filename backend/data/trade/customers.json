@@ -1,0 +1,82 @@
+[
+  {
+    "company": "ABC Furniture GmbH",
+    "country": "Germany",
+    "industry": "Furniture Import",
+    "products": ["wood furniture", "office chair"],
+    "website": "https://abc-furniture.example.com",
+    "contact_status": "unknown"
+  },
+  {
+    "company": "Nordic Home Retail AS",
+    "country": "Norway",
+    "industry": "Home Retail",
+    "products": ["wood furniture", "kitchen cabinet"],
+    "website": "https://nordic-home.example.com",
+    "contact_status": "contacted"
+  },
+  {
+    "company": "Pacific Import Partners",
+    "country": "USA",
+    "industry": "General Import",
+    "products": ["office chair", "desk lamp"],
+    "website": "https://pacific-import.example.com",
+    "contact_status": "unknown"
+  },
+  {
+    "company": "Global Textile Trading Co.",
+    "country": "USA",
+    "industry": "Textile Wholesale",
+    "products": ["cotton fabric", "home textile"],
+    "website": "https://global-textile.example.com",
+    "contact_status": "qualified"
+  },
+  {
+    "company": "Berlin Office Solutions",
+    "country": "Germany",
+    "industry": "Office Equipment",
+    "products": ["office chair", "standing desk"],
+    "website": "https://berlin-office.example.com",
+    "contact_status": "unknown"
+  },
+  {
+    "company": "Milan Design Imports SRL",
+    "country": "Italy",
+    "industry": "Furniture Import",
+    "products": ["wood furniture", "design sofa"],
+    "website": "https://milan-design.example.com",
+    "contact_status": "contacted"
+  },
+  {
+    "company": "Tokyo Smart Devices KK",
+    "country": "Japan",
+    "industry": "Electronics Retail",
+    "products": ["smart sensor", "IoT gateway"],
+    "website": "https://tokyo-smart.example.com",
+    "contact_status": "unknown"
+  },
+  {
+    "company": "Osaka Industrial Supply",
+    "country": "Japan",
+    "industry": "Industrial Components",
+    "products": ["precision bearing", "smart sensor"],
+    "website": "https://osaka-industrial.example.com",
+    "contact_status": "qualified"
+  },
+  {
+    "company": "Hamburg Green Energy GmbH",
+    "country": "Germany",
+    "industry": "Renewable Energy",
+    "products": ["solar panel", "battery storage"],
+    "website": "https://hamburg-green.example.com",
+    "contact_status": "unknown"
+  },
+  {
+    "company": "Texas Outdoor Living LLC",
+    "country": "USA",
+    "industry": "Outdoor Furniture",
+    "products": ["wood furniture", "patio set"],
+    "website": "https://texas-outdoor.example.com",
+    "contact_status": "contacted"
+  }
+]

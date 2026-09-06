@@ -9,13 +9,14 @@ TOOL_DEFINITIONS: list[ToolDefinition] = [
     ToolDefinition(
         name="trade.search_customer",
         description="Search potential customers for trade business",
-        executor_type="remote",
+        executor_type="local",
         input_schema={
             "type": "object",
             "properties": {
-                "keyword": {"type": "string"},
+                "product": {"type": "string"},
                 "country": {"type": "string"},
             },
+            "required": ["product"],
         },
         metadata={
             "provider": "trade",

@@ -91,7 +91,7 @@ def test_experimental_bridge_maps_tool_definition_fields() -> None:
 
     assert capability.tool_name == definition.name == "trade.search_customer"
     assert capability.description == definition.description
-    assert capability.metadata["executor_type"] == "remote"
+    assert capability.metadata["executor_type"] == "local"
     assert capability.metadata["provider"] == "trade"
     assert capability.metadata["category"] == "customer"
     assert capability.metadata["input_schema"] == definition.input_schema

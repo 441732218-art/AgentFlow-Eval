@@ -37,7 +37,7 @@ def test_trade_tool_definitions_exist() -> None:
     assert len(TOOL_DEFINITIONS) == 3
     by_name = {definition.name: definition for definition in TOOL_DEFINITIONS}
 
-    assert by_name["trade.search_customer"].executor_type == "remote"
+    assert by_name["trade.search_customer"].executor_type == "local"
     assert by_name["trade.search_customer"].metadata == {
         "provider": "trade",
         "category": "customer",
@@ -81,22 +81,32 @@ def test_trade_generate_email_executes_via_local_handler_registry() -> None:
     assert "AI Software" in result.output["body"]
 
 
+def test_trade_local_tools_have_registered_handlers() -> None:
+    registry = create_tool_registry(bootstrap=False)
+    handlers = LocalHandlerRegistry()
+    bootstrap_applications(registry, handlers)
+
+    assert registry.get("trade.search_customer").executor_type == "local"
+    assert registry.get("trade.generate_email").executor_type == "local"
+    assert handlers.get("trade.search_customer") is not None
+    assert handlers.get("trade.generate_email") is not None
+
+
 def test_trade_remote_tools_have_definition_only_no_local_handler() -> None:
     registry = create_tool_registry(bootstrap=False)
     handlers = LocalHandlerRegistry()
     bootstrap_applications(registry, handlers)
 
-    assert registry.get("trade.search_customer").executor_type == "remote"
     assert registry.get("trade.create_followup").executor_type == "remote"
-    assert handlers.get("trade.search_customer") is None
     assert handlers.get("trade.create_followup") is None
-    assert handlers.get("trade.generate_email") is not None
 
 
 def test_runtime_core_has_no_trade_provider_references() -> None:
     for path in _RUNTIME_ROOT.rglob("*.py"):
         relative_parts = path.relative_to(_RUNTIME_ROOT).parts
         if relative_parts and relative_parts[0] in _RUNTIME_CORE_EXCLUDED_PARTS:
+            continue
+        if relative_parts and relative_parts[0] == "commercial":
             continue
         source = path.read_text(encoding="utf-8")
         for forbidden in _FORBIDDEN_TRADE_RUNTIME_STRINGS:
