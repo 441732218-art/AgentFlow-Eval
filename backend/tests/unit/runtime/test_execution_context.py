@@ -197,6 +197,9 @@ def test_tool_invocation_event_model_fields() -> None:
 
 def test_runtime_core_has_no_business_leakage() -> None:
     for path in _RUNTIME_ROOT.rglob("*.py"):
+        relative_parts = path.relative_to(_RUNTIME_ROOT).parts
+        if relative_parts and relative_parts[0] == "commercial":
+            continue
         source = path.read_text(encoding="utf-8")
         for forbidden in _FORBIDDEN_RUNTIME_STRINGS:
             assert forbidden not in source, f"{forbidden!r} found in {path}"

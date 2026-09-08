@@ -14,6 +14,7 @@ from app.runtime.tools.definition import ToolDefinition
 
 TOOL_DEFINITION_METADATA_KEY = "tool_definition"
 TOOL_ARGUMENTS_METADATA_KEY = "tool_arguments"
+TOOL_REQUEST_METADATA_KEY = "tool_request"
 TENANT_ID_METADATA_KEY = "tenant_id"
 USER_ID_METADATA_KEY = "user_id"
 
@@ -90,3 +91,22 @@ def get_tool_arguments(context: RuntimeContext) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise TypeError("context.metadata.tool_arguments must be a dict")
     return dict(value)
+
+
+def get_tool_request(execution_context: ExecutionContext) -> dict[str, Any] | None:
+    """Return a structured tool request from ``ExecutionContext.metadata``, if present."""
+    value = execution_context.metadata.get(TOOL_REQUEST_METADATA_KEY)
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise TypeError("context.metadata.tool_request must be a dict")
+    tool_name = str(value.get("tool", "")).strip()
+    if not tool_name:
+        return None
+    arguments = value.get("arguments", {})
+    if not isinstance(arguments, dict):
+        raise TypeError("context.metadata.tool_request.arguments must be a dict")
+    return {
+        "tool": tool_name,
+        "arguments": dict(arguments),
+    }

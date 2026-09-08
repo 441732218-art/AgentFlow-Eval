@@ -21,8 +21,15 @@ from app.runtime.context_memory.models import MemoryContext
 from app.runtime.correlation.context import attach_correlation_context, get_correlation_context
 from app.runtime.correlation.manager import RuntimeCorrelationManager
 from app.runtime.correlation.models import CorrelationContext
-from app.runtime.executor.context_fields import attach_execution_context
+from app.runtime.executor.context_fields import (
+    attach_execution_context,
+    attach_tool_request,
+    get_execution_context,
+    get_tool_request,
+)
 from app.runtime.executor.execution_context import ExecutionContext
+from app.runtime.policy.models import PolicyDecision, PolicyDeniedError
+from app.runtime.tools.registry import get_tool_registry
 from app.runtime.execution.executor import StepExecutionContext, StepExecutor
 from app.runtime.execution.sequential import SequentialExecutionStrategy
 from app.runtime.execution.strategy import ExecutionStrategy
@@ -40,6 +47,8 @@ if TYPE_CHECKING:
     from app.runtime.event_stream.publisher import EventPublisher
     from app.runtime.evidence.collector import RuntimeEvidenceCollector
     from app.runtime.hooks.manager import RuntimeHookManager
+    from app.runtime.permissions.evaluator import PermissionEvaluator
+    from app.runtime.tool_registry.registry import ToolRegistry
 
 
 @dataclass
@@ -449,11 +458,70 @@ class _PipelineStepExecutor:
         self,
         execution_pipeline: ExecutionPipeline,
         task: str,
+        agent_definition: AgentDefinition,
         correlation_manager: RuntimeCorrelationManager | None = None,
+        *,
+        capability_tool_registry: ToolRegistry | None = None,
+        permission_evaluator: PermissionEvaluator | None = None,
     ) -> None:
         self._execution_pipeline = execution_pipeline
         self._task = task
+        self._agent_definition = agent_definition
         self._correlation_manager = correlation_manager
+        self._capability_tool_registry = capability_tool_registry
+        self._permission_evaluator = permission_evaluator
+
+    def _attach_structured_tool_request(self, runtime_context: RuntimeContext) -> None:
+        execution_context = get_execution_context(runtime_context)
+        if execution_context is None:
+            return
+        tool_request = get_tool_request(execution_context)
+        if tool_request is None:
+            return
+
+        tool_name = tool_request["tool"]
+        if tool_name not in self._agent_definition.tool_names:
+            raise PolicyDeniedError(
+                PolicyDecision(
+                    allowed=False,
+                    policy_name="agent_tool_binding",
+                    reason=f"Tool not authorized for agent: {tool_name}",
+                ),
+                tool_name,
+            )
+
+        if (
+            self._capability_tool_registry is None
+            or self._permission_evaluator is None
+        ):
+            raise PolicyDeniedError(
+                PolicyDecision(
+                    allowed=False,
+                    policy_name="tool_request_authorization",
+                    reason="安全依赖未配置，拒绝执行",
+                ),
+                tool_name,
+            )
+
+        from app.runtime.tool_registry.registry import resolve_tool_capability
+
+        capability = resolve_tool_capability(
+            self._capability_tool_registry,
+            tool_name,
+        )
+        decision = self._permission_evaluator.evaluate_tool_access(
+            execution_context,
+            capability,
+        )
+        if not decision.allowed:
+            raise PolicyDeniedError(decision, tool_name)
+
+        tool_definition = get_tool_registry().get(tool_name)
+        attach_tool_request(
+            runtime_context,
+            tool_definition,
+            tool_request["arguments"],
+        )
 
     def execute_step(
         self,
@@ -470,6 +538,7 @@ class _PipelineStepExecutor:
                 )
                 attach_correlation_context(context.runtime_context, tool_correlation)
             try:
+                self._attach_structured_tool_request(context.runtime_context)
                 return self._execution_pipeline.run(context.runtime_context, step_task)
             finally:
                 if tool_correlation is not None and self._correlation_manager is not None:
@@ -531,6 +600,8 @@ class AgentExecutionPipeline:
         audit_recorder: RuntimeAuditRecorder | None = None,
         evidence_collector: RuntimeEvidenceCollector | None = None,
         runtime_hook_manager: RuntimeHookManager | None = None,
+        capability_tool_registry: ToolRegistry | None = None,
+        permission_evaluator: PermissionEvaluator | None = None,
     ) -> None:
         self._production_runtime = production_runtime
         self._planner = planner or DefaultPlanner()
@@ -547,6 +618,8 @@ class AgentExecutionPipeline:
         self._audit_recorder = audit_recorder
         self._evidence_collector = evidence_collector
         self._runtime_hook_manager = runtime_hook_manager
+        self._capability_tool_registry = capability_tool_registry
+        self._permission_evaluator = permission_evaluator
         self._execution_pipeline = ExecutionPipeline(
             tool_execution_engine=production_runtime.tool_execution_engine,
         )
@@ -1036,7 +1109,10 @@ class AgentExecutionPipeline:
         step_executor = _PipelineStepExecutor(
             self._execution_pipeline,
             task,
+            agent_definition,
             self._correlation_manager,
+            capability_tool_registry=self._capability_tool_registry,
+            permission_evaluator=self._permission_evaluator,
         )
         if self._event_publisher is not None:
             step_executor = _EventStreamTrackingStepExecutor(

@@ -65,6 +65,8 @@ class AgentRuntime:
         self._agent_pipeline = AgentExecutionPipeline(
             production_runtime,
             audit_recorder=audit_recorder,
+            capability_tool_registry=tool_registry,
+            permission_evaluator=permission_evaluator,
         )
 
     @overload

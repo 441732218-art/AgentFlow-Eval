@@ -17,4 +17,14 @@ class AgentDefinition:
     version: str = "1.0"
     enabled: bool = True
     roles: tuple[str, ...] = ()
+    description: str = ""
+    system_prompt: str = ""
+    model_config: dict[str, Any] = field(default_factory=dict)
+    memory_config: dict[str, Any] = field(default_factory=dict)
+    evaluation_config: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def tools(self) -> list[str]:
+        """Alias for ``tool_names`` (commercial agent API)."""
+        return self.tool_names
