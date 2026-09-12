@@ -1,11 +1,5 @@
 # (c) 2026 AgentFlow-Eval
-"""LLM-as-Judge with hybrid rule-based + LLM scoring.
-
-Architecture:
-  1) Rule-based pre-scoring always runs,
-  2) LLM-as-Judge refinement when API key is available,
-  3) Falls back to pure rule-based when no API key / timeout / error.
-"""
+"""混合评分引擎：规则预评分，可选 LLM 细化；无 key 或失败时降级为纯规则。"""
 
 from __future__ import annotations
 
@@ -32,26 +26,17 @@ from app.core.resilience import default_llm_policy, protected_call_async
 
 logger = logging.getLogger(__name__)
 
-# Re-export for callers that imported DIMENSION_WEIGHTS from this module
 __all_weights__ = DIMENSION_WEIGHTS
 
-# Fallback prompt when scorecard missing (should not happen)
 SYSTEM_PROMPT = default_scorecard().to_system_prompt()
 
-# CJK unified ideographs (rough range for Chinese/Japanese/Korean tokens)
+# 中日韩分词
 _CJK_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+")
 _WORD_RE = re.compile(r"[a-zA-Z0-9_]+|[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+")
 
 
 class LLMJudge(BaseJudge):
-    """Hybrid scoring engine: rule-based + optional LLM refinement.
-
-    Features:
-      - In-process LRU result cache (size configurable)
-      - Optional evaluate() soft timeout
-      - CJK-aware lexical answer scoring
-      - Safe fallbacks when LLM refine fails
-    """
+    """规则 + LLM 混合评分，含 LRU 缓存、CJK 词法评分与降级回退。"""
 
     _cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
     _cache_max: int = 128
@@ -65,22 +50,12 @@ class LLMJudge(BaseJudge):
         cache_size: int | None = None,
         scorecard: Scorecard | dict[str, Any] | None = None,
     ) -> None:
-        """Initialize the judge.
-
-        Args:
-            api_key: OpenAI-compatible API key; empty disables LLM refine.
-            base_url: Optional custom API base URL.
-            model: Chat model name for refinement.
-            timeout_sec: Soft timeout for evaluate(); None reads settings.
-            cache_size: LRU cache capacity; None reads settings / default 128.
-            scorecard: Optional Scorecard or dict; defaults to 40/40/20 card.
-        """
+        """无 api_key 时不走 LLM 细化。"""
         api_key = (
             api_key if api_key is not None else os.environ.get("OPENAI_API_KEY", "")
         )
         self.has_api_key = bool(api_key)
         if self.has_api_key:
-            # HTTP timeout enforced by resilience layer + client-level timeout
             try:
                 from app.config import settings as _s
 
@@ -101,7 +76,7 @@ class LLMJudge(BaseJudge):
             parse_scorecard(scorecard) if scorecard is not None else default_scorecard()
         )
 
-        # Lazy settings import so unit tests can construct without full env
+        # 单测环境可能没有完整 settings
         if timeout_sec is None or cache_size is None:
             try:
                 from app.config import settings as app_settings
@@ -128,23 +103,13 @@ class LLMJudge(BaseJudge):
         expected_output: str,
         expected_tools: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Score a trace with rule-based pre-score and optional LLM refine.
-
-        Args:
-            trace_steps: ReAct step list (may be None/empty).
-            expected_output: Expected final answer text.
-            expected_tools: Expected tool names.
-
-        Returns:
-            Dict with scores, total, reason, token_cost, mode, details, step_analysis.
-        """
+        """Score a trace: rule pre-score, optional LLM refine."""
         steps = list(trace_steps or [])
         tools = list(expected_tools or [])
         expected = expected_output or ""
 
         cache_key = self._make_cache_key(steps, expected, tools, self.scorecard)
         if self.cache_size > 0 and cache_key in self._cache:
-            # Move to end (most recently used)
             self._cache.move_to_end(cache_key)
             cached = self._cache[cache_key]
             result = dict(cached)
@@ -177,16 +142,15 @@ class LLMJudge(BaseJudge):
 
     @classmethod
     def clear_cache(cls) -> None:
-        """Clear the process-wide evaluation cache (useful in tests)."""
+        """清空进程内评测缓存（单测用）。"""
         cls._cache.clear()
 
     @classmethod
     def _cache_put(cls, key: str, result: dict[str, Any]) -> None:
-        """Insert into LRU cache, evicting oldest entries when over capacity."""
+        """写入 LRU 缓存，超出容量淘汰最旧项。"""
         max_size = cls._cache_max
         if max_size <= 0:
             return
-        # Store without ephemeral cache_hit flag
         stored = {k: v for k, v in result.items() if k != "cache_hit"}
         if key in cls._cache:
             cls._cache.move_to_end(key)
@@ -221,7 +185,7 @@ class LLMJudge(BaseJudge):
         expected_output: str,
         expected_tools: list[str],
     ) -> dict[str, Any]:
-        """Rule-based pre-score using scorecard dimension weights and methods."""
+        """按 scorecard 维度做规则预评分。"""
         actual_tools = self._extract_tool_names(steps)
         extracted = self._extract_final_answer(steps)
         step_analysis = self._analyze_steps(steps, expected_tools)
@@ -290,7 +254,7 @@ class LLMJudge(BaseJudge):
         expected_tools: list[str],
         pre_score: dict[str, Any],
     ) -> dict[str, Any]:
-        """LLM refine with retry / circuit breaker / timeout; falls back to rules."""
+        """LLM 细化；失败回退规则分。"""
         if not self.client:
             result = dict(pre_score)
             result["mode"] = "rule_only"
@@ -326,7 +290,7 @@ class LLMJudge(BaseJudge):
             response = await protected_call_async(
                 _call_llm,
                 policy=policy,
-                fallback=None,  # parse/fallback handled below for cleaner reasons
+                fallback=None,
             )
         except Exception as exc:
             logger.warning("LLM refine protected call failed: %s", exc)
@@ -349,7 +313,6 @@ class LLMJudge(BaseJudge):
         scores = dict(data.get("scores") or {})
         for dim in self.scorecard.dimensions:
             scores.setdefault(dim.key, pre_score["scores"].get(dim.key, 0.0))
-            # Clamp to [0, weight]
             try:
                 scores[dim.key] = max(
                     0.0, min(float(dim.weight), float(scores[dim.key]))
@@ -417,14 +380,7 @@ class LLMJudge(BaseJudge):
 
     @staticmethod
     def tokenize(text: str) -> list[str]:
-        """Tokenize text for lexical scoring (English words + CJK runs).
-
-        Args:
-            text: Input string (may include mixed CJK/Latin).
-
-        Returns:
-            Lowercased token list; empty list for blank input.
-        """
+        """Tokenize for lexical scoring (English words + CJK runs)."""
         if not text:
             return []
         return [t.lower() for t in _WORD_RE.findall(text)]
@@ -445,15 +401,7 @@ class LLMJudge(BaseJudge):
         *,
         max_score: float = 40.0,
     ) -> tuple[float, str]:
-        """Score answer correctness via token overlap with CJK support.
-
-        Uses word/CJK-token Jaccard-style recall against expected tokens.
-        When CJK content dominates and token recall is low, falls back to
-        character bigram overlap so pure Chinese answers are not zeroed.
-
-        Args:
-            max_score: Dimension weight (points); default 40 preserves legacy scale.
-        """
+        """Score answer via token overlap; CJK-heavy text falls back to bigrams."""
         max_score = float(max_score) if max_score > 0 else 40.0
         if not expected:
             return max_score, "No expected output; full score."
@@ -493,9 +441,9 @@ class LLMJudge(BaseJudge):
         *,
         max_score: float = 20.0,
     ) -> tuple[float, str]:
-        """Heuristic coherence score scaled to ``max_score`` (legacy default 20)."""
+        """推理连贯性启发式扣分。"""
         max_score = float(max_score) if max_score > 0 else 20.0
-        scale = max_score / 20.0  # deductions calibrated on 20-point scale
+        scale = max_score / 20.0
         if not steps:
             return max_score, "No steps; default full score."
         ded, reasons = 0.0, []

@@ -93,16 +93,11 @@ DEFAULT_TOOL_FUNCTIONS: dict[str, Callable[..., str]] = {
     name: meta["fn"] for name, meta in BUILTIN_TOOLS.items()
 }
 
-# Keep DEFAULT_TOOL_DEFS in sync with sandbox registry
 DEFAULT_TOOL_DEFS = get_openai_tool_defs(["web_search", "calculator"])
 
 
 class OpenAIReActRunner(BaseAgentRunner):
-    """ReAct loop agent using OpenAI.
-
-    Implements: Thought -> Action -> Observation -> repeat -> Final Answer.
-    Supports both function-calling mode and text-parsing mode.
-    """
+    """OpenAI ReAct；支持 function calling 和文本解析两种模式。"""
 
     def __init__(
         self,
@@ -127,7 +122,7 @@ class OpenAIReActRunner(BaseAgentRunner):
         self.max_tokens = int(max_tokens) if max_tokens else None
         self.provider = str(provider or "openai").lower().strip() or "openai"
 
-        # Build httpx client with proxy support (picks up HTTPS_PROXY / HTTP_PROXY env vars)
+        # 读环境变量里的代理
         _proxy = (
             os.environ.get("HTTPS_PROXY")
             or os.environ.get("https_proxy")
@@ -154,7 +149,7 @@ class OpenAIReActRunner(BaseAgentRunner):
         task_id: str | None = None,
         execution_id: str | None = None,
     ) -> Any:
-        """LLM chat call wrapped with retry / circuit / timeout + AOLS llm.* logs."""
+        """带熔断的 chat.completions 调用。"""
         from app.core.resilience import default_llm_policy, protected_call_async
 
         policy = default_llm_policy(name=f"openai_react:{self.model}")
@@ -261,8 +256,8 @@ class OpenAIReActRunner(BaseAgentRunner):
         *,
         agent_config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Execute ReAct loop. ``agent_config`` is accepted for BaseAgentRunner parity."""
-        _ = agent_config  # model/max_iterations already set on the instance
+        """ReAct 主循环。"""
+        _ = agent_config  # 构造时已注入 model/max_iterations
         tool_defs, tool_map = self._parse_tools(tools or DEFAULT_TOOL_DEFS)
         openai_tools = [t.to_openai_tool() for t in tool_defs]
 
@@ -431,7 +426,7 @@ class OpenAIReActRunner(BaseAgentRunner):
                     status = "failed"
                     error_message = str(exc)
 
-            # Step-level structured log
+            # AOLS 步骤日志
             try:
                 from app.core.observability.aols.emit import (
                     elapsed_ms,
@@ -549,7 +544,7 @@ class OpenAIReActRunner(BaseAgentRunner):
     def _execute_tool(
         self, name: str, args: dict[str, Any], tool_map: dict[str, ToolDefinition]
     ) -> str:
-        """Execute tools via sandbox (timeout + truncation + allowlist)."""
+        """走 tool_sandbox 执行工具。"""
         tool = tool_map.get(name)
         custom_fn = tool.fn if tool and tool.fn else DEFAULT_TOOL_FUNCTIONS.get(name)
         return run_tool_sandboxed(name, args or {}, custom_fn=custom_fn)
@@ -599,7 +594,7 @@ class OpenAIReActRunner(BaseAgentRunner):
 
 
 class OpenAIRunner(BaseAgentRunner):
-    """Legacy single-turn executor. Retained for backward compatibility."""
+    """旧版单轮调用，兼容遗留任务。"""
 
     def __init__(self, api_key: str | None = None, base_url: str | None = None) -> None:
         self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
@@ -611,7 +606,7 @@ class OpenAIRunner(BaseAgentRunner):
         *,
         agent_config: dict[str, Any] | None = None,
     ) -> AgentResult:
-        """Legacy single-turn run — unified BaseAgentRunner signature."""
+        """单轮 run，接口与 ReActRunner 一致。"""
         _ = tools
         cfg = dict(agent_config or {})
         model = cfg.get("model", "gpt-4o")

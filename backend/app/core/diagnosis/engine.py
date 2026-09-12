@@ -1,5 +1,5 @@
 # (c) 2026 AgentFlow-Eval
-"""Failure diagnosis engine — heuristic AI-style root-cause analysis for tasks/traces."""
+"""任务/轨迹故障诊断（规则启发式）。"""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def _step_type(step: dict[str, Any]) -> str:
 
 
 def _analyze_trace_steps(steps: list[dict[str, Any]]) -> dict[str, Any]:
-    """Heuristic analysis of a single trace's ReAct steps."""
+    """分析单条 trace 的步骤特征。"""
     steps = steps or []
     action_count = 0
     tool_names: list[str] = []
@@ -139,7 +139,7 @@ def diagnose_from_traces(
     traces: list[Trace],
     suites: list[TestSuite] | None = None,
 ) -> dict[str, Any]:
-    """Produce a structured diagnosis payload for the Intelligence Center UI."""
+    """生成诊断结果 dict 供前端展示。"""
     suites = suites or []
     analyses = [_analyze_trace_steps(list(t.steps or [])) for t in traces]
     failed = [t for t in traces if getattr(t.status, "value", t.status) == "failed"]
@@ -270,13 +270,13 @@ def diagnose_from_traces(
         )
 
     primary = issues[0]
-    # Prefer non-healthy if present
+    # 优先展示非 healthy 的主问题
     for it in issues:
         if it["issue"] != ISSUE_NONE:
             primary = it
             break
 
-    # Topology for UI (Agent → Tool → API style)
+    # 前端拓扑图节点
     topology_nodes = [
         {"id": "user", "label": "User Request", "status": "ok"},
         {

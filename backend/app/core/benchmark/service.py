@@ -264,7 +264,7 @@ class BenchmarkService:
             )
 
         cfg = dict(agent_config or {"model": "gpt-4o-mini", "temperature": 0})
-        # Bind benchmark scorecard into agent_config for Judge (Phase 3/4)
+        # Bind benchmark scorecard into agent_config for Judge
         meta = dict(bm.meta or {})
         if isinstance(meta.get("scorecard"), dict) and "scorecard" not in cfg:
             cfg["scorecard"] = meta["scorecard"]
@@ -356,7 +356,7 @@ class BenchmarkService:
         return run
 
     async def finalize_run(self, session: AsyncSession, run_id: str) -> BenchmarkRun:
-        """Materialize BenchmarkResult rows from Task traces + metric_scores."""
+        """从 task 的 trace 汇总生成 BenchmarkResult。"""
         r = await session.execute(
             select(BenchmarkRun)
             .options(selectinload(BenchmarkRun.results))
@@ -418,10 +418,10 @@ class BenchmarkService:
                 .all()
             )
             by_name = {m.metric_name: float(m.score) for m in ms_rows}
-            # Prefer scorecard dimensions; fall back to legacy accuracy/quality keys
+            # 优先 scorecard 维度名，兼容旧 accuracy/quality
             accuracy = by_name.get("tool_accuracy") or by_name.get("accuracy")
             quality = by_name.get("answer_correctness") or by_name.get("quality")
-            # Total points (scorecard-style sum), not mean of heterogeneous metrics
+            # scorecard 维度求和，非 heterogeneous 均值
             overall = sum(by_name.values()) if by_name else None
             rt = getattr(tr, "response_time_ms", None)
             latency = float(rt) if rt is not None else None
@@ -583,7 +583,7 @@ class BenchmarkService:
         *,
         score_stable_eps: float = 1.0,
     ) -> dict[str, Any]:
-        """Compute regression / improvement between two runs (summary-based)."""
+        """对比两次 run 的 summary，给出退化/提升结论。"""
         cur = dict(current.summary or {})
         base = dict(baseline.summary or {})
 
@@ -618,7 +618,6 @@ class BenchmarkService:
         rate_c = _f(cur, "success_rate")
         rate_b = _f(base, "success_rate")
 
-        # Verdict on average score
         if score_delta is None:
             verdict = "unknown"
             headline = "缺少可比较的总分，请先 finalize 完成试跑"
@@ -632,7 +631,6 @@ class BenchmarkService:
             verdict = "regressed"
             headline = f"整体下降（Δscore={score_delta:+.2f}）"
 
-        # Highlight largest absolute dimension changes
         highlights: list[dict[str, Any]] = []
         for k, d in dimension_deltas.items():
             if d is None:

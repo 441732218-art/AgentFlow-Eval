@@ -1,5 +1,4 @@
-﻿# AgentFlow-Eval Agent自动化评测工作台 V1.0
-"""Safe built-in tool registry and sandboxed execution."""
+﻿"""Safe built-in tool registry and sandboxed execution."""
 
 from __future__ import annotations
 
@@ -22,12 +21,7 @@ MAX_OUTPUT_CHARS = 4000
 
 
 class ToolSandboxError(Exception):
-    """Raised when tool execution is rejected or fails safely."""
-
-
-# ---------------------------------------------------------------------------
-# Safe built-in implementations (no network, no filesystem, no eval)
-# ---------------------------------------------------------------------------
+    """沙箱拒绝或安全失败。"""
 
 
 def tool_calculator(expression: str = "", **kwargs: Any) -> str:
@@ -102,14 +96,13 @@ def tool_current_datetime(timezone_name: str = "UTC", **kwargs: Any) -> str:
 
 
 def tool_time_query(
-    format: str = "unix",   # noqa: A002 鈥?涓庡墠绔?崗璁?瓧娈靛悕淇濇寔涓?鑷?    **kwargs: Any,
+    format: str = "unix",  # noqa: A002 — 与前端的协议字段名保持一致
+    **kwargs: Any,
 ) -> str:
-    """
-    鑾峰彇褰撳墠鏃堕棿鎴筹紝鏀?寔澶氱?杈撳嚭鏍煎紡銆?
-    涓轰粈涔堣?鍗曠嫭瀹炵幇杩欎釜宸?叿鑰屼笉鏄??鐢?current_datetime锛?    - 璇勬祴鍦烘櫙涓?Agent 缁忓父闇?瑕佽幏鍙?Unix 鏃堕棿鎴冲仛鏁板?杩愮畻
-      (濡傝?绠楁椂闂村樊)锛孖SO 瀛楃?涓蹭笉渚夸簬鐩存帴鍙備笌绠楁湳銆?    - 浣滀负娌欑?宸?叿鐙?珛瀹炵幇锛屼笉渚濊禆 time 妯?潡鐨勫叏灞?鐘舵??      (time.time() 鍦?矙绠卞唴琚?檺鍒讹紝杩欓噷鐢?datetime 鏇夸唬)銆?    - 瀹為檯韪?潙锛?026-04 鏈変釜璇勬祴闆嗕紶鍏?"unix_ms" 鏍煎紡浣?      current_datetime 鍙?繑鍥?ISO 瀛楃?涓诧紝瀵艰嚧 Agent 鍙嶅?閲嶈瘯
-      (娴?垂浜?~2k tokens)銆傚垎寮?鍚庡悇鑷?亴璐ｆ竻鏅般??
-    鍙傛暟锛?        format: "unix" 杩斿洖绉掔骇鏃堕棿鎴筹紝"unix_ms" 杩斿洖姣??锛?iso" 杩斿洖 ISO8601
+    """返回当前时间戳，支持 unix / unix_ms / iso 格式。
+
+    独立实现而非复用 current_datetime：评测中 Agent 常需 Unix 时间戳做算术；
+    2026-04 某评测集传入 unix_ms 时 current_datetime 只返回 ISO，导致反复重试 (~2k tokens)。
     """
     fmt = (format or kwargs.get("fmt") or "unix").strip().lower()
     now = datetime.now(timezone.utc)
@@ -121,8 +114,8 @@ def tool_time_query(
     elif fmt == "iso":
         return now.strftime("%Y-%m-%dT%H:%M:%SZ")
     else:
-        # 鏈?煡鏍煎紡鍥為??涓?unix 鏃堕棿鎴筹紝骞惰?褰曟棩蹇椾緵鍚庣画浼樺寲
-        logger.warning("tool_time_query: 鏈?煡鏍煎紡 '%s'锛屽洖閫?涓?unix", fmt)
+        # 未知格式回退为 unix 时间戳，并记录日志供后续优化
+        logger.warning("tool_time_query: 未知格式 '%s'，回退为 unix", fmt)
         return str(int(now.timestamp()))
 
 
@@ -131,20 +124,16 @@ def tool_retrieve_simulate(
     top_k: int = 3,
     **kwargs: Any,
 ) -> str:
-    """
-    妯?嫙妫?绱??寮虹敓鎴?(RAG) 鐨勬枃妗ｆ?绱?繃绋嬶紝杩斿洖鍋囨暟鎹???
-    璁捐?鑳屾櫙锛?    - 璇勬祴 Sandbox 妯?紡涓嬩笉鍏佽?鐪熷疄缃戠粶璇锋眰鍜屾枃浠惰?鍙栵紝
-      浣嗚瘎娴嬮泦涓?父瑙?"璇锋?绱?浉鍏虫枃妗ｅ苟鍥炵瓟" 绫?prompt銆?      娌?湁杩欎釜宸?叿锛孉gent 浼氬弽澶嶅皾璇曡皟鐢?笉瀛樺湪鐨?search/retrieve API锛?      鏈?缁堣秴鏃舵垨杩斿洖绌虹粨鏋滐紝涓?噸褰卞搷璇勬祴鍑嗙?鎬???    - 杩斿洖缁撴灉鏍煎紡鍙傝?冧簡鐪熷疄鐨勫悜閲忔?绱?API 鍝嶅簲浣?(Elasticsearch / Milvus)锛?      纭?繚 Agent 鑳芥?纭??鏋?"documents" 瀛楁?銆?
-    鍙傛暟锛?        query:  妫?绱?煡璇?瓧绗︿覆
-        top_k:  杩斿洖缁撴灉鏁伴噺 (榛樿? 3锛屾渶澶?10)
+    """Sandbox 内模拟 RAG 检索，返回 mock documents JSON。
 
-    杩斿洖锛?        JSON 瀛楃?涓诧紝鍖呭惈 simulated_documents 鏁扮粍
+    评测集常见「检索文档并回答」类 prompt；无此工具时 Agent 会反复调用不存在的 API。
+    响应格式参考向量检索 API，便于 Agent 解析 documents 字段。
     """
     q = (query or kwargs.get("q") or kwargs.get("text") or "").strip()
     if not q:
         return '{"error": "empty query", "documents": []}'
 
-    # top_k 瀹夊叏闄愬埗锛氶槻 OOM 鍜屾伓鎰忓?鍙傛暟
+    # top_k 安全限制：防 OOM 和恶意大参数
     k = min(max(int(top_k or 3), 1), 10)
 
     if k > 5:
@@ -156,7 +145,7 @@ def tool_retrieve_simulate(
             ensure_ascii=False,
         )
 
-    # 鍩轰簬鏌??鐢熸垚鍋囨枃妗ｅ垪琛?鈥斺??姣忎釜鏂囨?妯?嫙鐪熷疄妫?绱?粨鏋滅殑瀛楁?
+    # 基于查询生成假文档列表，字段结构对齐真实检索结果
     docs = []
     for i in range(k):
         docs.append(
@@ -178,6 +167,7 @@ def tool_retrieve_simulate(
         ensure_ascii=False,
     )
     return result[:MAX_OUTPUT_CHARS]
+
 
 def tool_json_get(data: str = "", path: str = "", **kwargs: Any) -> str:
     """Get a dotted path from a JSON string, e.g. path='user.name'."""
@@ -283,10 +273,10 @@ BUILTIN_TOOLS: dict[str, dict[str, Any]] = {
     "retrieve_simulate": {
         "description": "Simulated vector search returning mock documents (Sandbox safe)",
         "parameters": {
-            "query": {"type": "string", "description": "妫?绱?煡璇?瓧绗︿覆"},
+            "query": {"type": "string", "description": "检索查询字符串"},
             "top_k": {
                 "type": "integer",
-                "description": "杩斿洖缁撴灉鏁伴噺 (榛樿?3锛屾渶澶?0)",
+                "description": "返回结果数量 (默认 3，最大 10)",
                 "default": 3,
             },
         },
@@ -355,7 +345,7 @@ def get_openai_tool_defs(names: list[str] | None = None) -> list[dict[str, Any]]
                 }
             )
             continue
-        # Unknown expected tool: still expose a stub definition for the model
+        # 套件期望的工具未注册，仍给模型一个 stub 定义
         out.append(
             {
                 "type": "function",
@@ -373,7 +363,7 @@ def get_tool_function(name: str) -> Callable[..., str] | None:
     meta = BUILTIN_TOOLS.get(name)
     if meta:
         return meta["fn"]
-    # Plugin-provided tools
+    # 插件工具
     try:
         from app.core.plugins.registry import get_capability_registry
 
@@ -409,7 +399,7 @@ def run_tool_sandboxed(
     """
     args = args or {}
 
-    # Optional pre_tool hooks (plugins); may mutate args via returned dict
+    # 插件 pre_tool hook，可能改写 args
     try:
         from app.core.plugins.base import HOOK_PRE_TOOL
         from app.core.plugins.hooks import get_hook_registry
@@ -457,10 +447,10 @@ def run_tool_sandboxed(
 
     def _call() -> str:
         try:
-            # Prefer kwargs; fall back to single positional if needed
+            # 优先 kwargs，单参数工具走 positional
             return str(fn(**args))
         except TypeError:
-            # Map common single-arg tools
+            # 单参数兜底
             if len(args) == 1:
                 return str(fn(next(iter(args.values()))))
             raise
@@ -504,7 +494,7 @@ def run_tool_sandboxed(
 
     text = str(result)
     if len(text) > MAX_OUTPUT_CHARS:
-        text = text[:MAX_OUTPUT_CHARS] + "鈥?truncated]"
+        text = text[:MAX_OUTPUT_CHARS] + "... [truncated]"
 
     latency = int((_time.monotonic() - _t0) * 1000)
     try:
@@ -536,10 +526,10 @@ def run_tool_sandboxed(
 def resolve_tools_for_suite(expected_tools: list[str] | None) -> list[dict[str, Any]]:
     """Build tool defs for a test suite: expected tools + always-safe defaults."""
     names = list(expected_tools or [])
-    # Always include calculator & web_search as common defaults when empty
+    # 空列表默认给 web_search + calculator
     if not names:
         names = ["web_search", "calculator"]
-    # Deduplicate preserving order
+    # 去重保序
     seen: set[str] = set()
     ordered: list[str] = []
     for n in names:
@@ -547,24 +537,9 @@ def resolve_tools_for_suite(expected_tools: list[str] | None) -> list[dict[str, 
             seen.add(n)
             ordered.append(n)
     defs = get_openai_tool_defs(ordered)
-    # Attach sandbox fn handles for runner map
+    # 挂上 fn 供 runner 调用
     for d in defs:
         name = d["function"]["name"]
         d["fn"] = get_tool_function(name)
     return defs
-
-
-logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Built-in tool implementations
-# ---------------------------------------------------------------------------
-
-def _web_search(query: str, max_results: int = 3) -> str:
-    """Placeholder web search 鈥?returns a stub result."""
-    return json.dumps({
-        "query": query,
-        "results": [f"[stub] Result {i} for '{query}'" for i in range(1, max_results + 1)],
-    })
-
 

@@ -1,9 +1,5 @@
 # (c) 2026 AgentFlow-Eval
-"""Configurable Judge scorecard (Phase 3).
-
-Default card matches historical 40/40/20 dimensions so behavior is unchanged
-when no custom scorecard is supplied.
-"""
+"""Configurable Judge scorecard; default 40/40/20 dimensions when none supplied."""
 
 from __future__ import annotations
 
@@ -13,13 +9,11 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 DimensionMethod = Literal["rule_tool", "lexical", "llm_only", "llm_or_lexical"]
 
-# Weights are points that sum to 100 (same scale as historical DIMENSION_WEIGHTS)
+# 权重满分 100
 DEFAULT_WEIGHT_SUM = 100.0
 
 
 class ScoreDimension(BaseModel):
-    """One scoring dimension."""
-
     key: str = Field(..., min_length=1, max_length=64)
     label: str = Field(default="")
     weight: float = Field(..., gt=0, le=100)
@@ -42,7 +36,7 @@ class Scorecard(BaseModel):
     name: str = "default_agent_eval"
     dimensions: list[ScoreDimension] = Field(min_length=1)
     llm_refine: bool = True
-    # When True, re-scale weights so they sum to 100 if slightly off
+    # 权重总和偏离 100 时自动归一化
     normalize_weights: bool = True
 
     @model_validator(mode="after")
@@ -54,7 +48,6 @@ class Scorecard(BaseModel):
         if total <= 0:
             raise ValueError("weights must sum to a positive value")
         if self.normalize_weights and abs(total - DEFAULT_WEIGHT_SUM) > 0.01:
-            # Normalize to 100
             factor = DEFAULT_WEIGHT_SUM / total
             for d in self.dimensions:
                 d.weight = round(d.weight * factor, 4)
@@ -89,7 +82,7 @@ class Scorecard(BaseModel):
 
 
 def default_scorecard() -> Scorecard:
-    """Historical default: tool 40 + answer 40 + coherence 20."""
+    """默认三维度 40/40/20。"""
     return Scorecard(
         name="default_agent_eval",
         dimensions=[
@@ -119,7 +112,6 @@ def default_scorecard() -> Scorecard:
     )
 
 
-# Module-level singleton for imports that expect DIMENSION_WEIGHTS dict
 DEFAULT_SCORECARD = default_scorecard()
 DIMENSION_WEIGHTS: dict[str, float] = DEFAULT_SCORECARD.weight_map()
 
@@ -132,7 +124,6 @@ def parse_scorecard(data: Any) -> Scorecard:
         return data
     if not isinstance(data, dict):
         return default_scorecard()
-    # Nested forms
     if "dimensions" in data:
         return Scorecard.model_validate(data)
     if "scorecard" in data and isinstance(data["scorecard"], dict):
@@ -167,7 +158,4 @@ def extract_judge_config_from_agent_config(
         out.update(judge)
     if isinstance(cfg.get("scorecard"), dict):
         out["scorecard"] = cfg["scorecard"]
-    elif "scorecard" not in out:
-        # always pass explicit default for cache key clarity optional
-        pass
     return out

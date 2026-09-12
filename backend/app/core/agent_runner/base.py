@@ -1,13 +1,5 @@
 # (c) 2026 AgentFlow-Eval
-"""Agent runner abstract base — unified run() contract (Phase 0).
-
-All runners (OpenAI ReAct, HTTP, plugins) share the same call shape so the
-Celery pipeline never needs TypeError dual-paths:
-
-    await runner.run(query, tools=..., agent_config=...)
-
-Return either a pipeline ``dict`` or :class:`AgentResult` (auto-normalized).
-"""
+"""Agent Runner 抽象基类，统一 run() 契约。"""
 
 from __future__ import annotations
 
@@ -19,11 +11,7 @@ from typing import Any
 
 @dataclass
 class AgentResult:
-    """Normalized agent execution result.
-
-    Prefer :meth:`to_pipeline_dict` when persisting Trace rows. Extra keys
-    (e.g. ``final_answer``, ``runner``) may be present for richer runners.
-    """
+    """Runner 执行结果；落库时用 to_pipeline_dict()。"""
 
     steps: list[dict[str, Any]] = field(default_factory=list)
     total_tokens: int = 0
@@ -36,9 +24,9 @@ class AgentResult:
     runner: str = ""
 
     def to_pipeline_dict(self) -> dict[str, Any]:
-        """Convert to the dict shape expected by Trace persistence."""
+        """转成 Trace 落库用的 dict。"""
         data = asdict(self)
-        # Drop None finished_at noise; keep status fields always.
+        # finished_at 转 iso 字符串
         if data.get("finished_at") is not None and hasattr(
             data["finished_at"], "isoformat"
         ):
@@ -47,15 +35,7 @@ class AgentResult:
 
 
 def ensure_pipeline_result(result: AgentResult | dict[str, Any] | Any) -> dict[str, Any]:
-    """Normalize any runner return value into a pipeline-compatible dict.
-
-    Args:
-        result: AgentResult, plain dict, or object with attributes.
-
-    Returns:
-        Dict with at least ``steps``, ``status``, ``total_tokens``,
-        ``response_time_ms``, ``error_message``.
-    """
+    """Normalize runner output to a pipeline-compatible dict."""
     if isinstance(result, AgentResult):
         return result.to_pipeline_dict()
     if isinstance(result, dict):
@@ -66,7 +46,7 @@ def ensure_pipeline_result(result: AgentResult | dict[str, Any] | Any) -> dict[s
         out.setdefault("status", "success")
         out.setdefault("error_message", "")
         return out
-    # Duck-typed fallback (tests / legacy objects)
+    # 兼容旧对象/测试替身
     return {
         "steps": list(getattr(result, "steps", None) or []),
         "total_tokens": int(getattr(result, "total_tokens", 0) or 0),
@@ -80,12 +60,7 @@ def ensure_pipeline_result(result: AgentResult | dict[str, Any] | Any) -> dict[s
 
 
 class BaseAgentRunner(ABC):
-    """Agent executor abstract base.
-
-    Implementations must provide :meth:`run` with the unified signature below.
-    Returning either ``dict`` or :class:`AgentResult` is accepted; the pipeline
-    always normalizes via :func:`ensure_pipeline_result`.
-    """
+    """子类实现 run()，返回 dict 或 AgentResult。"""
 
     @abstractmethod
     async def run(
@@ -95,14 +70,5 @@ class BaseAgentRunner(ABC):
         *,
         agent_config: dict[str, Any] | None = None,
     ) -> AgentResult | dict[str, Any]:
-        """Execute one agent invocation.
-
-        Args:
-            query: User / suite query string.
-            tools: Optional tool definitions (OpenAI-style dicts) or name list.
-            agent_config: Full task-level agent_config (model, endpoint, etc.).
-
-        Returns:
-            Pipeline dict or AgentResult.
-        """
+        """Execute one agent invocation; return pipeline dict or AgentResult."""
         raise NotImplementedError

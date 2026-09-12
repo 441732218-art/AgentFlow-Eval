@@ -1,5 +1,4 @@
-﻿# AgentFlow-Eval Agent自动化评测工作台 V1.0
-"""Agent runner factory — select OpenAI ReAct, HTTP, or plugin runners."""
+﻿"""Agent runner factory — select OpenAI ReAct, HTTP, or plugin runners."""
 
 from __future__ import annotations
 
@@ -10,48 +9,13 @@ logger = logging.getLogger(__name__)
 
 
 def build_agent_runner(agent_config: dict[str, Any] | None = None) -> Any:
-    """Build an agent runner from task ``agent_config``.
-
-    Supported ``runner`` values:
-      - ``openai`` / ``react`` / omitted — OpenAIReActRunner (default)
-      - ``http`` / ``http_agent`` — HttpAgentRunner
-      - any key registered by an active **plugin** (e.g. ``echo``)
-
-    HTTP config keys (when runner=http) — protocol agentflow.http.v1::
-
-        {
-          "runner": "http",
-          "endpoint_url": "https://agent.example.com/v1/run",
-          "timeout_sec": 60,
-          "headers": {"Authorization": "Bearer ..."},
-          "method": "POST",
-          "context": {"tenant": "acme"},
-          "verify_ssl": true
-        }
-
-    See ``docs/http-agent-protocol.md`` and ``agent_runner.protocol``.
-
-    OpenAI config keys::
-
-        {
-          "runner": "openai",
-          "model": "gpt-4o-mini",
-          "max_iterations": 5
-        }
-
-    Args:
-        agent_config: Task-level agent configuration dict.
-
-    Returns:
-        Runner instance with async ``run(query, tools=...)`` method.
-    """
+    """按 agent_config.runner 构造 openai / http / 插件 Runner。"""
     from app.config import settings as app_settings
 
     cfg = dict(agent_config or {})
     runner_type = str(cfg.get("runner") or cfg.get("type") or "openai").lower().strip()
 
-    # Plugin-registered runners take precedence for non-built-in keys, and can
-    # also override if explicitly registered under the same name.
+    # 插件 runner 优先
     try:
         from app.core.plugins.registry import get_capability_registry
 
