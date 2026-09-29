@@ -129,6 +129,17 @@ export function useUploadTestSuites(taskId: string) {
   });
 }
 
+export function useImportCsv(taskId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => taskApi.importCsv(taskId, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["task", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["task-report", taskId] });
+    },
+  });
+}
+
 export function useArchiveTask() {
   const queryClient = useQueryClient();
   return useMutation({

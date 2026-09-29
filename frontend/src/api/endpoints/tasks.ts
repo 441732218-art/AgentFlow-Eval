@@ -47,6 +47,18 @@ export const taskApi = {
       .then((r) => r.data);
   },
 
+  importCsv: (taskId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiClient
+      .post<CreateTestSuitesResponse & { skipped?: number; filename?: string; message?: string }>(
+        `/tasks/${taskId}/test-suites/import-csv`,
+        form,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      )
+      .then((r) => r.data);
+  },
+
   getReport: (id: string) =>
     apiClient.get<TaskReport>(`/reports/${id}`).then((r) => r.data),
 

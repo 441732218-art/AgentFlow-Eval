@@ -38,7 +38,7 @@ export default function AgentGovernance() {
         agentsApi.listReleaseAssessments(agent.id).catch(() => ({ assessments: [], count: 0 })),
       ]);
       setGateRow(gates.items.find((item) => item.agent_id === agent.id) ?? null);
-      setPolicy(policyData?.policy ?? null);
+      setPolicy(policyData ?? null);
       setAssessments(releaseData.assessments);
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Failed to load governance data");

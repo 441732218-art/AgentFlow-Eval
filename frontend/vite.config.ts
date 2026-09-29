@@ -1,11 +1,32 @@
 /* (c) 2026 AgentFlow-Eval — production Vite config with code-splitting + PWA */
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import { resolve } from "path";
 
+// On Vercel the SPA rewrite answers relative /api/* paths with index.html, so the API must be
+// an absolute https URL on another host; fail the build instead of shipping a broken bundle.
+function assertVercelApiBaseUrl(mode: string) {
+  if (process.env.VERCEL !== "1") return;
+  const value = (loadEnv(mode, process.cwd(), "VITE_").VITE_API_BASE_URL || "").trim();
+  let url: URL | null = null;
+  try {
+    url = new URL(value);
+  } catch {
+    url = null;
+  }
+  const local = url !== null && /^(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(url.hostname);
+  if (!url || url.protocol !== "https:" || local) {
+    throw new Error(
+      `VITE_API_BASE_URL must be an absolute https URL of the backend API on Vercel ` +
+        `(e.g. https://api.example.com/api/v1); got "${value || "<unset>"}".`
+    );
+  }
+}
+
 export default defineConfig(({ mode }) => {
   const isElectron = mode === "electron" || process.env.ELECTRON === "1";
+  assertVercelApiBaseUrl(mode);
 
   return {
     // Relative base for Electron file:// / custom protocol packaging
