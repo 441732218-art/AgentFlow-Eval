@@ -11,6 +11,9 @@ import {
   FundProjectionScreenOutlined,
   CloudServerOutlined,
   ExperimentOutlined,
+  AuditOutlined,
+  RobotOutlined,
+  FundViewOutlined,
 } from "@ant-design/icons";
 import type { MessageKey } from "@/i18n";
 import type { Permission } from "@/auth/permissions";
@@ -113,6 +116,30 @@ export const NAV_ITEMS: Array<{
     group: "evaluate",
   },
   {
+    key: "/agents",
+    icon: <RobotOutlined />,
+    labelKey: "nav.agents",
+    label: "AI Agents",
+    permission: "task:read",
+    group: "operate",
+  },
+  {
+    key: "/intelligence",
+    icon: <FundViewOutlined />,
+    labelKey: "nav.intelligence",
+    label: "Intelligence",
+    permission: "intelligence:read",
+    group: "operate",
+  },
+  {
+    key: "/governance/quality-gates",
+    icon: <AuditOutlined />,
+    labelKey: "nav.qualityGates",
+    label: "质量门治理",
+    permission: "task:read",
+    group: "evaluate",
+  },
+  {
     key: "/billing",
     icon: <AccountBookOutlined />,
     labelKey: "nav.billing",
@@ -147,6 +174,10 @@ export function resolveSelectedKey(pathname: string): string {
   if (pathname.startsWith("/reports")) return "/reports";
   if (pathname.startsWith("/experiments")) return "/experiments";
   if (pathname.startsWith("/benchmarks")) return "/benchmarks";
+  if (pathname.startsWith("/intelligence")) return "/intelligence";
+  if (pathname.startsWith("/agents")) return "/agents";
+  if (pathname.startsWith("/executions")) return "/agents";
+  if (pathname.startsWith("/governance")) return "/governance/quality-gates";
   if (pathname === "/tasks/create") return "/tasks/create";
   if (pathname.startsWith("/tasks")) return "/tasks";
   if (pathname.startsWith("/billing")) return "/billing";

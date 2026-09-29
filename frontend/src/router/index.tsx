@@ -22,6 +22,27 @@ const ExperimentListPage = lazy(() => import("@/pages/experiments/index"));
 const ExperimentCreatePage = lazy(() => import("@/pages/experiments/create"));
 const ExperimentDetailPage = lazy(() => import("@/pages/experiments/detail"));
 const PluginsPage = lazy(() => import("@/pages/plugins/index"));
+const QualityGateDashboardPage = lazy(() => import("@/pages/governance/QualityGateDashboard"));
+const GovernanceEvaluationDetailPage = lazy(
+  () => import("@/pages/governance/EvaluationDetail"),
+);
+const GovernanceBenchmarkDetailPage = lazy(() => import("@/pages/governance/BenchmarkDetail"));
+const GovernanceReleaseDetailPage = lazy(
+  () => import("@/pages/governance/ReleaseAssessmentDetail"),
+);
+const DeploymentPoliciesPage = lazy(() => import("@/pages/governance/DeploymentPolicies"));
+const AgentListPage = lazy(() => import("@/features/agents/pages/AgentList"));
+const AgentDetailLayout = lazy(() => import("@/features/agents/pages/AgentDetail"));
+const AgentVersionsPage = lazy(() => import("@/features/agents/pages/AgentVersions"));
+const AgentDeploymentsPage = lazy(() => import("@/features/agents/pages/AgentDeployments"));
+const AgentExecutionsPage = lazy(() => import("@/features/agents/pages/AgentExecutions"));
+const AgentTracePage = lazy(() => import("@/features/agents/pages/AgentTrace"));
+const AgentEvaluationsPage = lazy(() => import("@/features/agents/pages/AgentEvaluations"));
+const AgentGovernancePage = lazy(() => import("@/features/agents/pages/AgentGovernance"));
+const AgentIntelligenceConsolePage = lazy(
+  () => import("@/features/intelligence/pages/AgentConsolePage"),
+);
+const ExecutionDetailPage = lazy(() => import("@/pages/executions/ExecutionDetail"));
 const NotFoundPage = lazy(() => import("@/pages/NotFound"));
 
 type SkeletonVariant = "dashboard" | "cards" | "detail" | "report" | "form";
@@ -103,6 +124,70 @@ export const router = createBrowserRouter([
       {
         path: "experiments/:id",
         element: withSuspense(ExperimentDetailPage, "detail", "evaluation:read"),
+      },
+      {
+        path: "governance/quality-gates",
+        element: withSuspense(QualityGateDashboardPage, "cards", "task:read"),
+      },
+      {
+        path: "governance/evaluations/:id",
+        element: withSuspense(GovernanceEvaluationDetailPage, "detail", "task:read"),
+      },
+      {
+        path: "governance/benchmarks/:id",
+        element: withSuspense(GovernanceBenchmarkDetailPage, "detail", "task:read"),
+      },
+      {
+        path: "governance/releases/:id",
+        element: withSuspense(GovernanceReleaseDetailPage, "detail", "task:read"),
+      },
+      {
+        path: "governance/policies",
+        element: withSuspense(DeploymentPoliciesPage, "cards", "task:read"),
+      },
+      {
+        path: "agents",
+        element: withSuspense(AgentListPage, "cards", "task:read"),
+      },
+      {
+        path: "intelligence",
+        element: <Navigate to="/agents" replace />,
+      },
+      {
+        path: "intelligence/agents/:agentId/console",
+        element: withSuspense(
+          AgentIntelligenceConsolePage,
+          "detail",
+          "intelligence:read",
+        ),
+      },
+      {
+        path: "agents/:id",
+        element: withSuspense(AgentDetailLayout, "detail", "task:read"),
+        children: [
+          { path: "versions", element: withSuspense(AgentVersionsPage, "detail", "task:read") },
+          {
+            path: "deployments",
+            element: withSuspense(AgentDeploymentsPage, "detail", "task:read"),
+          },
+          {
+            path: "executions",
+            element: withSuspense(AgentExecutionsPage, "detail", "task:read"),
+          },
+          { path: "trace", element: withSuspense(AgentTracePage, "detail", "task:read") },
+          {
+            path: "evaluations",
+            element: withSuspense(AgentEvaluationsPage, "detail", "task:read"),
+          },
+          {
+            path: "governance",
+            element: withSuspense(AgentGovernancePage, "detail", "task:read"),
+          },
+        ],
+      },
+      {
+        path: "executions/:id",
+        element: withSuspense(ExecutionDetailPage, "detail", "task:read"),
       },
       {
         path: "plugins",

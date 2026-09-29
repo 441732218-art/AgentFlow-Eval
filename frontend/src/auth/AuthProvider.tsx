@@ -44,6 +44,8 @@ const OPEN_PERMS = new Set<string>([
   "user:manage",
   "system:config",
   "audit:read",
+  "intelligence:read",
+  "intelligence:update",
 ]);
 
 export function AuthProvider({ children }: { children: ReactNode }) {

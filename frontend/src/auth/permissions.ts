@@ -19,7 +19,9 @@ export type Permission =
   | "billing:read"
   | "billing:manage"
   | "benchmark:create"
-  | "benchmark:read";
+  | "benchmark:read"
+  | "intelligence:read"
+  | "intelligence:update";
 
 /** All known permissions (contract tests can compare with backend). */
 export const ALL_PERMISSIONS: Permission[] = [
@@ -41,6 +43,8 @@ export const ALL_PERMISSIONS: Permission[] = [
   "billing:manage",
   "benchmark:create",
   "benchmark:read",
+  "intelligence:read",
+  "intelligence:update",
 ];
 
 export type MeResponse = {
