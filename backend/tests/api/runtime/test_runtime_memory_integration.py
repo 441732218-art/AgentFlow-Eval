@@ -15,11 +15,11 @@ from app.runtime.memory.hook import MEMORY_DATA_KEY, MemoryHook
 
 @pytest.fixture(autouse=True)
 def _reset_runtime_singleton() -> None:
+    # This module does not install dependency_overrides; only reset the
+    # RuntimeService singleton so memory provider state does not leak.
     reset_runtime_service()
-    app.dependency_overrides.clear()
     yield
     reset_runtime_service()
-    app.dependency_overrides.clear()
 
 
 @pytest.fixture
