@@ -1,7 +1,14 @@
 # (c) 2026 AgentFlow-Eval
+"""Billing period rollover unit tests.
+
+E15g-1: UUID temp SQLite only; no fixed ./test_rollover.db; unlink only
+files this fixture creates.
+"""
+
 from __future__ import annotations
 
-import os
+from pathlib import Path
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -10,24 +17,35 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.billing.service import get_billing_service
 from app.models.base import Base
 
-TEST_DB = "sqlite+aiosqlite:///./test_rollover.db"
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 @pytest_asyncio.fixture
 async def session():
-    engine = create_async_engine(TEST_DB, echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    async with factory() as s:
-        yield s
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()
+    db_path = _BACKEND_ROOT / f"test_rollover_{uuid4().hex}.db"
+    assert db_path.name != "test_rollover.db"
+    assert "agentflow_eval.db" not in db_path.name
+    owned = not db_path.exists()
+    test_db_url = f"sqlite+aiosqlite:///{db_path.as_posix()}"
+
+    engine = create_async_engine(test_db_url, echo=False)
     try:
-        os.remove("./test_rollover.db")
-    except OSError:
-        pass
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        factory = async_sessionmaker(
+            engine, class_=AsyncSession, expire_on_commit=False
+        )
+        async with factory() as s:
+            yield s
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+    finally:
+        await engine.dispose()
+        if owned and db_path.exists():
+            try:
+                db_path.unlink()
+            except OSError:
+                pass
 
 
 @pytest.mark.asyncio

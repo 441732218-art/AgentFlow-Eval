@@ -1,9 +1,15 @@
 # (c) 2026 AgentFlow-Eval
-"""Slow-task memory buffer + durable listing."""
+"""Slow-task memory buffer + durable listing.
+
+E15g-1: UUID temp SQLite; monkeypatch async_session_factory so
+list_slow_tasks_db cannot touch agentflow_eval.db; no fixed
+./test_slow_tasks.db; unlink only files this fixture creates.
+"""
 
 from __future__ import annotations
 
-import os
+from pathlib import Path
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -18,7 +24,7 @@ from app.core.observability.slow_tasks import (
 from app.models.base import Base
 from app.models.slow_task import SlowTaskEvent
 
-TEST_DB = "sqlite+aiosqlite:///./test_slow_tasks.db"
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 @pytest.fixture(autouse=True)
@@ -62,20 +68,34 @@ def test_record_to_memory_with_actor_trace():
 
 @pytest_asyncio.fixture
 async def db_engine(monkeypatch):
-    engine = create_async_engine(TEST_DB, echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    db_path = _BACKEND_ROOT / f"test_slow_tasks_{uuid4().hex}.db"
+    assert db_path.name != "test_slow_tasks.db"
+    assert "agentflow_eval.db" not in db_path.name
+    owned = not db_path.exists()
+    test_db_url = f"sqlite+aiosqlite:///{db_path.as_posix()}"
 
-    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    monkeypatch.setattr("app.core.dependencies.async_session_factory", factory)
-    yield factory
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()
+    engine = create_async_engine(test_db_url, echo=False)
     try:
-        os.remove("./test_slow_tasks.db")
-    except OSError:
-        pass
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        factory = async_sessionmaker(
+            engine, class_=AsyncSession, expire_on_commit=False
+        )
+        # list_slow_tasks_db imports async_session_factory from dependencies
+        monkeypatch.setattr(
+            "app.core.dependencies.async_session_factory", factory
+        )
+        yield factory
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+    finally:
+        await engine.dispose()
+        if owned and db_path.exists():
+            try:
+                db_path.unlink()
+            except OSError:
+                pass
 
 
 @pytest.mark.asyncio
