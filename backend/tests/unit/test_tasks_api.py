@@ -3,25 +3,52 @@
 
 from __future__ import annotations
 
-import os
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.config import settings
+from app.core import dependencies as deps
 from app.core.dependencies import get_db
 from app.main import app
 from app.models.base import Base
 from app.models.task import Task, TaskStatus
 
-TEST_DB = "sqlite+aiosqlite:///./test_tasks_unit.db"
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 @pytest_asyncio.fixture
-async def api_client():
-    engine = create_async_engine(TEST_DB, echo=False)
+async def api_env():
+    """ASGI client bound to a unique temporary SQLite DB (E13b isolation).
+
+    After E13a index dedupe, Base.metadata.create_all is safe on SQLite.
+    Does not mutate Base.metadata indexes; does not use fixed test_tasks_unit.db.
+    Also rebinds deps.engine / async_session_factory so accidental default-engine
+    use cannot create agentflow_eval.db (httpx 0.27 ASGITransport has no lifespan).
+    """
+    db_path = _BACKEND_ROOT / f"test_tasks_api_{uuid4().hex}.db"
+    test_db_url = f"sqlite+aiosqlite:///{db_path.as_posix()}"
+
+    assert settings.DATABASE_URL != test_db_url
+    assert "agentflow_eval.db" not in test_db_url
+    assert "test_tasks_unit.db" not in test_db_url
+    assert db_path.name.startswith("test_tasks_api_")
+
+    index_fingerprint_before = {
+        t.name: sorted(i.name or "" for i in t.indexes)
+        for t in Base.metadata.tables.values()
+    }
+
+    if db_path.exists():
+        db_path.unlink()
+
+    engine = create_async_engine(test_db_url, echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -36,19 +63,64 @@ async def api_client():
                 await session.rollback()
                 raise
 
+    from app.core.observability.aols.sinks import db as aols_db_sink
+
+    prev_engine = deps.engine
+    prev_factory = deps.async_session_factory
+    prev_db_url = settings.DATABASE_URL
+    prev_log_db_sink = bool(getattr(settings, "LOG_DB_SINK", True))
+    # This fixture owns only get_db; snapshot before install (E15h-2).
+    had_get_db = get_db in app.dependency_overrides
+    prev_get_db = app.dependency_overrides.get(get_db)
+    deps.engine = engine
+    deps.async_session_factory = factory
+    # Prevent AOLS sync sink / atexit flush from creating agentflow_eval.db
+    settings.DATABASE_URL = test_db_url
+    settings.LOG_DB_SINK = False
     app.dependency_overrides[get_db] = _override
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client
-
-    app.dependency_overrides.clear()
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()
     try:
-        os.remove("./test_tasks_unit.db")
-    except OSError:
-        pass
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            yield SimpleNamespace(
+                client=client,
+                db_path=db_path,
+                db_url=test_db_url,
+                factory=factory,
+            )
+    finally:
+        if had_get_db:
+            app.dependency_overrides[get_db] = prev_get_db
+        else:
+            app.dependency_overrides.pop(get_db, None)
+        try:
+            with aols_db_sink._lock:
+                aols_db_sink._queue.clear()
+        except Exception:
+            pass
+        settings.LOG_DB_SINK = prev_log_db_sink
+        settings.DATABASE_URL = prev_db_url
+        deps.engine = prev_engine
+        deps.async_session_factory = prev_factory
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+        await engine.dispose()
+        try:
+            if db_path.exists():
+                db_path.unlink()
+        except OSError:
+            pass
+        index_fingerprint_after = {
+            t.name: sorted(i.name or "" for i in t.indexes)
+            for t in Base.metadata.tables.values()
+        }
+        assert index_fingerprint_before == index_fingerprint_after, (
+            "Fixture must not mutate Base.metadata indexes"
+        )
+
+
+@pytest_asyncio.fixture
+async def api_client(api_env):
+    return api_env.client
 
 
 @pytest.mark.asyncio
@@ -119,34 +191,31 @@ async def test_archive_requires_terminal(api_client):
 
 
 @pytest.mark.asyncio
-async def test_archive_success(api_client):
-    """Directly mark completed then archive."""
-    engine = create_async_engine(TEST_DB, echo=False)
-    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-    r = await api_client.post(
+async def test_archive_success(api_env):
+    """Directly mark completed then archive (same temp DB as api_client)."""
+    client = api_env.client
+    r = await client.post(
         "/api/v1/tasks",
         json={"name": "done", "description": "", "agent_config": {}},
     )
     tid = r.json()["id"]
 
-    async with factory() as session:
+    async with api_env.factory() as session:
         task = await session.get(Task, tid)
         task.status = TaskStatus.COMPLETED
         await session.commit()
-    await engine.dispose()
 
-    a = await api_client.post(f"/api/v1/tasks/{tid}/archive")
+    a = await client.post(f"/api/v1/tasks/{tid}/archive")
     assert a.status_code == 200, a.text
     assert a.json()["is_archived"] is True
 
     # Hidden from default list
-    lst = await api_client.get("/api/v1/tasks")
+    lst = await client.get("/api/v1/tasks")
     ids = [i["id"] for i in lst.json()["items"]]
     assert tid not in ids
 
     # Visible with include_archived
-    lst2 = await api_client.get("/api/v1/tasks", params={"include_archived": True})
+    lst2 = await client.get("/api/v1/tasks", params={"include_archived": True})
     ids2 = [i["id"] for i in lst2.json()["items"]]
     assert tid in ids2
 
