@@ -1,7 +1,13 @@
 # (c) 2026 AgentFlow-Eval
-"""Phase 3 AOLS emit helpers — loop detection, step mapping, tool/llm events."""
+"""Phase 3 AOLS emit helpers — loop detection, step mapping, tool/llm events.
+
+E15: module-scoped AOLS queue snapshot/restore so emit→enqueue side effects
+do not survive to process-exit atexit flush (agentflow_eval.db).
+"""
 
 from __future__ import annotations
+
+import pytest
 
 from app.core.observability.aols.emit import (
     FINAL_ANSWER,
@@ -18,6 +24,25 @@ from app.core.observability.aols.emit import (
     worker_meta,
 )
 from app.core.observability.aols.events import LogEvent
+from app.core.observability.aols.sinks import db as aols_db_sink
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _isolate_aols_queue():
+    """Option A: lock + snapshot/clear before tests; clear/restore after.
+
+    Keeps real emit→enqueue during tests; discards this module's queued rows
+    so atexit `_atexit_flush` does not open the default SQLite URL.
+    """
+    with aols_db_sink._lock:
+        prev_queue = list(aols_db_sink._queue)
+        aols_db_sink._queue.clear()
+    try:
+        yield
+    finally:
+        with aols_db_sink._lock:
+            aols_db_sink._queue.clear()
+            aols_db_sink._queue.extend(prev_queue)
 
 
 class TestMapStepType:
