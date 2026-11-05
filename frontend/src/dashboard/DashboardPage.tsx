@@ -262,7 +262,11 @@ export default function DashboardPage() {
         <Col xs={12} sm={8} lg={4}>
           <MetricCard
             label="AI Health"
-            value={data ? `${data.health.toFixed(1)}%` : "—"}
+            value={
+              data?.health != null && Number.isFinite(Number(data.health))
+                ? `${Number(data.health).toFixed(1)}%`
+                : "—"
+            }
             tone="cyan"
             hint="成功率 / 延迟 / 故障压力 · ORM"
             icon={<DashboardOutlined />}
