@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -12,6 +12,9 @@ from app.core.runtime.agent import Agent
 from app.core.runtime.registry import AgentRegistry
 from app.core.runtime.runtime import AgentRuntime
 from app.main import app
+
+# Keys this module installs into app.dependency_overrides.
+_OVERRIDE_KEYS = (get_runtime_registry, get_runtime)
 
 
 class _FakeAdapter:
@@ -32,12 +35,35 @@ class _FakeAdapter:
         }
 
 
+def _snapshot_owned_overrides() -> dict[Callable[..., Any], tuple[bool, Any]]:
+    snap: dict[Callable[..., Any], tuple[bool, Any]] = {}
+    for key in _OVERRIDE_KEYS:
+        if key in app.dependency_overrides:
+            snap[key] = (True, app.dependency_overrides[key])
+        else:
+            snap[key] = (False, None)
+    return snap
+
+
+def _restore_owned_overrides(
+    snap: dict[Callable[..., Any], tuple[bool, Any]],
+) -> None:
+    for key, (had, previous) in snap.items():
+        if had:
+            app.dependency_overrides[key] = previous
+        else:
+            app.dependency_overrides.pop(key, None)
+
+
 @pytest.fixture
 async def client():
+    snap = _snapshot_owned_overrides()
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
-    app.dependency_overrides.clear()
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
+    finally:
+        _restore_owned_overrides(snap)
 
 
 @pytest.mark.asyncio

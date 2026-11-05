@@ -4,6 +4,9 @@
 import pytest
 from httpx import AsyncClient
 
+from app.config import settings
+from app.models.task import TaskStatus
+
 
 class TestEndToEnd:
     # Health check
@@ -13,7 +16,8 @@ class TestEndToEnd:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] in ("healthy", "degraded")
-        assert data["app"] == "AgentFlow-Eval"
+        # /health returns settings.APP_NAME (app.config)
+        assert data["app"] == settings.APP_NAME
 
     # Create task
     @pytest.mark.asyncio
@@ -27,9 +31,12 @@ class TestEndToEnd:
         assert resp.status_code == 201, resp.text
         data = resp.json()
         assert data["name"] == "Customer Support Eval"
-        assert data["status"] == "pending"
-        assert data["test_suite_count"] == 0
+        assert "id" in data and data["id"]
+        # Capture id before further asserts so downstream tests are not starved
         pytest.task_id = data["id"]
+        # create_task sets TaskStatus.CREATED (== "created")
+        assert data["status"] == TaskStatus.CREATED.value
+        assert data["test_suite_count"] == 0
 
     # List tasks
     @pytest.mark.asyncio
@@ -103,6 +110,7 @@ class TestEndToEnd:
     @pytest.mark.asyncio
     async def test_08_verify_deleted(self, client: AsyncClient):
         task_id = getattr(pytest, "task_id", None)
+        assert task_id is not None
         resp = await client.get("/api/v1/tasks/" + task_id)
         assert resp.status_code == 404
 

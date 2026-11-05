@@ -3,13 +3,21 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, AsyncIterator
 from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from starlette.requests import Request
 
+from app.config import settings
+from app.core import dependencies as deps
+from app.core.dependencies import get_db
 from app.core.rbac import (
     CROSS_TENANT_ROLES,
     ForbiddenError,
@@ -27,6 +35,93 @@ from app.core.rbac import (
 from app.core.security import AuthIdentity, authenticate_api_key, parse_api_key_entries
 from app.main import app
 from app.utils.exceptions import NotFoundError
+
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+@asynccontextmanager
+async def _aols_sink_disabled() -> AsyncIterator[None]:
+    """Disable AOLS DB sink for ASGI calls that do not override get_db (E15a)."""
+    from app.core.observability.aols.sinks import db as aols_db_sink
+
+    prev_sink = bool(getattr(settings, "LOG_DB_SINK", True))
+    settings.LOG_DB_SINK = False
+    try:
+        yield
+    finally:
+        try:
+            with aols_db_sink._lock:
+                aols_db_sink._queue.clear()
+        except Exception:
+            pass
+        settings.LOG_DB_SINK = prev_sink
+
+
+@asynccontextmanager
+async def _isolated_task_post_db() -> AsyncIterator[None]:
+    """UUID temp SQLite + get_db override for POST /tasks (E15a).
+
+    FastAPI resolves Depends(get_db) before require_permission raises 403, so the
+    default async_session_factory would open agentflow_eval.db without this.
+    Restores only the get_db override entry (does not clear all overrides).
+    """
+    from app.core.observability.aols.sinks import db as aols_db_sink
+
+    db_path = _BACKEND_ROOT / f"test_rbac_e15a_{uuid4().hex}.db"
+    test_db_url = f"sqlite+aiosqlite:///{db_path.as_posix()}"
+    assert settings.DATABASE_URL != test_db_url
+    assert "agentflow_eval.db" not in test_db_url
+    assert "test_tasks_unit.db" not in test_db_url
+
+    if db_path.exists():
+        db_path.unlink()
+
+    engine = create_async_engine(test_db_url, echo=False)
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async def _override() -> Any:
+        async with factory() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+
+    had_get_db = get_db in app.dependency_overrides
+    prev_get_db = app.dependency_overrides.get(get_db)
+    prev_engine = deps.engine
+    prev_factory = deps.async_session_factory
+    prev_db_url = settings.DATABASE_URL
+    prev_sink = bool(getattr(settings, "LOG_DB_SINK", True))
+
+    deps.engine = engine
+    deps.async_session_factory = factory
+    settings.DATABASE_URL = test_db_url
+    settings.LOG_DB_SINK = False
+    app.dependency_overrides[get_db] = _override
+    try:
+        yield
+    finally:
+        if had_get_db:
+            app.dependency_overrides[get_db] = prev_get_db
+        else:
+            app.dependency_overrides.pop(get_db, None)
+        try:
+            with aols_db_sink._lock:
+                aols_db_sink._queue.clear()
+        except Exception:
+            pass
+        settings.LOG_DB_SINK = prev_sink
+        settings.DATABASE_URL = prev_db_url
+        deps.engine = prev_engine
+        deps.async_session_factory = prev_factory
+        await engine.dispose()
+        try:
+            if db_path.exists():
+                db_path.unlink()
+        except OSError:
+            pass
 
 
 class TestRolePermissionMatrix:
@@ -233,74 +328,80 @@ class TestRequirePermissionDecorator:
 class TestApiIntegration:
     @pytest.mark.asyncio
     async def test_guest_cannot_create_task(self) -> None:
-        transport = ASGITransport(app=app)
-        with (
-            patch("app.core.middleware.settings") as ms,
-            patch("app.core.security.settings") as ss,
-            patch("app.core.rbac.settings") as rs,
-        ):
-            for s in (ms, ss, rs):
-                s.AUTH_ENABLED = True
-                s.RBAC_ENABLED = True
-                s.API_KEYS = "gk:guest1:guest"
-                s.ADMIN_ACTORS = "admin"
-                s.ACTOR_ROLES = ""
-                s.DEFAULT_ROLE = "user"
-            async with AsyncClient(transport=transport, base_url="http://test") as c:
-                denied = await c.post(
-                    "/api/v1/tasks",
-                    json={"name": "x", "description": "", "agent_config": {}},
-                    headers={"X-API-Key": "gk"},
-                )
+        # POST /tasks Declares Depends(get_db); FastAPI opens a session before 403.
+        async with _isolated_task_post_db():
+            transport = ASGITransport(app=app)
+            with (
+                patch("app.core.middleware.settings") as ms,
+                patch("app.core.security.settings") as ss,
+                patch("app.core.rbac.settings") as rs,
+            ):
+                for s in (ms, ss, rs):
+                    s.AUTH_ENABLED = True
+                    s.RBAC_ENABLED = True
+                    s.API_KEYS = "gk:guest1:guest"
+                    s.ADMIN_ACTORS = "admin"
+                    s.ACTOR_ROLES = ""
+                    s.DEFAULT_ROLE = "user"
+                async with AsyncClient(transport=transport, base_url="http://test") as c:
+                    denied = await c.post(
+                        "/api/v1/tasks",
+                        json={"name": "x", "description": "", "agent_config": {}},
+                        headers={"X-API-Key": "gk"},
+                    )
         assert denied.status_code == 403
 
     @pytest.mark.asyncio
     async def test_user_can_list_tools(self) -> None:
-        transport = ASGITransport(app=app)
-        with (
-            patch("app.core.middleware.settings") as ms,
-            patch("app.core.security.settings") as ss,
-            patch("app.core.rbac.settings") as rs,
-        ):
-            for s in (ms, ss, rs):
-                s.AUTH_ENABLED = True
-                s.RBAC_ENABLED = True
-                s.API_KEYS = "uk:alice:user"
-                s.ADMIN_ACTORS = "admin"
-                s.ACTOR_ROLES = ""
-                s.DEFAULT_ROLE = "user"
-            async with AsyncClient(transport=transport, base_url="http://test") as c:
-                ok = await c.get("/api/v1/tools", headers={"X-API-Key": "uk"})
+        # /tools has no get_db; disable AOLS sink so logging cannot touch default DB.
+        async with _aols_sink_disabled():
+            transport = ASGITransport(app=app)
+            with (
+                patch("app.core.middleware.settings") as ms,
+                patch("app.core.security.settings") as ss,
+                patch("app.core.rbac.settings") as rs,
+            ):
+                for s in (ms, ss, rs):
+                    s.AUTH_ENABLED = True
+                    s.RBAC_ENABLED = True
+                    s.API_KEYS = "uk:alice:user"
+                    s.ADMIN_ACTORS = "admin"
+                    s.ACTOR_ROLES = ""
+                    s.DEFAULT_ROLE = "user"
+                async with AsyncClient(transport=transport, base_url="http://test") as c:
+                    ok = await c.get("/api/v1/tools", headers={"X-API-Key": "uk"})
         assert ok.status_code == 200
 
     @pytest.mark.asyncio
     async def test_guest_cannot_probe_tool(self) -> None:
-        transport = ASGITransport(app=app)
-        with (
-            patch("app.core.middleware.settings") as ms,
-            patch("app.core.security.settings") as ss,
-            patch("app.core.rbac.settings") as rs,
-        ):
-            for s in (ms, ss, rs):
-                s.AUTH_ENABLED = True
-                s.RBAC_ENABLED = True
-                s.API_KEYS = "gk:guest1:guest"
-                s.ADMIN_ACTORS = "admin"
-                s.ACTOR_ROLES = ""
-                s.DEFAULT_ROLE = "user"
-            async with AsyncClient(transport=transport, base_url="http://test") as c:
-                r = await c.post(
-                    "/api/v1/tools/probe",
-                    json={"name": "calculator", "args": {"expression": "1+1"}},
-                    headers={"X-API-Key": "gk"},
-                )
+        # /tools/probe has no get_db; AOLS sink disabled for default-DB safety.
+        async with _aols_sink_disabled():
+            transport = ASGITransport(app=app)
+            with (
+                patch("app.core.middleware.settings") as ms,
+                patch("app.core.security.settings") as ss,
+                patch("app.core.rbac.settings") as rs,
+            ):
+                for s in (ms, ss, rs):
+                    s.AUTH_ENABLED = True
+                    s.RBAC_ENABLED = True
+                    s.API_KEYS = "gk:guest1:guest"
+                    s.ADMIN_ACTORS = "admin"
+                    s.ACTOR_ROLES = ""
+                    s.DEFAULT_ROLE = "user"
+                async with AsyncClient(transport=transport, base_url="http://test") as c:
+                    r = await c.post(
+                        "/api/v1/tools/probe",
+                        json={"name": "calculator", "args": {"expression": "1+1"}},
+                        headers={"X-API-Key": "gk"},
+                    )
         assert r.status_code == 403
 
     @pytest.mark.asyncio
     async def test_auth_off_skips_rbac(self) -> None:
-        """When AUTH_ENABLED=false, create task works without API key."""
-        transport = ASGITransport(app=app)
-        # Use real settings (AUTH typically false in test env) + override DB not needed for tools
-        async with AsyncClient(transport=transport, base_url="http://test") as c:
-            r = await c.get("/api/v1/tools")
+        """When AUTH_ENABLED=false, tools list works without API key."""
+        async with _aols_sink_disabled():
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as c:
+                r = await c.get("/api/v1/tools")
         assert r.status_code == 200

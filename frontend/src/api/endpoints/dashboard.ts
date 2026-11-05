@@ -60,6 +60,16 @@ export type DashboardOverview = {
   window_days: number;
 };
 
+function assertDashboardOverview(data: unknown): DashboardOverview {
+  // Axios may return HTML (SPA rewrite / wrong API base) as a 200 string when JSON.parse fails.
+  if (!data || typeof data !== "object") {
+    throw new Error(
+      "驾驶舱数据无效：未收到 JSON overview（请检查 API 地址，避免命中前端静态托管）"
+    );
+  }
+  return data as DashboardOverview;
+}
+
 export const dashboardApi = {
   stats: () =>
     apiClient.get<DashboardStats>("/dashboard/stats").then((r) => r.data),
@@ -67,5 +77,5 @@ export const dashboardApi = {
   overview: (days = 7) =>
     apiClient
       .get<DashboardOverview>("/dashboard", { params: { days } })
-      .then((r) => r.data),
+      .then((r) => assertDashboardOverview(r.data)),
 };

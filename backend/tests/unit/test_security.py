@@ -1,12 +1,43 @@
 # (c) 2026 AgentFlow-Eval
-"""Tests for API key auth helpers and middleware behavior."""
+"""Tests for API key auth helpers and middleware behavior.
+
+E15f: /health calls ``_probe_services`` → module-level ``dependencies.engine``
+(default agentflow_eval.db). Mock the probe and disable AOLS DB sink so auth
+middleware tests keep composite /health coverage without opening the default DB.
+"""
+
+from __future__ import annotations
+
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from unittest.mock import patch
 
+from app.config import settings
 from app.core.security import authenticate_api_key, parse_api_keys
 from app.main import app
+
+_FAKE_SERVICES = {"database": "ok", "redis": "skipped (lite/eager)"}
+
+
+@pytest.fixture(autouse=True)
+def _isolate_health_probe():
+    """Mock service probe + disable AOLS sink (E15f / E15c pattern)."""
+    from app.core.observability.aols.sinks import db as aols_db_sink
+
+    prev_sink = bool(getattr(settings, "LOG_DB_SINK", True))
+    settings.LOG_DB_SINK = False
+    probe = AsyncMock(return_value=dict(_FAKE_SERVICES))
+    try:
+        with patch("app.main._probe_services", probe):
+            yield
+    finally:
+        try:
+            with aols_db_sink._lock:
+                aols_db_sink._queue.clear()
+        except Exception:
+            pass
+        settings.LOG_DB_SINK = prev_sink
 
 
 class TestSecurityHelpers:

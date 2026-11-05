@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -23,14 +24,30 @@ FORBIDDEN_RESPONSE_KEYS = {
     "knowledge",
 }
 
+# Key this module installs into app.dependency_overrides.
+_OWNED_OVERRIDE_KEY = get_runtime_service
+
+
+def _snapshot_owned_override() -> tuple[bool, Any]:
+    if _OWNED_OVERRIDE_KEY in app.dependency_overrides:
+        return True, app.dependency_overrides[_OWNED_OVERRIDE_KEY]
+    return False, None
+
+
+def _restore_owned_override(had: bool, previous: Any) -> None:
+    if had:
+        app.dependency_overrides[_OWNED_OVERRIDE_KEY] = previous
+    else:
+        app.dependency_overrides.pop(_OWNED_OVERRIDE_KEY, None)
+
 
 @pytest.fixture(autouse=True)
 def _reset_runtime_singleton() -> None:
     reset_runtime_service()
-    app.dependency_overrides.clear()
+    had, previous = _snapshot_owned_override()
     yield
     reset_runtime_service()
-    app.dependency_overrides.clear()
+    _restore_owned_override(had, previous)
 
 
 @pytest.fixture

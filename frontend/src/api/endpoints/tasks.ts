@@ -9,6 +9,15 @@ import type {
   CreateTestSuiteInput,
 } from "@/types";
 
+/** Response from POST /tasks/{id}/test-suites/import-csv */
+export interface ImportCsvTestSuitesResponse {
+  task_id: string;
+  created: number;
+  skipped: number;
+  filename: string | null;
+  message: string;
+}
+
 export const taskApi = {
   list: (params?: {
     page?: number;
@@ -43,6 +52,18 @@ export const taskApi = {
         `/tasks/${taskId}/test-suites/upload`,
         form,
         { headers: { "Content-Type": "multipart/form-data" } }
+      )
+      .then((r) => r.data);
+  },
+
+  importCsvTestSuites: (taskId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    // Let the client/runtime set multipart Content-Type + boundary (do not hardcode).
+    return apiClient
+      .post<ImportCsvTestSuitesResponse>(
+        `/tasks/${taskId}/test-suites/import-csv`,
+        form
       )
       .then((r) => r.data);
   },
