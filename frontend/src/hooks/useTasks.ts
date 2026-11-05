@@ -4,7 +4,7 @@ import {
   useQueryClient,
   keepPreviousData,
 } from "@tanstack/react-query";
-import { taskApi } from "@/api/endpoints/tasks";
+import { taskApi, type ImportCsvTestSuitesResponse } from "@/api/endpoints/tasks";
 import { dashboardApi } from "@/api/endpoints/dashboard";
 import type { TaskListParams, CreateTestSuiteInput, Task, TaskReport } from "@/types";
 import { QUERY_STALE } from "@/lib/query-client";
@@ -122,6 +122,17 @@ export function useUploadTestSuites(taskId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (file: File) => taskApi.uploadTestSuites(taskId, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["task", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["task-report", taskId] });
+    },
+  });
+}
+
+export function useImportCsv(taskId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<ImportCsvTestSuitesResponse, Error, File>({
+    mutationFn: (file: File) => taskApi.importCsvTestSuites(taskId, file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["task", taskId] });
       queryClient.invalidateQueries({ queryKey: ["task-report", taskId] });
